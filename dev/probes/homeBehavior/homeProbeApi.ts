@@ -6,6 +6,7 @@ import type { HomeViewTab, SongResult } from '../../../src/types';
 import { setCurrentSong, setPlayerState, setPlayQueue } from '../../../src/stores/usePlaybackStore';
 import { usePlaybackEntryViewStore } from '../../../src/stores/usePlaybackEntryViewStore';
 import { useAudioSettingsStore } from '../../../src/stores/useAudioSettingsStore';
+import { useSettingsModalStore } from '../../../src/stores/useSettingsModalStore';
 import { setProbeStageTools } from './probeStageTools';
 import { PlayerState } from '../../../src/types';
 import DesktopGrid3DSurface from '../../../src/library/suites/grid/home/DesktopGrid3DSurface';
@@ -296,6 +297,11 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
         volume: () => {
             const { volume, isMuted } = useAudioSettingsStore.getState();
             return { volume, isMuted };
+        },
+        // @fork 本地魔改版：墙面工具面板底部那颗齿轮写的状态（设置窗开没开、落在哪个 tab / 子页）。
+        settingsState: () => {
+            const { isOpen, initialTab, initialSubview } = useSettingsModalStore.getState().settingsModalState;
+            return { isOpen, initialTab, initialSubview: initialSubview ?? null };
         },
         paletteRequest: () => {
             const { seq, kind } = useAppViewStore.getState().commandPaletteRequest;

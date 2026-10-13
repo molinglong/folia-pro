@@ -1,5 +1,5 @@
 import React, { useState, type MouseEvent } from 'react';
-import { Check, Maximize2, MoreHorizontal, Pause, Play, Plus } from 'lucide-react';
+import { Check, Maximize2, MoreHorizontal, PanelsTopLeft, Pause, Play, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { WallTitle } from '../../../components/wall/WallTitle';
 import { PlayerState } from '../../../types';
@@ -18,6 +18,9 @@ import type { BravaisEntryMenuItem } from './bravaisSeamModels';
 // 实测反馈 fb3：正在播放的那张卡上，播放键变成暂停 / 继续（宿主的播放开关，同一个纯图标按钮；Enter 同样），旁边多一个
 // 同族的纯图标「进入」按钮——按「播放后进入的视图」去 Lattice 或播放页（「留在原处」时去播放页）。只有展开的这一张订阅
 // 播放状态与那项设置（离散值，暂停 / 继续时才重渲染）。
+// @fork 本地魔改版：动作条里还有一颗固定的「播放并进入 Lattice」（见下方 open-lattice），第五刀起只在正在播放的卡上画，
+// 2026-10-13 用户实测两轮改成：展开的聚焦卡一律画，且它带这首一起去墙（不是当前曲时先播它）。它自己不看播放状态，
+// 因此不订阅上面那两个 store；"是不是当前曲"的判断在宿主的 handler 里（useBravaisInteractions 的 openLattice）。
 
 export type BravaisFocusCardActions = {
     play: (slotKey: string) => void;
@@ -35,6 +38,8 @@ export type BravaisFocusCardActions = {
     togglesCurrent: boolean;
     /** fb3：进入播放视图（宿主给了才有）；只画在正在播放的那张卡上。 */
     enterPlayback?: () => void;
+    /** @fork 本地魔改版：「播放并进入 Lattice」海报墙（宿主给了 onOpenLattice 才有）；展开的聚焦卡一律画（2026-10-13）。 */
+    openLattice?: (slotKey: string) => void;
 };
 
 type BravaisFocusCardBodyProps = {
@@ -67,6 +72,8 @@ const BravaisFocusCardBody: React.FC<BravaisFocusCardBodyProps> = ({ slotKey, it
         ? t(isPlaying ? 'libraryBravais.pausePlayback' : 'libraryBravais.resumePlayback')
         : t('libraryBravais.playNow');
     const enterLabel = t(entersLattice ? 'libraryBravais.enterLattice' : 'libraryBravais.enterPlayer');
+    // @fork 本地魔改版：紧挨 ⤢ 的那颗「播放并进入 Lattice」的文案。⤢ 的去向跟着「播放后进入的视图」设置，这颗不看设置。
+    const latticeLabel = t('libraryBravais.playInLatticeWall');
     return (
         <>
         {menu.length > 0 && (
@@ -157,6 +164,24 @@ const BravaisFocusCardBody: React.FC<BravaisFocusCardBodyProps> = ({ slotKey, it
                         onClick={handled(() => actions.enterPlayback?.())}
                     >
                         <Maximize2 aria-hidden />
+                    </button>
+                )}
+                {/* @fork 本地魔改版：⤢ 旁边再加一颗纯图标「播放并进入 Lattice」——与右下角工具面板「前往 Lattice」
+                    同一个图标（PanelsTopLeft）、同一个宿主端口（onOpenLattice），点了直接去海报墙，不受「播放后进入的视图」
+                    设置影响（设置成播放页 / 留在原处时 ⤢ 不去 Lattice，这颗仍去）。宿主没给 onOpenLattice 时不画。
+                    用户实测 2026-10-13 两轮：① 这一档不看「是不是正在播放那首」——展开的聚焦卡一律画；
+                    ② 光导航不够（在 B 卡点它却还停在 A 上），所以它带这首一起去：B 不是当前曲时先播 B 再去墙，
+                    B 已是当前曲时只导航、不碰播放/暂停（暂停中点它不会把歌放出来）。具体在 useBravaisInteractions 的 openLattice。 */}
+                {actions.openLattice && (
+                    <button
+                        type="button"
+                        className="bravais-chrome-button is-icon"
+                        data-bravais-action="open-lattice"
+                        aria-label={latticeLabel}
+                        title={latticeLabel}
+                        onClick={handled(() => actions.openLattice?.(slotKey))}
+                    >
+                        <PanelsTopLeft aria-hidden />
                     </button>
                 )}
                 <button

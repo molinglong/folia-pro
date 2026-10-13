@@ -18,7 +18,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     videoLayerSettings: { section: 'appearance', labelKey: 'options.videoLayerSettings' },
     importExportTitle: { section: 'appearance', labelKey: 'options.importExportTitle' },
 
-    // GeneralSettingsSubview (PinnedCommandSettings and PonderHintSettingsSection render inside it)
+    // GeneralSettingsSubview (PinnedCommandSettings and PonderTouchButtonSettingsSection render inside it)
     languageSettings: { section: 'general', labelKey: 'options.languageSettings' },
     homeTabsVisibility: { section: 'general', labelKey: 'options.homeTabsVisibility' },
     rememberHomeCardPosition: { section: 'general', labelKey: 'options.rememberHomeCardPosition' },
@@ -29,7 +29,10 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     bravaisSettings: { section: 'general', labelKey: 'options.bravaisSettings', requiresBravaisSuite: true },
     bottomUiSettings: { section: 'general', labelKey: 'options.bottomUiSettings' },
     pinnedCommands: { section: 'general', labelKey: 'options.pinnedCommands' },
-    ponderHints: { section: 'general', labelKey: 'options.ponderHints' },
+    // @fork 本地魔改版：原 ponderHints（思索教程提示三档）随胶囊一起摘掉。锚点 id 换成
+    // ponderTouchButton —— 那一档设置没了，但同一个位置还剩触屏灯泡开关，它需要自己的目的地。
+    // 留着旧 id 等于让侧栏链到一个不再渲染的锚点；删掉整行则会让触屏开关从目录里消失。
+    ponderTouchButton: { section: 'general', labelKey: 'options.ponderTouchButton' },
 
     // PlaybackSettingsSubview (TransitionSettingsSection renders inside it)
     queueSettings: { section: 'playback', labelKey: 'options.queueSettings' },

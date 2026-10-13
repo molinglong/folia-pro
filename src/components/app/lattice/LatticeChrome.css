@@ -3,7 +3,11 @@
 .lattice-chrome {
     --lattice-chrome-ink: currentColor;
     color: inherit;
-    width: min(100%, 480px);
+    /* @fork 本地魔改版：原来是 `width: min(100%, 480px)`。展开的海报比 480 宽得多（实测海报 808、控件框 751），
+       播放条与时间行只铺到 480 = 64%，用户指出来「这个才占了三分之二」。改成铺满 .lattice-poster-controls
+       ——那个容器本身就是海报内缩框（left: 32 / right: 24），不需要再叠一层上限。
+       窄屏（≤640px）媒体规则里的 `min(100%, 640px)` 原样保留：手机上海报本来就不到 640。 */
+    width: 100%;
     margin-inline: 0;
     padding: 0;
     border: 0;
@@ -39,7 +43,10 @@
    that centres the arrow glyph inside its 44px button - that glyph is what the bar ends against. */
 .lattice-progress { min-width: 0; margin-right: 12px; }
 .lattice-progress > div > span { display: none; }
-.lattice-progress > div > div { height: 2px; }
+/* @fork 本地魔改版：原来这里把进度条压到 2px（用户：「太细了」）。改成 6px = ProgressBar 自己的默认轨道高度
+   （h-1.5），也就是播放页那条的粗细——Lattice 不再单独做发丝线。填充层是 h-full，跟着一起变粗；
+   36px 高的透明 input 命中区不受影响。要更粗只改这一个数。 */
+.lattice-progress > div > div { height: 6px; }
 /* Keep the thin progress line's hit target usable with both fingers and a mouse. */
 .lattice-progress input[type=range] { top: 50%; height: 36px; transform: translateY(-50%); }
 :root[data-reduce-motion~='lattice'] .lattice-chrome-details,

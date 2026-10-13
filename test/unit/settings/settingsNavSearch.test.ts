@@ -36,11 +36,14 @@ describe('searchSettingsNav', () => {
     });
 
     it('keeps only the matching anchors when an anchor label matches', () => {
-        const result = searchSettingsNav(desktopGroups, '思索', 'zh-CN');
+        // @fork 本地魔改版：查询词原来是「思索」，命中的是 ponderHints 那档设置 —— 它随胶囊一起摘掉了。
+        // 换成「底部界面」：general 里只有 bottomUiSettings 这一个标签含这五个字，
+        // 断言的形状（只留命中的那个锚点）和原来一模一样。
+        const result = searchSettingsNav(desktopGroups, '底部界面', 'zh-CN');
         const general = flattenSettingsNavItems(result.groups).find(item => item.id === 'general');
 
-        expect(general?.anchors.map(anchor => anchor.id)).toEqual(['ponderHints']);
-        expect(result.firstHit).toEqual({ sectionId: 'general', anchorId: 'ponderHints' });
+        expect(general?.anchors.map(anchor => anchor.id)).toEqual(['bottomUiSettings']);
+        expect(result.firstHit).toEqual({ sectionId: 'general', anchorId: 'bottomUiSettings' });
     });
 
     it('keeps every anchor of a section whose own title matches', () => {

@@ -86,8 +86,11 @@
     gap: 8px;
 }
 
+/* @fork 本地魔改版（2026-10-12）：这一行的文字清空了（用户：上面的删了、留空白，以后装 logo），空文本本身 0 高，
+   所以用 min-height 把行高原样顶住（15px × 1.3 = 与「书库」那行一样高）；测量副本量的也是它，级别退让照旧。 */
 .bravais-seam-home-title {
     max-width: 100%;
+    min-height: 1.3em;
     overflow: hidden;
     font-size: 15px;
     font-weight: 800;
@@ -101,10 +104,12 @@
 
 .bravais-seam-home.is-compact .bravais-seam-home-title { font-size: 12px; letter-spacing: 0.08em; text-indent: 0.08em; }
 
+/* 视觉隐藏 = 这一整行不收（读屏仍读得到），但留白也不占位：所以 min-height 一并归零。 */
 .bravais-seam-home-title.is-hidden {
     position: absolute;
     width: 1px;
     height: 1px;
+    min-height: 0;
     margin: -1px;
     padding: 0;
     overflow: hidden;
@@ -288,12 +293,15 @@
 
 /* 工具按钮：三列一格格（书脊上一列）。
    fb2：两列 40px、间距 8px（书脊上一列 36px），只放常驻的几个；次要的在「⋯」里，菜单从工具格上方弹出。
-   fb3：固定四格（搜索、设置、队列、「⋯」），窄缝里排成 2×2，书脊上一列。 */
+   fb3：固定四格（搜索、设置、队列、「⋯」），窄缝里排成 2×2，书脊上一列。
+   @fork 本地魔改版（用户：「改为 1 行」→ 选定「竖着一列 4 个」）：窄缝里也竖成一列，和书脊同构。
+   缝的宽度是相机平移时动态开合的（此刻约 120px），横着一行 4 个要 4×40 + 3×8 = 184px，塞不下；
+   竖着排只是把这一格从 88px 高变成 184px 高，长出的 96px 由 .bravais-seam-home-middle 吸收。 */
 .bravais-seam-dock { position: relative; display: flex; width: 100%; flex-direction: column; align-items: center; }
 
 .bravais-seam-tools {
     display: grid;
-    grid-template-columns: repeat(2, 40px);
+    grid-template-columns: 40px;
     justify-content: center;
     gap: 8px;
 }
@@ -304,11 +312,13 @@
 .bravais-seam-home.is-compact .bravais-seam-tools .bravais-seam-icon { width: 36px; height: 36px; }
 .bravais-seam-tools .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
 .bravais-seam-tools .bravais-seam-icon.is-pressed { color: var(--text-accent, currentColor); background: color-mix(in srgb, currentColor 16%, transparent); }
-/* fb11：舞台开着时舞台入口单独占最上面一整行（宽同两格，图标 + 短名）；书脊上一列，它是最上面的一个图标。 */
+/* fb11：舞台开着时舞台入口单独占最上面一整行（宽同两格，图标 + 短名）；书脊上一列，它是最上面的一个图标。
+   @fork 本地魔改版：工具格改成竖着一列后 1 / -1 只剩 40px，短名会被挤没，所以这一行显式写回原来两格的宽度
+   （40×2 + 8 = 88px，缝约 120px 装得下），并用 justify-self 让它落在列的中线上。 */
 .bravais-seam-tools .bravais-seam-icon.is-wide {
     display: inline-flex;
-    width: auto;
-    grid-column: 1 / -1;
+    width: 88px;
+    justify-self: center;
     align-items: center;
     justify-content: center;
     gap: 4px;
@@ -571,62 +581,21 @@
 
 .lattice-poster-badge.is-special > .bravais-badge-icon { width: 12px; height: 12px; flex: none; stroke-width: 2.6; }
 
-/* 直达入口（fb11，用户实测：只有图标和窄缝其它部分不统一、孤零零浮在中段）：
-   - 位置：中段的第二块（.bravais-seam-home-jumps），贴在中段底部；中段内层（二级切换、扫描进度、状态）用上下自动外边距
-     在剩下的空间里居中。入口一块的上内边距等于段间距（与中段的上内边距相同），所以中段内层到页签、到入口的留白相等；有二级切换时再加一道短分隔线。
-   - 样子：横排文字（用户定，2026-10-09：竖排并排两列读起来别扭），一行一个、上下排列、居中；窄缝里放不下时折成两行。
-     与激活的二级切换区分：小一号（11px，书脊 10px）、字重常规、副文色、没有侧边细线——是一组普通按钮，不是又一组页签。
-     悬停与二级切换同一种浅底 + 字变深，键盘焦点用缝里按钮共用的 focus-visible 环；静止时无框（fb9/fb10a 去掉了描边）。
-   - 长名字：最多两行，再长截断（-webkit-line-clamp）。 */
+/* 直达入口（@fork 本地魔改版，2026-10-12：并入页签列）：与歌单 / 电台 / 专辑 / 本地同一列、同一身——竖排、字号字重、
+   圆角、悬停浅底、键盘焦点环都由上面的页签段（.bravais-seam-tabs / .bravais-seam-home-tab，加上 bravais.css 的
+   .bravais-seam-tabs button）给全，这里只剩两处要写：
+   - 留白：真渲染在 .bravais-seam-home-side 里，与页签列之间是那个容器的 8px gap，所以自己的上内边距归零；
+     看不见的测量副本不在那个容器里，用 8px 上内边距把同一段留白算进高度，useBravaisSeamTabsFit 的 withShortcuts 才是准的。
+   - 测量副本是 span：不可聚焦、不进无障碍树，光标默认。
+   fb11 起的那一身（横排 11px/500、最多两行截断、与二级切换之间的分隔线、中段底部那块）按用户要求删掉了。 */
 .bravais-seam-home .bravais-seam-home-body { margin-block: auto; }
 
+/* @fork：入口挪走后这一句只兜住那个空节点（useBravaisSeamTabsFit 要求 .bravais-seam-home-jumps 常在）。 */
 .bravais-seam-home-jumps { display: flex; width: 100%; flex: none; flex-direction: column; align-items: center; }
 
-/* 上内边距 = 段间距：中段内层到页签、到入口的留白相等（中段的上内边距也是它），书脊上是 12px。 */
-.bravais-seam-shortcuts-wrap { display: flex; flex-direction: column; align-items: center; padding-top: var(--bravais-home-gap, 18px); }
-
-.bravais-seam-shortcuts-rule {
-    display: block;
-    width: 18px;
-    height: 1px;
-    margin: 0 0 10px;
-    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 22%, transparent);
-}
-
-.bravais-seam-shortcuts { display: flex; width: 100%; flex-direction: column; align-items: stretch; gap: 2px; }
-
-.bravais-seam-home .bravais-seam-shortcut {
-    display: block;
-    padding: 6px 6px;
-    border: 0;
-    border-radius: 10px;
-    color: var(--bravais-seam-ink-soft);
-    background: none;
-    cursor: pointer;
-    transition: background-color 140ms ease, color 140ms ease;
-}
-
-.bravais-seam-home .bravais-seam-shortcut .is-label {
-    display: -webkit-box;
-    overflow: hidden;
-    font-size: 11px;
-    font-weight: 500;
-    line-height: 1.3;
-    text-align: center;
-    overflow-wrap: anywhere;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-}
-
+.bravais-seam-shortcuts { padding-top: 8px; }
+.bravais-seam-home-side > .bravais-seam-shortcuts { padding-top: 0; }
 .bravais-seam-home span.bravais-seam-shortcut { cursor: default; }
-.bravais-seam-home button.bravais-seam-shortcut:hover { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 8%, transparent); }
-
-.bravais-seam-home.is-compact .bravais-seam-shortcut { padding: 5px 2px; }
-.bravais-seam-home.is-compact .bravais-seam-shortcut .is-label { font-size: 10px; }
-.bravais-seam-home.is-compact .bravais-seam-shortcuts { gap: 0; }
-.bravais-seam-home.is-compact .bravais-seam-shortcuts-rule { margin-bottom: 8px; }
 
 /* 放不下时挪进「⋯」菜单：图标同样用强调色。 */
 .bravais-seam-menu.is-home button.is-shortcut svg { color: var(--text-accent, currentColor); opacity: 1; }
-
-:root[data-reduce-motion~='lattice'] .bravais-seam-home .bravais-seam-shortcut { transition: none; }

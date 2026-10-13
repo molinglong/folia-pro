@@ -89,23 +89,31 @@ test('the two-page prompt moves back and forth and writes each pick as it is mad
     expect(await requestPrompt(page)).toBe(false);
 });
 
-test('a fresh install is asked after the release notes, and the sequence moves on to Ponder', async ({ page }) => {
-    await boot(page, ({ guideKey, releaseKey, appVersion }) => {
+// @fork 本地魔改版（2026-10-12）：首启不再弹「版本更新」，也不再强制「认识思索模式」那一步。
+// 这条用例原来叫「a fresh install is asked after the release notes, and the sequence moves on to Ponder」，
+// 断言的是说明弹窗先出现、提问关掉后思索引导接上。现在两个方向都反过来：这一版的说明从没看过（releaseKey 一起清掉），
+// 第一步仍然是提问页，关掉之后思索引导与说明弹窗都不出现。把任一步接回去，这条用例会红。
+test('a fresh install is asked only the two questions, with no release notes and no Ponder gate', async ({ page }) => {
+    await boot(page, ({ guideKey, releaseKey }) => {
         localStorage.removeItem(guideKey);
+        localStorage.removeItem(releaseKey);
         localStorage.removeItem('library_suite_prompt_seen');
-        localStorage.setItem(releaseKey, appVersion);
     });
     test.skip(!(await runsStartupSequence(page)), 'this build does not run the startup sequence');
 
     await expect(prompt(page)).toBeVisible();
     await expect(prompt(page)).toHaveAttribute('data-onboarding-page', 'library-suite');
+    await expect(page.getByTestId('release-notes-dialog')).toHaveCount(0);
     // 背景点掉也算回答过：两项都有可用的默认值。
     await prompt(page).locator('..').click({ position: { x: 8, y: 550 } });
     await expect(prompt(page)).toHaveCount(0);
     expect(await storageOf(page, 'playback_entry_view_chosen')).toBe('true');
     // 没点过卡片也算选了：关掉时把生效的界面（测试构建钉在 grid）记下来，之后改初始选择不会把人带走。
     expect(await storageOf(page, 'library_suite')).toBe('grid');
-    await expect(page.getByTestId('ponder-onboarding')).toBeVisible();
+    // @fork：这里原来断言思索引导可见。
+    await expect(page.getByTestId('ponder-onboarding')).toHaveCount(0);
+    // 提问关掉之后也不会补一个说明弹窗，首启序列到此结束。
+    await expect(page.getByTestId('release-notes-dialog')).toHaveCount(0);
 });
 
 test('an install that answered the old single-page prompt is asked for the library interface once, whatever the release', async ({ page }) => {

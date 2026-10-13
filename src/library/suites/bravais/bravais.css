@@ -336,8 +336,11 @@
 
 /* fb10：标题区域（引号 + 竖排大标题）整块是「收起信息条」按钮（BravaisSeamTitle）。排版与原来三块直接排在信息条里
  * 一样（同一个 14px 间距、一起让位）；四周外扩 6 / 10px 的内边距再用负外边距抵掉，悬停时那一圈浅底不挤动别的内容。
- * 悬停：浅底 + 引号变深一点；没有过渡之外的动效（换形态由缝整条翻）。 */
+ * 悬停：浅底 + 引号变深一点；没有过渡之外的动效（换形态由缝整条翻）。
+ * @fork 本地魔改版：这一格多一层「封面取色底」，所以悬停的浅底挪进了 ::after 叠加层（两层各占一个属性，不互相覆盖）。 */
 .bravais-seam .bravais-seam-title-area {
+    position: relative; /* @fork：取色底与悬停层的定位基准（不改排版） */
+    isolation: isolate; /* @fork：让悬停那层压在引号与大标题下面，不糊字 */
     display: flex;
     min-height: 0;
     flex: 1 1 auto;
@@ -349,12 +352,26 @@
     border-radius: 14px;
     color: inherit;
     text-align: inherit;
-    background: transparent;
+    /* @fork：底色取自这张封面——--bravais-seam-tone 由 useBravaisSeamTone 写在元素上（BravaisSeamTitle.tsx）；
+     * 没有封面、封面是黑白（取不出色相）或图坏了就没有这个属性，回退 transparent 与改动前一模一样。
+     * 10% 是样张定的那一档（深色主题下大标题对比 15.06→12.01、日光 11.32→11.21）。 */
+    background: color-mix(in srgb, var(--bravais-seam-tone, transparent) 10%, transparent);
     cursor: pointer;
     transition: background-color 140ms ease;
 }
 
-.bravais-seam .bravais-seam-title-area:hover { background: color-mix(in srgb, currentColor 6%, transparent); }
+/* @fork：悬停浅底挪到叠加层（原来是 background-color 自己），这样它压得住取色底、又照旧 140ms 淡入淡出。 */
+.bravais-seam .bravais-seam-title-area::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: transparent;
+    transition: background-color 140ms ease;
+}
+.bravais-seam .bravais-seam-title-area:hover::after { background: color-mix(in srgb, currentColor 6%, transparent); }
 .bravais-seam-title-area .bravais-seam-quote { transition: opacity 140ms ease; }
 .bravais-seam-title-area:hover .bravais-seam-quote { opacity: 0.6; }
 /* 书脊上的竖排标题本身是 <button>：`.bravais-seam button { font: inherit }`（0,1,1）压过了 .bravais-seam-vtitle 的字重
@@ -380,6 +397,49 @@
 
 .bravais-seam-rule { flex: none; border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
 .bravais-seam-meta { color: var(--bravais-seam-ink-soft); font-size: 12px; line-height: 1.6; }
+
+/* @fork 本地魔改版：署名行（BravaisSeamByline）——元数据行下面的艺人与发行信息。
+ * 间距照缝的 14px 档，向上收 6px 让它贴住元数据行；让出来的高度由标题区（flex: 1 1 auto）出，
+ * 样张实测：一行 24px、两行 43px、三行 63px，描述那一块已被 6 行截断卡住、不再跟着缩。
+ * 墨色不用 --bravais-seam-ink-soft（55%）：日光主题下 11px 小字实测 3.3:1 不达 AA，这里取描述那一档（78%，约 6.3:1）。 */
+.bravais-seam-byline {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 3px;
+    margin: -6px 0 0;
+}
+
+.bravais-seam-byline-artists {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    color: color-mix(in srgb, var(--text-primary, #f7f4ee) 88%, transparent);
+    font-size: 12.5px;
+    font-weight: 650;
+}
+
+/* 带上 .bravais-seam 才压得住 bravais.css 里统一的按钮字体（与竖排标题那一处同一个坑）。 */
+.bravais-seam .bravais-seam-byline-artists button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 28%, transparent);
+    text-underline-offset: 3px;
+}
+.bravais-seam .bravais-seam-byline-artists button:hover { text-decoration-color: currentColor; }
+
+.bravais-seam-byline-fact {
+    color: color-mix(in srgb, var(--text-primary, #f7f4ee) 78%, transparent);
+    font-size: 11px;
+    line-height: 1.5;
+    letter-spacing: 0.03em;
+    font-variant-numeric: tabular-nums;
+}
 .bravais-seam-status { font-size: 12px; line-height: 1.6; }
 
 /* 说明文字（歌手简介、集合描述，BravaisSeamBlurb）：收起时按 --bravais-blurb-lines 截断（默认 4 行；集合描述 6 行，

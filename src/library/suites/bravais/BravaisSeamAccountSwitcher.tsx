@@ -246,9 +246,10 @@ const BravaisSeamAccountSwitcher: React.FC<{
         };
     }, [shown]);
 
-    // 入口上显示的名字：已登录是昵称，无需登录的平台是平台名。状态（平台名 · 账户状态）进 aria-label / title。
+    // 状态（平台名 · 账户状态）进 aria-label / title。
+    // @fork 本地魔改版（2026-10-12，用户：头像 + 用户名那里只保留头像，名字删了）：入口不显示文字了——已登录的昵称、
+    // 无需登录的平台名、未登录的「连接在线平台」都只留在 aria-label 与 title 里（悬停、读屏、用例仍读得到）。
     const status = [account.providerLabel, account.detail].filter(Boolean).join(' · ');
-    const entryName = account.nickname ?? account.providerLabel;
     const avatar = <BravaisProviderAvatar providerId={account.providerId} name={account.providerLabel} avatarUrl={account.avatarUrl} />;
     const connectIcon = <span className="bravais-account-avatar is-connect" aria-hidden data-bravais-account-avatar="connect"><Plug /></span>;
 
@@ -284,15 +285,15 @@ const BravaisSeamAccountSwitcher: React.FC<{
                 <button type="button" className="bravais-account-entry bravais-account-connect" data-bravais-account-toggle="connect"
                     aria-haspopup="menu" aria-expanded={open} aria-label={`${account.connectLabel} · ${status}`} title={`${account.connectLabel} · ${status}`}
                     onClick={toggle}>
+                    {/* @fork：只剩连接图标那一颗圆，「连接在线平台」在 aria-label / title 里。 */}
                     {connectIcon}
-                    <span className="is-name">{account.connectLabel}</span>
                 </button>
             ) : (
                 <button type="button" className="bravais-account-entry bravais-account-toggle" data-bravais-account-toggle="strip"
                     aria-haspopup="menu" aria-expanded={open} aria-label={`${account.toggleLabel} · ${status}`}
                     title={`${account.toggleLabel} · ${status}`} onClick={toggle}>
+                    {/* @fork：只剩头像 / 平台徽章那一颗圆，昵称在 aria-label / title 里。 */}
                     {avatar}
-                    <span className="is-name">{entryName}</span>
                 </button>
             )}
         </div>

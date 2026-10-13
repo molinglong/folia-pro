@@ -26,10 +26,10 @@ export const DioramaActiveUnitPlanes: React.FC<DioramaActiveUnitPlanesProps> = (
                     position={[placed.centerX, 0, -0.01]}
                     renderOrder={17}
                 >
-                    <planeGeometry args={[placed.width, placed.height]} />
+                    <planeGeometry args={[placed.glowWidth, placed.glowHeight]} />
                     <meshBasicMaterial
                         ref={el => { planes.glowMats[unitIndex] = el; }}
-                        map={placed.raster.glowTexture}
+                        map={placed.glowTexture}
                         transparent
                         opacity={0}
                         depthTest={false}
@@ -46,10 +46,10 @@ export const DioramaActiveUnitPlanes: React.FC<DioramaActiveUnitPlanesProps> = (
                     position={[placed.centerX, 0, -0.005]}
                     renderOrder={18}
                 >
-                    <planeGeometry args={[placed.width, placed.height]} />
+                    <planeGeometry args={[placed.baseWidth, placed.baseHeight]} />
                     <meshBasicMaterial
                         ref={el => { planes.soulMats[unitIndex] = el; }}
-                        map={placed.raster.baseTexture}
+                        map={placed.baseTexture}
                         transparent
                         opacity={0}
                         depthTest={false}
@@ -59,10 +59,10 @@ export const DioramaActiveUnitPlanes: React.FC<DioramaActiveUnitPlanesProps> = (
                     />
                 </mesh>
                 <mesh position={[placed.centerX, 0, 0]} renderOrder={19}>
-                    <planeGeometry args={[placed.width, placed.height]} />
+                    <planeGeometry args={[placed.baseWidth, placed.baseHeight]} />
                     <meshBasicMaterial
                         ref={el => { planes.baseMats[unitIndex] = el; }}
-                        map={placed.raster.baseTexture}
+                        map={placed.baseTexture}
                         transparent
                         opacity={UNSUNG_UNIT_OPACITY}
                         depthTest={false}

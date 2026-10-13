@@ -6,11 +6,14 @@ test.beforeEach(async ({ mount }) => {
     await mount('settingsHelpActions');
 });
 
-test('版本更新按钮打开当前 release notes，并可关闭返回 Help', async ({ page }) => {
-    await page.getByTestId('help-release-notes').click();
-    await expect(page.getByTestId('release-notes-dialog')).toBeVisible();
-    await page.getByTestId('release-notes-close').click();
+// @fork 本地魔改版：帮助页的「版本更新」入口已删除。原用例「版本更新按钮打开当前 release notes，
+// 并可关闭返回 Help」与「新版本功能页面有进出场过渡」一并撤下（后者测的是 ReleaseNotesDialog 的
+// 退场动画，该组件仍被 App.tsx 的首启新功能弹窗使用，只是这条探针已无入口可点）。
+// 下面这条改成存在性反向断言：只要有人把这张卡挂回来，它就会红。
+test('版本更新入口不在帮助页上，思索入口仍在', async ({ page }) => {
+    await expect(page.getByTestId('help-release-notes')).toHaveCount(0);
     await expect(page.getByTestId('release-notes-dialog')).toHaveCount(0);
+    await expect(page.getByTestId('help-page-ponder')).toBeAttached();
 });
 
 test('Help Ponder 按钮打开的是导航页，不是直接开一段教程', async ({ page }) => {
@@ -38,8 +41,9 @@ test('导航页上悬停一张卡，长按 G 进的是那一条', async ({ page 
     const box = (await card.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 
-    // 和在真实组件上完全一样：600ms 出胶囊，长按 G 进去。
-    await expect(page.getByTestId('ponder-hint-capsule')).toBeVisible({ timeout: 3000 });
+    // @fork 本地魔改版：胶囊删掉了，这里不再拿「胶囊可见」当 600ms 悬停门的同步点，
+    // 直接等过那道门；命中与否由后面长按 G 能不能进教程来判定。
+    await page.waitForTimeout(700);
     await page.keyboard.down('g');
     await expect(page.getByTestId('ponder-stage')).toBeVisible({ timeout: 3000 });
     await page.keyboard.up('g');
@@ -70,10 +74,14 @@ test('长按 Ctrl+G 在 Help 覆盖层中打开同一个 help-page', async ({ pa
     await expect(page.getByRole('dialog', { name: 'Getting to know Folia' })).toBeVisible();
 });
 
-test('Ctrl+G 按不满就松手，只留下擦除过的胶囊，不进教程', async ({ page }) => {
+// @fork 本地魔改版：这条原来叫「只留下擦除过的胶囊」，靠 placement='page' 那颗胶囊证明
+// 长按确实起动了。胶囊删掉后长按过程在屏幕上没有任何可见反馈（这正是用户选这条时接受的代价），
+// 于是这里改成按下后固定停 150ms（不满 400ms 那道门）再松手 —— 断言的东西不变：不进教程。
+// 末尾那颗胶囊的计数断言留作反向门：它哪天被加回来，这一条会先红在 placement 那一步之前。
+test('Ctrl+G 按不满就松手，不进教程', async ({ page }) => {
     await page.keyboard.down('Control');
     await page.keyboard.down('KeyG');
-    await expect(page.getByTestId('ponder-hint-capsule')).toHaveAttribute('data-ponder-hint-placement', 'page');
+    await page.waitForTimeout(150);
     await page.keyboard.up('KeyG');
     await page.keyboard.up('Control');
 
@@ -125,17 +133,7 @@ const expectAnimatedExit = async (page: import('@playwright/test').Page, testId:
     await expect(page.getByTestId(testId)).toHaveCount(0);
 };
 
-test('新版本功能页面有进出场过渡，不是直接出现和直接消失', async ({ page }) => {
-    await page.getByTestId('help-release-notes').click();
-    const dialog = page.getByTestId('release-notes-dialog');
-    await expect(dialog).toBeAttached();
-    // 入场：第一帧还没到终态。
-    const enteringOpacity = await dialog.evaluate(node => Number(getComputedStyle(node).opacity));
-    expect(enteringOpacity).toBeLessThan(1);
-
-    await expect(dialog).toHaveCSS('opacity', '1', { timeout: 2000 });
-    await expectAnimatedExit(page, 'release-notes-dialog', { click: '[data-testid="release-notes-close"]' });
-});
+// @fork 本地魔改版：原「新版本功能页面有进出场过渡」用例已撤下（入口被删，见本文件顶部说明）。
 
 test('思索教程层有进出场过渡，关掉时先播完退场', async ({ page }) => {
     await page.keyboard.down('Control');

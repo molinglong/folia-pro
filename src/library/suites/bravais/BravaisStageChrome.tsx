@@ -23,6 +23,7 @@ import type { BravaisBackStep } from './bravaisBack';
 //   2. 音量滑条（连续量：读写应用的音量 store，与播放条 / 播放页面板同一份；拖动时经端口预览、松手才写；左侧图标静音切换）；
 //   3. 「墙面外观」：透光（循环三档，面板不收起）、共享的叠色开关、开灯 / 关灯；帮助在右下角（行在 bravaisHelp）。
 //   滑动打开命令面板。不碰相机与显示：定位走外观动作的同一个实现，透光写 app 层偏好（与命令面板的 wall-look 同一条路）。
+// @fork 本地魔改版（2026-10-13）：这颗工具按钮还带一个 companion——正上方常驻的「前往 Lattice」直达格，不展开面板就能进。
 
 const LOOK_LABEL_KEYS: Record<LibraryWallLook, string> = {
     solid: 'options.libraryWallLookSolid',
@@ -180,6 +181,16 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({
                 isDaylight={isDaylight}
                 quickActions={quickActions}
                 entries={entries}
+                // @fork 本地魔改版（2026-10-13）：用户「进入 Lattice 好麻烦」——把面板里那一格「前往 Lattice」同时提到
+                // 按钮正上方常驻，省掉「先展开面板」这一趟。同一个 onOpenLattice 端口、同一个图标，两处并存不冲突；
+                // Lattice 那一面不给 companion，所以进了海报墙它自己消失（走 dock 的认领，见 WallToolsButton.tsx）。
+                companion={onOpenLattice ? {
+                    id: 'open-lattice',
+                    icon: PanelsTopLeft,
+                    label: t('libraryBravais.toolsLattice'),
+                    kbd: `${PRIMARY_MODIFIER_LABEL} + B`,
+                    onSelect: onOpenLattice,
+                } : undefined}
                 help={BRAVAIS_HELP_ROWS.map(row => (
                     <li key={row.id} data-bravais-help={row.id}>
                         <span>{t(row.labelKey)}</span>

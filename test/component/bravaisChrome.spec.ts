@@ -10,6 +10,11 @@ import '../../dev/probes/homeBehavior/probeApi';
 // - 右下角共享工具按钮（components/wall/WallToolsButton）：点按打开面板、滑动打开命令面板、Esc 只收面板；面板分三组——
 //   顶部快捷动作（定位、队列洗牌、生成主题、前往 Lattice：宿主的 stage 工具端口与 onOpenLattice）、音量滑条（应用的音量 store）、
 //   墙面外观（透光、叠色、灯）；
+// @fork 本地魔改版：底部那一行还多了一颗「设置」齿轮（[data-wall-tools-settings]），点了先收面板再打开设置——
+//   设置入口原本只在主页窄缝的工具格里，站在这面墙上要改设置得跑回主页。齿轮与灯、帮助都在 help-section 里，
+//   所以「面板分几组」那条顺序断言的末项仍是 lights+help。
+// @fork 本地魔改版（2026-10-13）：这颗工具按钮正上方还常驻一颗「前往 Lattice」直达格（[data-wall-tools-companion]），
+//   不进面板、点了就走；它绝对定位，所以面板分组与 .lattice-tools 的矩形都不受影响。
 // - 左上角隐藏式返回（WallBackButton concealed）：热区 / 键盘聚焦出现；首页根层有歌时回到播放页、没有歌时不画，
 //   集合层上与缝里的 ‹ 同一个返回（先关面板再退层）；
 // - 聚焦卡：立即播放是纯图标按钮，「已在队列」悬停 / 聚焦时显示「插入队列」。
@@ -26,6 +31,8 @@ const panel = (page: Page) => page.getByRole('menu', { name: 'Wall tools', exact
 const quick = (page: Page, id: string) => panel(page).locator(`[data-wall-tools-quick="${id}"]`);
 const volumeSlider = (page: Page) => panel(page).getByRole('slider', { name: 'Volume', exact: true });
 const audio = (page: Page) => page.evaluate(() => window.__homeProbe!.volume());
+// @fork 本地魔改版：底部那行「设置」齿轮写的状态（探针不挂设置窗本体，只看 store）。
+const settingsState = (page: Page) => page.evaluate(() => window.__homeProbe!.settingsState());
 const back = (page: Page) => page.locator('[data-library-stage="bravais"] .lattice-back');
 const opacityOf = (page: Page, selector: string) => page.locator(selector).first().evaluate(node => Number(getComputedStyle(node).opacity));
 
@@ -249,6 +256,69 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await page.setViewportSize({ width: 390, height: 760 });
         await expect(menu).toBeVisible();
         await inside();
+    });
+
+    // @fork 本地魔改版：底部那行「开灯 / 关灯 + 设置 + 操作提示」里新加的齿轮（共享组件，Lattice 同一颗）。
+    // 用例只证「收面板 + 写设置 store」这两件事——探针里没有设置窗本体，真窗的落点由 SettingsModal 自己的缺省分组逻辑管。
+    test('the bottom row carries a settings gear: it folds the panel and opens the options tab', async ({ mount, page }) => {
+        await mountBravais(mount, page);
+        expect(await settingsState(page)).toMatchObject({ isOpen: false });
+
+        await tools(page).click();
+        const gear = panel(page).getByRole('menuitem', { name: 'Settings', exact: true });
+        await expect(gear).toBeVisible();
+        await expect(gear).toHaveAttribute('title', 'Settings');
+        // 齿轮与操作提示都在灯那一行的右边，帮助弹层仍占满一行（两颗图标包进了同一层）。
+        await expect(gear.locator('..')).toHaveClass(/lattice-tools-triggers/);
+
+        await gear.click();
+        await expect(panel(page)).toHaveCount(0);
+        await expect.poll(() => settingsState(page)).toEqual({ isOpen: true, initialTab: 'options', initialSubview: null });
+
+        // 再点一次：面板重新打开，齿轮还在（设置窗开着时这面墙仍可操作，入口不是一次性的）。
+        await tools(page).click();
+        await expect(panel(page).getByRole('menuitem', { name: 'Settings', exact: true })).toBeVisible();
+    });
+
+    // @fork 本地魔改版（2026-10-13）：工具按钮正上方那颗常驻的「前往 Lattice」（companion，[data-wall-tools-companion]）。
+    // 用户实测「进入 Lattice 好麻烦」——面板里那一格要先展开面板才点得到，于是把它同时提到按钮外面。
+    // 三条几何断言是这一格的设计根据：它绝对定位（不进文档流，.lattice-tools 保持 48×48，翻牌交接的矩形断言才不抖）、
+    // 排在按钮正上方（左边是 SlideActionButton 向左展开的 96px 轨道）、面板打开时让开它（CSS 的 .has-companion）。
+    test('a persistent Lattice button sits above the tools button and reaches the host without opening the panel', async ({ mount, page }) => {
+        await mountBravais(mount, page);
+        const companion = page.locator('[data-wall-tools-companion]');
+
+        // 宿主没给 onOpenLattice：整块不画（与面板里那一格同一个门）。
+        await expect(companion).toHaveCount(0);
+
+        await page.evaluate(() => window.__homeProbe!.setLattice(true));
+        await expect(companion).toHaveCount(1);
+        await expect(companion).toHaveAccessibleName('Go to Lattice');
+        await expect(companion).toHaveAttribute('title', /Ctrl \+ B/);
+
+        // 位置与尺寸：与工具按钮同宽同高、右缘对齐、在它正上方 10px。
+        const box = (await companion.boundingBox())!;
+        const toolsBox = (await tools(page).boundingBox())!;
+        expect(box.width).toBeCloseTo(48, 0);
+        expect(box.height).toBeCloseTo(48, 0);
+        expect(Math.abs((box.x + box.width) - (toolsBox.x + toolsBox.width))).toBeLessThan(1);
+        expect(Math.abs(toolsBox.y - (box.y + box.height) - 10)).toBeLessThan(1);
+
+        // 容器盒子不因为它长高：这一格出文档流，.lattice-tools 仍是 48×48（wallHandoff 全程量这只盒子）。
+        const stackBox = (await page.locator('.lattice-tools').boundingBox())!;
+        expect(stackBox.width).toBeCloseTo(48, 0);
+        expect(stackBox.height).toBeCloseTo(48, 0);
+
+        // 点它：直接交给宿主，不展开面板、不碰播放。
+        await companion.click();
+        await expect.poll(async () => (await calls(page, 'openLattice')).length).toBe(1);
+        await expect(panel(page)).toHaveCount(0);
+
+        // 面板仍然能开，而且整块在常驻那颗之上，不盖住它。
+        await tools(page).click();
+        await expect(panel(page)).toBeVisible();
+        const panelBox = (await panel(page).boundingBox())!;
+        expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(box.y + 0.5);
     });
 
     test('without a playable song the theme and the shuffle are disabled with a reason; with one they reach the host and keep the panel open', async ({ mount, page }) => {

@@ -137,7 +137,11 @@ test.describe('思索 · 真实 DOM 里的选择器', () => {
 });
 
 test.describe('思索 · 进入链路', () => {
-    test('悬停侧栏开关满 600ms 出提示，长按 G 进教程，Esc 退出', async ({ page }) => {
+    // @fork 本地魔改版（用户：「把这个删了」→「彻底删掉胶囊 + 摘掉设置项」）：
+    // 跟随光标的胶囊不再渲染。这两条原来拿「胶囊可见」当悬停命中 600ms 的同步点，
+    // 现在只能直接等过那道门 —— 门后的长按 G 才是它们真正要验的东西。
+    // 顺带各补一条反向断言：真实页面上也不该再出现这颗胶囊。
+    test('悬停侧栏开关满 600ms 命中目标，长按 G 进教程，Esc 退出', async ({ page }) => {
         await openPlayerPage(page);
 
         const toggle = page.getByTestId('panel-toggle');
@@ -146,7 +150,9 @@ test.describe('思索 · 进入链路', () => {
         const box = (await toggle.boundingBox())!;
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 
-        await expect(page.locator('[data-testid="ponder-hint-capsule"]')).toBeVisible({ timeout: 3000 });
+        // 600ms 悬停门（胶囊时代由「胶囊可见」代替这一步等待）。
+        await page.waitForTimeout(700);
+        await expect(page.locator('[data-testid="ponder-hint-capsule"]')).toHaveCount(0);
 
         await page.keyboard.down('g');
         await expect(page.locator('[data-testid="ponder-stage"]')).toBeVisible({ timeout: 3000 });
@@ -161,7 +167,7 @@ test.describe('思索 · 进入链路', () => {
 
         const box = (await page.getByTestId('panel-toggle').boundingBox())!;
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-        await expect(page.locator('[data-testid="ponder-hint-capsule"]')).toBeVisible({ timeout: 3000 });
+        await page.waitForTimeout(700);
         await page.keyboard.down('g');
         await expect(page.locator('[data-testid="ponder-stage"]')).toBeVisible({ timeout: 3000 });
         await page.keyboard.up('g');

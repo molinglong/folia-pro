@@ -117,13 +117,16 @@ describe('resolvePagePonderTarget', () => {
         ponder.openPonder('ponder-basics');
         expect(usePonderStore.getState().isNavigationOpen).toBe(true);
 
-        openSettingsFromPonder('ponderHints');
+        // @fork 本地魔改版：原来这里用的是 'ponderHints'，那档设置连同胶囊一起摘掉了。
+        // 换成一个仍然存在的锚点 —— 本条要验的是「去那儿」会不会把教程层和导航页一起收掉，
+        // 和落到哪个锚点没有半毛钱关系，锚点只要还在设置里渲染就够。
+        openSettingsFromPonder('pinnedCommands');
 
         expect(usePonderStore.getState().session, '教程层没收掉').toBeNull();
         expect(usePonderStore.getState().isNavigationOpen, '导航页没收掉，设置会被它盖住').toBe(false);
         const settings = useSettingsModalStore.getState().settingsModalState;
         expect(settings.isOpen).toBe(true);
         // 而且要落在那一章讲的那个锚点上，不是设置面板的首页。
-        expect(settings.initialAnchor?.id).toBe('ponderHints');
+        expect(settings.initialAnchor?.id).toBe('pinnedCommands');
     });
 });

@@ -8,7 +8,8 @@ import '../../dev/probes/homeBehavior/probeApi';
 // test/component/bravaisSpecialCards.spec.ts
 // bravais 首页的特殊集合（我喜欢的音乐、云盘、私人 FM、每日推荐、全部歌曲、本地「我喜欢」、Navidrome 随机 / 收藏）：
 // - 墙上那张卡左上角的类型标签换一身（is-special + data-bravais-special：强调色底、带小图标），普通卡片不变；
-// - 缝里中段底部的直达入口（fb11：竖排文字，显示种类的短名，并排成列；贴在账户入口 / 工具格上方）：只在那张集合此刻真有时出现（在线看当前页签的卡；provider 没有、未登录都不出现），
+// - 缝里的直达入口（@fork 2026-10-12：并入页签列——在页头里、歌单 / 电台 / 专辑 / 本地那一列的正下面，同一身竖排文字、
+//   不留分隔线；显示种类的短名，全名在 aria-label / title）：只在那张集合此刻真有时出现（在线看当前页签的卡；provider 没有、未登录都不出现），
 //   点它与点墙上那张卡同一条打开路径——墙上（屏内）找得到那张卡就以它为起点磁贴，找不到（别的 section）就以缝为中心，
 //   不拿键盘焦点所在的那张不相干的磁贴当起点；私人 FM 直接播放；键盘可达（Tab 进缝、方向键、Enter）；
 // - 放不下时入口先于二级切换让位，挪进「⋯」菜单。
@@ -22,9 +23,12 @@ const card = (page: Page, itemKey: string) => page.locator(`.bravais-tile[data-l
 const stack = (page: Page) => page.evaluate(() => window.__homeProbe!.stack());
 const lastOpened = async (page: Page) => (await page.evaluate(() => window.__homeProbe!.opened())).at(-1);
 const calls = (page: Page, kind: string) => page.evaluate(callKind => window.__homeProbe!.calls().filter(call => call.kind === callKind), kind);
-const shortcutsGroup = (page: Page) => seam(page).locator('[data-bravais-home-jumps] [data-bravais-shortcuts]');
-const shortcut = (page: Page, special: string) => seam(page).locator(`[data-bravais-home-jumps] [data-bravais-shortcut="${special}"]`);
-const shortcutKinds = (page: Page) => seam(page).locator('[data-bravais-home-jumps] [data-bravais-shortcut]').evaluateAll(
+// @fork：入口在页头那一列里。量的是导航区（.bravais-seam-home-nav）里的那一份——看不见的测量副本不带 data-bravais-shortcuts，
+// 「⋯」菜单里的那些也不在导航区内。
+const nav = (page: Page) => seam(page).locator('.bravais-seam-home-nav');
+const shortcutsGroup = (page: Page) => nav(page).locator('[data-bravais-shortcuts]');
+const shortcut = (page: Page, special: string) => nav(page).locator(`[data-bravais-shortcut="${special}"]`);
+const shortcutKinds = (page: Page) => nav(page).locator('[data-bravais-shortcut]').evaluateAll(
     elements => elements.map(element => [(element as HTMLElement).dataset.bravaisShortcut, element.getAttribute('aria-label'), element.getAttribute('title')]),
 );
 
@@ -137,7 +141,8 @@ test.describe('[bravais-only] special collections', () => {
     });
 
     test('online tabs offer jump-ins only for the special collections that exist', async ({ page }) => {
-        // 歌单页签：我喜欢的音乐、云盘；横排文字是种类的短名（fb11；2026-10-09 改横排），卡片全名在 aria-label / title；与二级切换不同，它们是一组普通按钮。
+        // 歌单页签：我喜欢的音乐、云盘。@fork（2026-10-12）：入口并入页签列——文字是种类的短名（竖排，与页签同一身），
+        // 卡片全名在 aria-label / title；与二级切换不同，它们仍是一组普通按钮（role=group，不在 tablist 里）。
         await expect(shortcutsGroup(page)).toHaveAttribute('role', 'group');
         await expect(shortcutsGroup(page)).toHaveAccessibleName('Jump to');
         expect(await shortcutKinds(page)).toEqual([
@@ -147,29 +152,40 @@ test.describe('[bravais-only] special collections', () => {
         await expect(shortcut(page, 'liked')).toHaveText('Liked Songs');
         await expect(shortcut(page, 'cloud')).toHaveText('Cloud Drive');
         await expect(shortcut(page, 'liked').locator('svg')).toHaveCount(0);
-        // 无描边、11px。
-        const look = await shortcut(page, 'liked').evaluate(node => {
-            const label = node.querySelector('.is-label')!;
-            const style = getComputedStyle(label);
-            return { writing: style.writingMode, border: getComputedStyle(node).borderTopWidth, size: style.fontSize };
+        // 与页签逐项同身（用户定：样式一致）：竖排、字号、字重、字距、内边距、圆角、文字色都与页签一样（拿未选中的页签比）。
+        const sameAsTab = await shortcut(page, 'liked').evaluate(node => {
+            const tab = document.querySelector<HTMLElement>('.bravais-seam-home-nav [data-bravais-tab]:not(.is-active)')!;
+            const style = getComputedStyle(node);
+            const tabStyle = getComputedStyle(tab);
+            return (['writingMode', 'fontSize', 'fontWeight', 'letterSpacing', 'padding', 'borderRadius', 'color'] as const)
+                .map(key => [key, style[key], tabStyle[key]] as readonly [string, string, string]);
         });
-        // 横排（用户定，2026-10-09）。
-        expect(look).toEqual({ writing: 'horizontal-tb', border: '0px', size: '11px' });
+        for (const [key, value, tabValue] of sameAsTab) expect(`${key}=${value}`, key).toBe(`${key}=${tabValue}`);
+        // 横排小字那一份（.is-label）与那道分隔线都删了。
+        await expect(shortcut(page, 'liked').locator('.is-label')).toHaveCount(0);
+        await expect(seam(page).locator('.bravais-seam-shortcuts-rule')).toHaveCount(0);
+        // 「并排」= 同一列：入口这一块就在页签列的正下面（一个 gap，8px），横向中心与页签列对齐；列内一项一行。
+        const tabsBox = (await nav(page).locator('.bravais-seam-tabs[role="tablist"]').boundingBox())!;
+        const groupBox = (await shortcutsGroup(page).boundingBox())!;
+        expect(groupBox.y).toBeGreaterThanOrEqual(tabsBox.y + tabsBox.height - 0.5);
+        expect(groupBox.y - (tabsBox.y + tabsBox.height)).toBeLessThan(9);
+        expect(Math.abs((groupBox.x + groupBox.width / 2) - (tabsBox.x + tabsBox.width / 2))).toBeLessThan(1);
         const likedBox = (await shortcut(page, 'liked').boundingBox())!;
         const cloudBox = (await shortcut(page, 'cloud').boundingBox())!;
-        // 一行一个、上下排列（同一列居中）。
         expect(cloudBox.y).toBeGreaterThanOrEqual(likedBox.y + likedBox.height - 0.5);
         expect(Math.abs((likedBox.x + likedBox.width / 2) - (cloudBox.x + cloudBox.width / 2))).toBeLessThan(1);
-        // 靠下：入口一块的底边贴着账户入口（一个段间距，18px），不在中段中间。
-        const jumpsBottom = await seam(page).locator('[data-bravais-home-jumps]').evaluate(node => node.getBoundingClientRect().bottom);
-        const accountTop = await seam(page).locator('[data-bravais-account-slot]').evaluate(node => node.getBoundingClientRect().top);
-        expect(accountTop - jumpsBottom).toBeGreaterThanOrEqual(17);
-        expect(accountTop - jumpsBottom).toBeLessThan(26);
+        // @fork 反向断言：页头之外不再有一份入口（中段底部那一块空着，节点只留给测量钩子）。
+        expect(await shortcutsGroup(page).evaluate(node => node.closest('.bravais-seam-home-head') !== null)).toBe(true);
+        await expect(seam(page).locator('[data-bravais-home-jumps] *')).toHaveCount(0);
         await expect(seam(page).locator('[data-bravais-home-seam]')).toHaveAttribute('data-bravais-home-shortcuts', 'column');
 
         // 电台页签：私人 FM、每日推荐。
+        // @fork（2026-10-12）：入口并入页签列后，页头这一列跟着 tab 切换那一次提交一起换；实测本机负载压满时
+        // settled() 之后仍可能差一帧（读到的还是上一档页签的入口）。改成 web-first 轮询读：值必须真的变成电台
+        // 那两个，等 5s 还等不到照样红——不是放宽判据。
         await showTab(page, 'radio');
-        expect((await shortcutKinds(page)).map(([kind]) => kind)).toEqual(['personal-fm', 'daily']);
+        await expect.poll(async () => (await shortcutKinds(page)).map(([kind]) => kind), { timeout: 5000 })
+            .toEqual(['personal-fm', 'daily']);
         await expect(shortcut(page, 'personal-fm')).toHaveAttribute('aria-label', 'Personal FM');
 
         // 收藏专辑页签：没有特殊集合，就没有入口。
@@ -230,25 +246,25 @@ test.describe('[bravais-only] special collections', () => {
             ['all-songs', 'All Songs'],
             ['local-favorites', 'Liked Songs'],
         ]);
-        // 二级切换与入口之间一道分隔线；入口排在二级切换下面（fb11：贴在中段底部，二级切换仍在上面居中）。
+        // @fork：入口在页头的页签列下面，二级切换仍在中段——所以入口现在排在二级切换**上面**，两者之间不再有分隔线。
         await expect(shortcut(page, 'all-songs')).toHaveText('All Songs');
         await expect(shortcut(page, 'local-favorites')).toHaveText('Favorites');
-        // 与激活的二级切换区分：字号小一级、字重轻、颜色不是强调色。
-        const activeLabel = await seam(page).locator('[data-bravais-home-body] .bravais-seam-section.is-active .is-label').evaluate(node => {
-            const style = getComputedStyle(node);
-            return { size: parseFloat(style.fontSize), weight: Number(style.fontWeight), color: getComputedStyle(node.parentElement!).color };
-        });
-        const jumpLabel = await shortcut(page, 'all-songs').evaluate(node => {
-            const style = getComputedStyle(node.querySelector('.is-label')!);
-            return { size: parseFloat(style.fontSize), weight: Number(style.fontWeight), color: getComputedStyle(node).color };
-        });
-        expect(jumpLabel.size).toBeLessThan(activeLabel.size);
-        expect(jumpLabel.weight).toBeLessThan(activeLabel.weight);
-        expect(jumpLabel.color).not.toBe(activeLabel.color);
-        await expect(seam(page).locator('[data-bravais-home-jumps] .bravais-seam-shortcuts-rule')).toHaveCount(1);
+        await expect(seam(page).locator('.bravais-seam-shortcuts-rule')).toHaveCount(0);
         const sectionsBox = (await seam(page).locator('[data-bravais-home-body] [role="tablist"]').boundingBox())!;
         const shortcutsBox = (await shortcutsGroup(page).boundingBox())!;
-        expect(shortcutsBox.y).toBeGreaterThanOrEqual(sectionsBox.y + sectionsBox.height);
+        expect(shortcutsBox.y + shortcutsBox.height).toBeLessThanOrEqual(sectionsBox.y + 0.5);
+        // 与激活的二级切换仍然分得开：入口与页签同一身（14px 竖排、副文色），二级切换是 12px + 强调色 + 左侧一道细线。
+        const activeSection = await seam(page).locator('[data-bravais-home-body] .bravais-seam-section.is-active').evaluate(node => {
+            const label = node.querySelector<HTMLElement>('.is-label')!;
+            return { size: parseFloat(getComputedStyle(label).fontSize), color: getComputedStyle(node).color };
+        });
+        const jumpLook = await shortcut(page, 'all-songs').evaluate(node => {
+            const style = getComputedStyle(node);
+            return { size: parseFloat(style.fontSize), weight: Number(style.fontWeight), color: style.color, writing: style.writingMode };
+        });
+        expect(jumpLook.writing).toBe('vertical-rl');
+        expect(jumpLook.size).toBeGreaterThan(activeSection.size);
+        expect(jumpLook.color).not.toBe(activeSection.color);
 
         // 切到「专辑」：全部歌曲不在墙上，入口照样在。
         await section(page, 'Albums').click();
@@ -321,7 +337,9 @@ test.describe('[bravais-only] special collections', () => {
         const order = ['titled/column', 'untitled/column', 'untitled/menu', 'short/menu'];
         const seenAt = new Map<string, number>();
         let previous = 0;
-        for (let height = 1100; height >= 480; height -= 10) {
+        // @fork：入口并入页签列后这一块比原来的横排两行高出一截，「带标题 + 入口」要在更高的窗口才放得下，所以从 1400 起压。
+        // 让位顺序没改（还是标题 → 入口 → 页签缩成一个字），只是各级的分界线整体上移。
+        for (let height = 1400; height >= 480; height -= 10) {
             await page.setViewportSize({ width: 1440, height });
             await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
             const current = await state();
@@ -347,7 +365,7 @@ test.describe('[bravais-only] special collections', () => {
         await menu.locator('[data-bravais-seam-action="shortcut-all-songs"]').click();
         await expect.poll(async () => (await lastOpened(page))?.key).toBe(`local:folder:${HOME_ALL_SONGS_ID}`);
 
-        // 拉回高处：入口回到中段。
+        // 拉回高处：入口回到页签列下面。
         await seam(page).locator('[data-bravais-seam-action="back"]').first().click();
         await expect.poll(() => stack(page)).toEqual([]);
         await page.setViewportSize({ width: 1440, height: 1100 });

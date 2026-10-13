@@ -44,6 +44,9 @@ type BravaisFocus = ReturnType<typeof useBravaisFocus>;
 export type BravaisStagePlayback = {
     toggle?: () => void;
     enter?: () => void;
+    // @fork 本地魔改版：宿主还给了「固定去 Lattice」的端口（与右下角工具面板「前往 Lattice」同一个 onOpenLattice）。
+    // enter 的去向跟着「播放后进入的视图」设置，正在播放的聚焦卡上因此需要一颗不看设置、点了就是海报墙的按钮。
+    lattice?: () => void;
 };
 
 /** 墙上的按键动作：通用的（bravaisKeyboardModel）与首页的（bravaisHomeKeys）。 */
@@ -73,6 +76,7 @@ export const useBravaisInteractions = ({
     playbackRef,
     togglesCurrent,
     hasEnter,
+    hasLattice,
 }: {
     displayRef: MutableRefObject<BravaisDisplay | null>;
     focus: BravaisFocus;
@@ -89,6 +93,8 @@ export const useBravaisInteractions = ({
     togglesCurrent: boolean;
     /** 宿主给了「进入播放视图」。 */
     hasEnter: boolean;
+    /** @fork 本地魔改版：宿主给了「播放并进入 Lattice」（展开的聚焦卡上那颗固定去海报墙的按钮，见下方 openLattice）。 */
+    hasLattice: boolean;
 }) => {
     // 只取 focus 里身份稳定的成员：磁贴的 handlers 要跨渲染保持同一个对象，否则每张磁贴的 memo 都会失效。
     const { focusSlot, expand, collapse, expandedRef, focusedRef, drawnRect } = focus;
@@ -151,6 +157,21 @@ export const useBravaisInteractions = ({
         },
         togglesCurrent,
         enterPlayback: hasEnter ? () => playbackRef.current.enter?.() : undefined,
+        // @fork 本地魔改版：这颗 =「播这首 + 去 Lattice」（2026-10-13 用户实测定的语义）。
+        // 不是当前曲时先走 play 那条同样的路把它变成当前曲（含 armBravaisPlayingCard，回墙时这张卡仍展开），
+        // 再导航去墙；已经是当前曲时只导航，绝不碰播放/暂停——暂停中点它不该把歌放出来。
+        // 顺序要紧：onPlayItem 里的 navigateToPlaybackView 在 playSong 的 await 之后才跑，
+        // 我们这趟导航是同步落地的，所以它回来时 view 已是 'lattice'，那条路自己 early-return（见 useAppNavigation.ts:402），
+        // 把「播放后进入的视图」设成播放页的人也不会被拽走。
+        openLattice: hasLattice ? (slotKey: string) => {
+            const item = itemAt(slotKey);
+            const layer = displayRef.current?.layer;
+            if (item && layer && layer.nowPlayingKey !== item.key) {
+                armBravaisPlayingCard(layer.key, item.key);
+                layer.onPlayItem?.(item.key);
+            }
+            playbackRef.current.lattice?.();
+        } : undefined,
         enqueue: slotKey => {
             const item = itemAt(slotKey);
             if (item) displayRef.current?.layer.onEnqueueItem?.(item.key);
@@ -187,7 +208,7 @@ export const useBravaisInteractions = ({
             if (!layer || useBravaisUiStore.getState().panelFor !== layer.key) return;
             setBravaisWallHoverKey(slotKey ? itemAt(slotKey)?.key ?? null : null);
         },
-    }), [collapse, displayRef, expand, expandedRef, focusSlot, hasEnter, itemAt, openFrom, playbackRef, togglesCurrent]);
+    }), [collapse, displayRef, expand, expandedRef, focusSlot, hasEnter, hasLattice, itemAt, openFrom, playbackRef, togglesCurrent]);
 
     const hasContent = useCallback((slot: WallSlot) => resolveSlotItem(displayRef.current, slot) !== null, [displayRef]);
 

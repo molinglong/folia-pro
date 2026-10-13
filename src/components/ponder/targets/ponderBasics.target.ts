@@ -1,11 +1,11 @@
-import { ONBOARDING_ILLUSTRATION, onboardingSurface } from './ponderOnboardingShared';
+import { ONBOARDING_ILLUSTRATION } from './ponderOnboardingShared';
 import type { PonderSceneScript, PonderTargetDefinition } from '../../../types/ponder';
 
 // src/components/ponder/targets/ponderBasics.target.ts
 // 思索自己怎么用。
 //
 // 从 help-page 拆出来的详细说明：入门页只概述思索能做什么，「悬停出提示、长按 G、整页 Ctrl+G、
-// 触屏那颗灯泡、看够了怎么关」这些都是具体操作，属于导航页上的一条，不属于总览。
+// 触屏那颗灯泡」这些都是具体操作，属于导航页上的一条，不属于总览。
 
 const illustration = ONBOARDING_ILLUSTRATION;
 
@@ -86,31 +86,10 @@ const wholePage: PonderSceneScript = {
     ],
 };
 
-/**
- * 第五章：看够了就把提示关掉。
- *
- * 放在最后而不是不放：悬停提示对新用户是帮助，对已经熟了的人是噪声，而「它能关」
- * 这件事本身也只有在教程里说才找得到 —— 那个开关在设置的实验室分组里。
- */
-const hintSettings: PonderSceneScript = {
-    id: 'help-page-hint-settings',
-    titleKey: 'ponder.scenes.helpPageHintSettings',
-    action: {
-        kind: 'openSettings',
-        anchorId: 'ponderHints',
-        labelKey: 'ponder.actions.openPonderHints',
-    },
-    anchors: onboardingSurface('ponder.anchors.pages.settings', 'settings-page'),
-    steps: [
-        { kind: 'highlight', id: 'showSettings', anchor: 'page', intensity: [0, 0.4], durationMs: 520, keyframe: true },
-        {
-            kind: 'caption', id: 'hints', at: 'bottom',
-            textKey: 'ponder.captions.onboarding.hintSettings',
-            pointTo: { anchor: 'page', y: 0.5 }, durationMs: 6600, withPrevious: true,
-        },
-        { kind: 'pause', id: 'readHints' },
-    ],
-};
+// @fork 本地魔改版（用户：「把这个删了」→「彻底删掉胶囊 + 摘掉设置项」）：
+// 原第五章「看够了就把提示关掉」整章删除。它唯一的动作是打开 ponderHints 那档设置，
+// 而设置项已经摘掉 —— 锚点 id 也从 SettingsAnchorId 里没了，留着连编译都过不了。
+// 章节讲的东西（三档提示开关）在这个版本里不存在，留着就是一章教不了任何东西的教程。
 
 export default {
     id: 'ponder-basics',
@@ -118,5 +97,5 @@ export default {
     category: 'basics',
     summaryKey: 'ponder.summaries.ponder_basics',
     hoverSelector: null,
-    scenes: [insidePonder, wholePage, hintSettings],
+    scenes: [insidePonder, wholePage],
 } satisfies PonderTargetDefinition;

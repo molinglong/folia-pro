@@ -135,6 +135,66 @@ test.describe('[bravais-only] the playing song on the wall', () => {
         await expect(enter).toHaveCount(0);
     });
 
+    // @fork 本地魔改版：展开的聚焦卡上，⤢ 旁边那颗「播放并进入 Lattice」。
+    // 2026-10-13 用户实测两轮：① 展开的卡一律画（不要求正在播放，Lattice 有自己的空态）；
+    // ② 它带这首一起去墙——不是当前曲时先播它再去墙，已是当前曲时只导航，绝不碰播放/暂停。
+    test('every expanded focus card plays itself onto the Lattice wall', async ({ mount, page }) => {
+        await mountBravais(mount, page);
+        await openCard(page);
+        const { card, playbackKey } = await expandSong(page);
+        const enter = card.locator('[data-bravais-action="enter"]');
+        const wall = card.locator('[data-bravais-action="open-lattice"]');
+
+        // 宿主没给 onOpenLattice：这颗不画。
+        await expect(wall).toHaveCount(0);
+
+        // 宿主给了：展开的这张立刻画，不看它是不是正在播放的那首（⤢ 仍要正在播放才有）。
+        await page.evaluate(() => window.__homeProbe!.setLattice(true));
+        await expect(card).not.toHaveAttribute('data-bravais-current', 'true');
+        await expect(enter).toHaveCount(0);
+        await expect(wall).toHaveCount(1);
+        await expect(wall).toHaveClass(/\bis-icon\b/);
+        await expect(wall).toHaveAccessibleName('Play and open Lattice');
+        await expect(wall).toHaveAttribute('title', 'Play and open Lattice');
+        expect((await wall.innerText()).trim()).toBe('');
+
+        // 正在播放的换成别处：⤢ 消失，这颗留下——每张展开的卡都有（这条同时证明卡片还挂着）。
+        await setNowPlaying(page, 'online:elsewhere:1', true);
+        await expect(enter).toHaveCount(0);
+        await expect(wall).toHaveCount(1);
+
+        // 这张不是当前曲：点它 = 先播这首、再去墙。两笔账各记一次，不碰暂停开关。
+        await clearLog(page);
+        await wall.dispatchEvent('click');
+        await expect.poll(async () => (await calls(page, 'playSong')).map(call => call.ids[0])).toEqual([playbackKey]);
+        await expect.poll(async () => (await calls(page, 'openLattice')).length).toBe(1);
+        expect(await calls(page, 'togglePlayback')).toHaveLength(0);
+        expect(await calls(page, 'enterPlaybackView')).toHaveLength(0);
+
+        // 点它不收起聚焦卡、不开新层。
+        await expect(card).toHaveCount(1);
+        expect(await stack(page)).toHaveLength(1);
+
+        // 这首真的成了当前曲：再点它只导航——不再播一遍，也不把正在播的摁成暂停。
+        await setNowPlaying(page, playbackKey, true);
+        await expect(card).toHaveAttribute('data-bravais-current', 'true');
+        await expect(enter).toHaveCount(1);
+        await clearLog(page);
+        await wall.dispatchEvent('click');
+        await expect.poll(async () => (await calls(page, 'openLattice')).length).toBe(1);
+        expect(await calls(page, 'playSong')).toHaveLength(0);
+        expect(await calls(page, 'togglePlayback')).toHaveLength(0);
+
+        // 「播放后进入的视图」设成播放页也不改这颗的去向：⤢ 去播放页，这颗仍带着这首去海报墙。
+        await setEntryView(page, 'player');
+        await expect(enter).toHaveAccessibleName('Open the player');
+        await setNowPlaying(page, 'online:elsewhere:1', true);
+        await clearLog(page);
+        await wall.dispatchEvent('click');
+        await expect.poll(async () => (await calls(page, 'playSong')).map(call => call.ids[0])).toEqual([playbackKey]);
+        await expect.poll(async () => (await calls(page, 'openLattice')).length).toBe(1);
+    });
+
     test('playing from the wall keeps that card expanded when the wall comes back, until it is collapsed by hand', async ({ mount, page }) => {
         await mountBravais(mount, page);
         await openCard(page);

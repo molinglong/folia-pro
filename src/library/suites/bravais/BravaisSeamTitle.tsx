@@ -1,5 +1,7 @@
 import React, { useCallback, useId, useRef } from 'react';
 import { shouldToggleSeamFromTitle } from './bravaisSeamTitleClick';
+// @fork 本地魔改版：标题区的底色取自这张封面，复用歌手磁贴那套取色缓存与队列。
+import { useBravaisSeamTone } from './bravaisArtistTone';
 
 // src/library/suites/bravais/BravaisSeamTitle.tsx
 // 缝里可点的竖排标题（设计稿 §5「开口等级」）：完整信息条的标题区域（上下一对引号 + 竖排大标题）点一下收成书脊，
@@ -7,6 +9,8 @@ import { shouldToggleSeamFromTitle } from './bravaisSeamTitleClick';
 // 两者都是原生 <button>：Enter / Space 激活、进缝里的方向键序列（fb8a），读屏名是「收起信息条」/「展开信息条」，
 // 标题文字经 aria-describedby 仍读得到。拖了一段再松手（像是想拖选文字）不算点击（bravaisSeamTitleClick）。
 // 两者都挂 data-bravais-seam-toggle：键盘切换时缝整条翻，转完焦点交给新内容里的那一个（useBravaisSeam）。
+// @fork 本地魔改版：完整信息条的标题区域多一层「封面取色底」——toneUrl 交给 useBravaisSeamTone，
+// 它把取到的色写成元素上的 --bravais-seam-tone（不进 React 状态），深浅与过渡都在 bravais.css 里。
 
 /** 点标题的指针处理：记下按下的位置，click 时按 shouldToggleSeamFromTitle 决定要不要切换。 */
 export const useBravaisSeamTitleClick = (onToggle: () => void) => {
@@ -31,14 +35,20 @@ type BravaisSeamTitleAreaProps = {
     /** 「收起信息条」（读屏名与悬停提示）。 */
     label: string;
     onCollapse: () => void;
+    /** @fork 本地魔改版：取色底用的封面；没有（或取不到色相）就不变色。 */
+    toneUrl?: string;
 };
 
 /** 完整信息条的标题区域：引号 + 竖排大标题整块是一个按钮，点它收成书脊。 */
-export const BravaisSeamTitleArea: React.FC<BravaisSeamTitleAreaProps> = ({ title, fontSize, label, onCollapse }) => {
+export const BravaisSeamTitleArea: React.FC<BravaisSeamTitleAreaProps> = ({ title, fontSize, label, onCollapse, toneUrl }) => {
     const titleId = useId();
     const handlers = useBravaisSeamTitleClick(onCollapse);
+    // @fork：取色结果由 useBravaisSeamTone 直接写在这个元素的 --bravais-seam-tone 上，不走状态、不重渲染整条缝。
+    const areaRef = useRef<HTMLButtonElement | null>(null);
+    useBravaisSeamTone(toneUrl, areaRef);
     return (
         <button
+            ref={areaRef}
             type="button"
             className="bravais-seam-title-area"
             data-bravais-seam-action="spine"

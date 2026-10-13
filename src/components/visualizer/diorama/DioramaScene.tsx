@@ -31,6 +31,8 @@ import {
     splitDioramaLyricUnits,
 } from './dioramaSceneLayout';
 import { DioramaLineRasterCache } from './dioramaLineRasterCache';
+// @fork 性能刀A：纹理首帧上传的后台预热（详见 dioramaTexturePrewarm.ts，含实测用的 localStorage 档位开关）。
+import { DioramaTexturePrewarm, resolveDioramaPrewarmBudgets } from './dioramaTexturePrewarm';
 import {
     type DioramaUnitPlanes,
     recycleDioramaMoteWindow,
@@ -334,15 +336,38 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
         [activeLine, activeLineUnits, fontSpec],
     );
     // Dispose the previous line's unit textures once a new set is in place.
+    // @fork 性能刀A-2：图集化后「这一行的 GPU 资源」不再是 2N 张独立画布，而是 layout 一并交出来的
+    // `textures`（图集模式 2 张本体 + 每格 clone，逐张模式仍是 2N 张）+ 一个 `dispose`。释放顺序由
+    // 栅格器自己负责（先收 clone 再收图集），这里只管调用。
     useEffect(() => {
         const current = activeUnitsRaster;
         return () => {
-            current?.units.forEach((u) => {
-                u.raster.baseTexture.dispose();
-                u.raster.glowTexture.dispose();
-            });
+            current?.dispose();
         };
     }, [activeUnitsRaster]);
+
+    // @fork 性能刀A：GPU 上传预热。栅格已经在上面同步建好了，但 CanvasTexture 要等第一次被渲染用到
+    // 才上传 —— 主页上歌词层不挂载，于是这几十张（当前行每单元 base+glow，加上邻行整行大图）全压在
+    // 「进播放页」那一帧首传，trace 里就是 45.5ms 的 diorama 帧后面跟着一串 ~29ms 的 CommandBuffer::Flush。
+    // 这里改用 renderer.initTexture() 在后台帧里一张张传好，把这笔字节挪出切换帧。
+    // 注意这**不是免费的**：上传是 GPU 活，主页那边 visualizer 一直在跑，档位给太猛（实测 6/2）会把主页
+    // 自己打到 21fps，等于把尖峰从切换帧搬到用户常驻的页面上。所以预算必须能调，且默认给保守档。
+    // 每帧预算由 resolveDioramaPrewarmBudgets() 读 localStorage 档位（实测 A/B 手柄，缺省 2/1，`off` 即
+    // 完全不预热）。实例按 renderer 身份重建（上下文重建后旧实例传的是死上下文）。
+    const gl = useThree((state) => state.gl);
+    const prewarmRef = useRef<{ renderer: typeof gl; prewarm: DioramaTexturePrewarm } | null>(null);
+    if (!prewarmRef.current || prewarmRef.current.renderer !== gl) {
+        prewarmRef.current?.prewarm.dispose();
+        prewarmRef.current = {
+            renderer: gl,
+            prewarm: new DioramaTexturePrewarm(gl, resolveDioramaPrewarmBudgets()),
+        };
+    }
+    const prewarm = prewarmRef.current.prewarm;
+    useEffect(() => {
+        prewarm.sync(activeUnitsRaster ? activeUnitsRaster.textures : [], 'unit');
+    }, [prewarm, activeUnitsRaster]);
+    useEffect(() => () => { prewarm.dispose(); }, [prewarm]);
 
     // Neighbour line rasters, cached per line index and built INCREMENTALLY off the render frame. A song
     // change wants several new line textures at once; rasterising them all synchronously during render is
@@ -361,7 +386,16 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
         fontStack,
         fontWeight,
         linesEpoch,
-        onChange: () => bumpNeighborTick((v) => v + 1),
+        // @fork 性能刀A：纹理落地/被剪掉都要把预热队列对齐（cache 只在真有变化时回调），所以预热挂在这里
+        // 而不是另开一个 effect 依赖 tick —— 预热的输入是缓存本身，缓存说自己变了就去同步一次。读 ref
+        // 而不是闭包里的 prewarm：deps 故意不含它，否则 renderer 身份一变就白白重启增量栅格化。
+        onChange: () => {
+            bumpNeighborTick((v) => v + 1);
+            prewarmRef.current?.prewarm.sync(
+                Array.from(lineRasters.rasters.values(), (raster) => raster.texture),
+                'neighbor',
+            );
+        },
     }), [visibleLines, globalIndex, fontSpec, fontStack, fontWeight, linesEpoch, lineRasters]);
 
     // Free the neighbour cache's WebGL textures on UNMOUNT. The incremental effect above only disposes

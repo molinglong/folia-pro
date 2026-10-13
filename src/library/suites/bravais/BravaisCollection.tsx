@@ -16,6 +16,8 @@ import { useGridSurfaceRegistration } from '../../../hooks/useGridSurfaceRegistr
 import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
 import type { BravaisItem, BravaisLayer, BravaisSeamModel } from './bravaisLayer';
 import { collectQueuedKeys, findNowPlayingKey, projectCollectionTracks } from './bravaisProjection';
+// @fork 本地魔改版：缝里的署名行（专辑的艺人 / 发行信息）投影。
+import { projectBravaisSeamByline } from './bravaisBylineProjection';
 import { describeBravaisTrack } from './describeBravaisTrack';
 import type { BravaisPlaylistScope } from './bravaisFormModel';
 import { useBravaisCollectionFilter } from './useBravaisCollectionFilter';
@@ -232,16 +234,31 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
     const scopeEnabled = actions.capabilities.scope.enabled;
     const declaresScope = declaredActions.actions.includes('play-scope');
     const declaresEnqueueScope = declaredActions.actions.includes('enqueue-scope');
+    // @fork 本地魔改版：标题区的取色底与署名行。在线集合的详情（封面、发行信息）盖在集合描述上——
+    // 与网格信息面板、core/model/collectionDescription 同一条规则：字段在详情里存在就以详情为准（哪怕是空）。
+    const detail = snapshot?.detail ?? null;
+    const seamCoverUrl = ((detail && Object.prototype.hasOwnProperty.call(detail, 'coverUrl') ? detail.coverUrl : collection.coverUrl) || undefined);
+    const canOpenArtist = declaredActions.actions.includes('open-artist');
+    const byline = useMemo(() => projectBravaisSeamByline({
+        collection,
+        detail,
+        isAlbum: collection.type === 'album',
+        canOpenArtist,
+        // 执行时读最新的导航回调（与 callbacks 同一套做法）：层描述不因回调换身份而重做。
+        onOpenArtist: artist => latest.current.onOpenArtist(artist.id, { ...artist }),
+    }), [canOpenArtist, collection, detail]);
     const seam = useMemo<BravaisSeamModel>(() => ({
         title: displayTitle,
         crumb: displayTitle,
         // 过滤中显示「匹配 / 总数」（书脊上也是它）。
         meta: view.isFilterActive ? matchLabel : t('libraryBravais.trackCount', { count: allItems.length }),
+        coverUrl: seamCoverUrl,
+        byline,
         onPlayScope: declaresScope && scopeEnabled ? callbacks.onPlayScope : undefined,
         onEnqueueScope: declaresEnqueueScope && scopeEnabled ? callbacks.onEnqueueScope : undefined,
         filter: seamFilter,
         collection: seamCollection,
-    }), [allItems.length, callbacks, declaresEnqueueScope, declaresScope, displayTitle, matchLabel, scopeEnabled, seamCollection, seamFilter, t, view.isFilterActive]);
+    }), [allItems.length, byline, callbacks, declaresEnqueueScope, declaresScope, displayTitle, matchLabel, scopeEnabled, seamCollection, seamCoverUrl, seamFilter, t, view.isFilterActive]);
 
     const layer = useMemo<BravaisLayer>(() => ({
         key: sessionKey,

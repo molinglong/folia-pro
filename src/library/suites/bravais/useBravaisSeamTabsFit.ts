@@ -25,6 +25,14 @@ import { useLayoutEffect, useState, type RefObject } from 'react';
 // fb11：入口改成并排的竖排文字（比图标高），并挪到中段底部单独一块（jumpsRef，贴着账户入口 / 工具格；二级切换仍在
 // 中段内层里居中）。切换位只剩二级切换，测量改为：中段内层（二级切换换成全名副本）+ 入口一块的测量副本（jumpsMeasureRef，
 // 含分隔线与它上面的留白；入口挪进菜单时此刻那一块是空的、高 0）。各级所需高度仍只看副本。
+// @fork 本地魔改版（2026-10-12，用户：把入口并到歌单 / 电台 / 专辑那一列里去，样式一致）：入口不再在中段底部，而是画在
+// 页头的页签列下面（BravaisSeamHome 的 HomeSeamHead.shortcuts）。这一份钩子一行没改，账照旧算：
+// - jumpsMeasureRef 那份副本还在，量的是入口一块的高（bravaisHome.css 给它 8px 上内边距 = 页头那一列的 gap，
+//   真渲染里那份留白由 .bravais-seam-home-side 的 gap 给出，所以两边的占高一致）；
+// - 两份页头副本不带入口，withShortcuts / withoutShortcuts 仍是「加不加这一块」，退让顺序（入口先于二级切换让位、
+//   挪进「⋯」菜单）与级别判定完全不变；
+// - jumpsRef 那一块现在恒为空（0 高），所以 overflowing 量的就是页头 + 中段内层的真实高——入口已在页头里。
+// 节点都不能删：任一 ref 为空，useLayoutEffect 直接早退，页签就再也不按测量退让。
 
 /** 页头的缩减级别：带标题 + 全名 → 不带标题 + 全名 → 不带标题 + 一个字（页签与激活的二级切换一起缩）。 */
 export type BravaisSeamHeadLevel = 'titled' | 'untitled' | 'short';
@@ -98,9 +106,9 @@ export const useBravaisSeamTabsFit = ({
     bareHeadRef: RefObject<HTMLElement | null>;
     /** 切换位的测量副本：全名二级切换（容器常在，没有时是空的）。 */
     fullSlotRef: RefObject<HTMLElement | null>;
-    /** 此刻中段底部的直达入口一块（入口挪进菜单或没有入口时是空的）。 */
+    /** @fork：入口并入页签列后这一颗恒为空（0 高）；节点留着是因为它不能不在（见文件头）。 */
     jumpsRef: RefObject<HTMLElement | null>;
-    /** 直达入口一块的测量副本（容器常在，没有入口时是空的）。 */
+    /** 直达入口一块的测量副本（@fork：入口画在页头的页签列下面，高由这一份额外的副本补进账；容器常在，没有入口时是空的）。 */
     jumpsMeasureRef: RefObject<HTMLElement | null>;
 }): BravaisSeamTabsFit => {
     const [fit, setFit] = useState<BravaisSeamTabsFit>(FITS);

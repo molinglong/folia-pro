@@ -3,7 +3,14 @@ import { type GraphemeTiming, splitLyricGraphemes } from '../../../utils/lyrics/
 import { buildFormation, type DioramaMotionParams, getDioramaShot, getDioramaTextPlacement } from './cameraPath';
 import { resolveGlobal, type SequencerState } from './dioramaSequencer';
 import { DIORAMA_CLUSTER_COLLISION_LINE_SPAN, selectVisibleDioramaClusters, type DioramaParticleClusterAnchor } from './dioramaGeometry';
-import { DIORAMA_RASTER_FONT_PX, measureDioramaText, rasterDioramaUnit } from './dioramaTextRaster';
+import {
+    DIORAMA_RASTER_FONT_PX,
+    dioramaUnitAtlasFits,
+    measureDioramaText,
+    rasterDioramaUnit,
+    rasterDioramaUnitAtlas,
+    resolveDioramaUnitRasterMode,
+} from './dioramaTextRaster';
 import { buildDioramaParticleCorridorWindow } from './dioramaParticleCorridor';
 import {
     CORRIDOR_LINES_AHEAD,
@@ -15,7 +22,7 @@ import {
     OUTGOING_LINES_BEHIND,
 } from './dioramaSceneConstants';
 import { frameQuaternion } from './dioramaSceneUnits';
-import { CJK_GRAPHEME_RE, type LyricUnit, type PlacedUnitRaster, type VisibleLineEntry } from './dioramaSceneTypes';
+import { CJK_GRAPHEME_RE, type DioramaActiveUnitsRaster, type LyricUnit, type PlacedUnitRaster, type VisibleLineEntry } from './dioramaSceneTypes';
 
 // src/components/visualizer/diorama/dioramaSceneLayout.ts
 // 镜台场景的结构推导（纯函数，由 DioramaScene 的 useMemo 调用）：挂载哪些行、每行在路径上的位置，
@@ -189,25 +196,67 @@ export const splitDioramaLyricUnits = (
     return units;
 };
 
-/** Rasterises the active line's units and places each at its kerned slot by measuring prefixes of the full line. */
+/**
+ * Rasterises the active line's units and places each at its kerned slot by measuring prefixes of the full line.
+ *
+ * @fork 性能刀A-2：默认走「一行一张图集」（`rasterDioramaUnitAtlas`，2 次 GPU 上传），
+ * `localStorage.diorama_unit_atlas=off` 回到逐单元两张独立画布的老路，用来在同一包里做单变量对照。
+ * 两条路共用同一套测量（prefix 宽度、单元 advance 取整口径一致），所以排版位置逐像素相同。
+ */
 export const layoutDioramaActiveUnits = (
     activeLine: Line | null,
     activeLineUnits: readonly LyricUnit[],
     fontSpec: string,
-) => {
+): DioramaActiveUnitsRaster | null => {
     if (!activeLine?.fullText || activeLineUnits.length === 0) return null;
     const worldPerPx = LINE_FONT_SIZE / DIORAMA_RASTER_FONT_PX;
     const full = activeLine.fullText;
     const totalPx = measureDioramaText(full, fontSpec);
-    const units: PlacedUnitRaster[] = activeLineUnits.map((unit) => {
+    const texts = activeLineUnits.map((unit) => full.slice(unit.charStart, unit.charEnd));
+    const advances = texts.map((text) => Math.max(1, Math.ceil(measureDioramaText(text, fontSpec))));
+    // 每个单元的 advance 中心（整行居中后的世界 x）。测量的是整行的前缀串，所以落点是带字距的真值。
+    const centers = activeLineUnits.map((unit, i) => {
         const prefixPx = measureDioramaText(full.slice(0, unit.charStart), fontSpec);
-        const raster = rasterDioramaUnit(full.slice(unit.charStart, unit.charEnd), fontSpec);
-        return {
-            raster,
-            centerX: (-totalPx / 2 + prefixPx + raster.advancePx / 2) * worldPerPx,
-            width: raster.canvasWidthPx * worldPerPx,
-            height: raster.canvasHeightPx * worldPerPx,
-        };
+        return (-totalPx / 2 + prefixPx + advances[i] / 2) * worldPerPx;
     });
-    return { units, lineWidth: totalPx * worldPerPx };
+    const lineWidth = totalPx * worldPerPx;
+
+    if (resolveDioramaUnitRasterMode() === 'atlas' && dioramaUnitAtlasFits(advances)) {
+        const atlas = rasterDioramaUnitAtlas(texts, advances, fontSpec);
+        return {
+            lineWidth,
+            textures: atlas.textures,
+            dispose: atlas.dispose,
+            units: atlas.units.map((cell, i) => ({
+                baseTexture: cell.baseTexture,
+                glowTexture: cell.glowTexture,
+                centerX: centers[i],
+                baseWidth: cell.baseWidthPx * worldPerPx,
+                baseHeight: cell.baseHeightPx * worldPerPx,
+                glowWidth: cell.glowWidthPx * worldPerPx,
+                glowHeight: cell.glowHeightPx * worldPerPx,
+            })),
+        };
+    }
+
+    const rasters = texts.map((text) => rasterDioramaUnit(text, fontSpec));
+    return {
+        lineWidth,
+        textures: rasters.flatMap((raster) => [raster.baseTexture, raster.glowTexture]),
+        dispose: () => rasters.forEach((raster) => {
+            raster.baseTexture.dispose();
+            raster.glowTexture.dispose();
+        }),
+        units: rasters.map((raster, i) => ({
+            baseTexture: raster.baseTexture,
+            glowTexture: raster.glowTexture,
+            centerX: centers[i],
+            // 老路两张画布共用辉光边距的大尺寸，字身和辉光一样大。
+            baseWidth: raster.canvasWidthPx * worldPerPx,
+            baseHeight: raster.canvasHeightPx * worldPerPx,
+            glowWidth: raster.canvasWidthPx * worldPerPx,
+            glowHeight: raster.canvasHeightPx * worldPerPx,
+        })),
+    };
 };
+

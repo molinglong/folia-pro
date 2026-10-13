@@ -1171,9 +1171,11 @@ test.describe('[switch] bravais shares the account flows', () => {
         await setSuite(page, 'bravais');
         await setActive(page, ACCOUNT_GAMMA);
         await expect(bravaisSwitcher(page)).toHaveAttribute('data-bravais-account', 'guest');
-        await expect(bravaisConnect(page)).toHaveText('Connect a streaming service');
+        // @fork（2026-10-12，用户：账户位只留头像、名字删了）：未登录那一颗是连接图标的圆，「连接在线平台」在可访问名与 title 里。
+        await expect(bravaisConnect(page)).toHaveText('');
+        await expect(bravaisConnect(page).locator('.is-name')).toHaveCount(0);
         await expect(bravaisConnect(page)).toHaveAttribute('aria-expanded', 'false');
-        // fb8：入口是连接图标 + 文案，不写「未登录」之类的状态（状态在可访问名与 title 里）。
+        // fb8：入口是连接图标，不写「未登录」之类的状态（状态在可访问名与 title 里）。
         await expect(bravaisConnect(page).locator('[data-bravais-account-avatar="connect"] svg')).toBeVisible();
         await expect(bravaisConnect(page)).toHaveAccessibleName(/^Connect a streaming service · .+ · Not signed in$/);
         await expect(page.locator('[data-bravais-account-provider]')).toHaveCount(0);

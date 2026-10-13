@@ -99,10 +99,14 @@ export const usePonderHoverProbe = () => {
             clearTimer();
             usePonderStore.getState().setHoveredTargetId(null);
 
-            const { ponderHintVisibility, seenTargetIds } = usePonderStore.getState();
+            // @fork 本地魔改版（删掉「按 G 思索」胶囊那轮）：设置里那档「思索教程提示」已经摘掉，这里
+            // 不再读 store 的 ponderHintVisibility。留着它会变成一个黑盒：默认档 'unseen' 会让已经看过
+            // 教程的目标悄悄不再响应长按 G，而界面上再没有地方能看懂为什么。固定 'always'，
+            // 模态阻断与粗指针那两条规则照旧生效。
+            const { seenTargetIds } = usePonderStore.getState();
             const insideBlocking = Boolean(element?.closest(BLOCKING_WINDOW_SELECTOR));
             const allowed = shouldOfferPonderHint({
-                visibility: ponderHintVisibility,
+                visibility: 'always',
                 targetId: target.id,
                 seenIds: seenTargetIds,
                 hasBlockingWindow: hasBlockingWindow(),

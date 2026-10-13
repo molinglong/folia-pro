@@ -3,13 +3,23 @@ import { expect, test } from './fixtures';
 
 // test/component/ponderHint.spec.ts
 // 思索的进入链路。这里覆盖的全是只有真实浏览器才暴露的东西：600ms/400ms 两个时间门、
-// 胶囊到底能不能被点到、G 在输入框里有没有漏进去，以及光标跟随有没有真的绕开 React。
+// G 在输入框里有没有漏进去，以及光标跟随有没有真的绕开 React。
 // 见 dev/probes/ponderHint.probe.tsx。
+//
+// @fork 本地魔改版（用户：「把这个删了」→「彻底删掉胶囊 + 摘掉设置项」）：
+// 跟随光标的 PonderHintCapsule 不再渲染，设置里那档三选一的可见性也一起摘了。
+// 原本围着胶囊写的四条用例（600ms 才出、不可点击、可见性设为关闭、z-index 压过导航页）
+// 失去对象，删掉；两颗按钮本身还在 —— 悬停满 600ms 命中目标、长按满 400ms 进教程 ——
+// 所以同步点从「胶囊可见」换成探针写下的 data-probe-hovered，它是悬停探测在浏览器里
+// 唯一剩下的可观测出口，也正是长按 G 的前置条件。
+// 另补一条反向断言：命中目标之后屏幕上依旧不该长出胶囊。用例是红的还是绿的，
+// 取决于胶囊有没有被加回来，不是取决于这里写着什么。
 
 /** mount fixture 的结构类型，照 automixTransitionSwitches.spec.ts。 */
 type Mount = (component: string) => Promise<unknown>;
 
 const STATE = '[data-probe-state]';
+/** 只用于反向断言：这颗胶囊在本版本里应当永远不在 DOM 上。 */
 const CAPSULE = '[data-testid="ponder-hint-capsule"]';
 const STAGE = '[data-testid="ponder-stage"]';
 const TOGGLE = '[data-testid="panel-toggle"]';
@@ -24,73 +34,57 @@ async function hoverToggle(page: Page): Promise<{ x: number; y: number }> {
     return point;
 }
 
+/** 等到悬停探测真的命中 panel-slide —— 没有胶囊之后这是唯一的同步点。 */
+async function waitHoverArmed(page: Page): Promise<void> {
+    await expect(page.locator(STATE)).toHaveAttribute('data-probe-hovered', 'panel-slide', { timeout: 2000 });
+}
+
 test.beforeEach(async ({ mount }) => {
     await (mount as unknown as Mount)('ponderHint');
 });
 
-test.describe('悬停提示', () => {
-    test('不到 600ms 不出胶囊，满了才出', async ({ page }) => {
+test.describe('悬停探测', () => {
+    test('不到 600ms 不命中目标，满了才命中，且全程没有胶囊', async ({ page }) => {
         await hoverToggle(page);
 
         await page.waitForTimeout(350);
-        await expect(page.locator(CAPSULE)).toHaveCount(0);
         expect(await hoveredOf(page)).toBe('');
+        await expect(page.locator(CAPSULE)).toHaveCount(0);
 
-        await expect(page.locator(CAPSULE)).toBeVisible({ timeout: 2000 });
-        expect(await hoveredOf(page)).toBe('panel-slide');
+        await waitHoverArmed(page);
+        // 反向断言：命中了目标也不该有胶囊。把 PonderHost 里那段渲染加回来，这一条就红。
+        await expect(page.locator(CAPSULE)).toHaveCount(0);
     });
 
-    test('指针离开后胶囊消失', async ({ page }) => {
+    test('指针离开后不再命中', async ({ page }) => {
         await hoverToggle(page);
-        await expect(page.locator(CAPSULE)).toBeVisible({ timeout: 2000 });
+        await waitHoverArmed(page);
 
         await page.mouse.move(5, 5);
+        await expect(page.locator(STATE)).toHaveAttribute('data-probe-hovered', '', { timeout: 2000 });
         await expect(page.locator(CAPSULE)).toHaveCount(0);
-        expect(await hoveredOf(page)).toBe('');
     });
 
-    test('胶囊不可点击：点它命中的是底下的开关', async ({ page }) => {
-        const point = await hoverToggle(page);
-        await expect(page.locator(CAPSULE)).toBeVisible({ timeout: 2000 });
-
-        // 胶囊在光标右下 12px，所以这一点正落在它身上。
-        await page.mouse.click(point.x + 20, point.y + 20);
-
-        await expect(page.locator(CAPSULE)).toHaveCSS('pointer-events', 'none');
-        // 点击穿透到了替身开关，计数加一。
-        await expect(page.locator(STATE)).toHaveAttribute('data-probe-clicks', '1');
-    });
-
-    test('可见性设为关闭时连提示都不出', async ({ page }) => {
-        await page.locator('[data-probe-visibility="off"]').click();
-        await hoverToggle(page);
-
-        await page.waitForTimeout(900);
-        await expect(page.locator(CAPSULE)).toHaveCount(0);
-        expect(await hoveredOf(page)).toBe('');
-    });
-
-    test('帮助导航页内的悬停提示不被页面遮住', async ({ page }) => {
+    test('帮助导航页里悬停卡片：能长按进教程，但同样不弹胶囊', async ({ page }) => {
         await page.locator('[data-probe-open-navigation]').click();
 
         const navigation = page.locator('[data-testid="ponder-navigation"]');
         await expect(navigation).toBeVisible();
-        await page.locator('[data-ponder-nav-target="panel-slide"]').hover();
-        const capsule = page.locator(CAPSULE);
-        await expect(capsule).toBeVisible({ timeout: 2000 });
 
-        const layers = await Promise.all([
-            navigation.evaluate(element => Number(getComputedStyle(element).zIndex)),
-            capsule.evaluate(element => Number(getComputedStyle(element).zIndex)),
-        ]);
-        expect(layers[1]).toBeGreaterThan(layers[0]);
+        await page.locator('[data-ponder-nav-target="panel-slide"]').hover();
+        await expect(page.locator(STATE)).toHaveAttribute('data-probe-hovered', 'panel-slide', { timeout: 2000 });
+        await expect(page.locator(CAPSULE)).toHaveCount(0);
+
+        await page.keyboard.down('g');
+        await expect(page.locator(STAGE)).toBeVisible({ timeout: 2000 });
+        await page.keyboard.up('g');
     });
 });
 
 test.describe('长按 G', () => {
     test('不到 400ms 松手会取消', async ({ page }) => {
         await hoverToggle(page);
-        await expect(page.locator(CAPSULE)).toBeVisible({ timeout: 2000 });
+        await waitHoverArmed(page);
 
         await page.keyboard.down('g');
         await page.waitForTimeout(150);
@@ -103,19 +97,19 @@ test.describe('长按 G', () => {
 
     test('按满 400ms 打开教程层', async ({ page }) => {
         await hoverToggle(page);
-        await expect(page.locator(CAPSULE)).toBeVisible({ timeout: 2000 });
+        await waitHoverArmed(page);
 
         await page.keyboard.down('g');
         await expect(page.locator(STAGE)).toBeVisible({ timeout: 2000 });
         await page.keyboard.up('g');
 
-        // 教程开着时胶囊必须让位。
+        // 教程开着时屏幕上也不该有胶囊 —— 它本来就不存在，这条是给它留的门。
         await expect(page.locator(CAPSULE)).toHaveCount(0);
     });
 
     test('Esc 退出教程层', async ({ page }) => {
         await hoverToggle(page);
-        await expect(page.locator(CAPSULE)).toBeVisible({ timeout: 2000 });
+        await waitHoverArmed(page);
         await page.keyboard.down('g');
         await expect(page.locator(STAGE)).toBeVisible({ timeout: 2000 });
         await page.keyboard.up('g');
@@ -126,7 +120,7 @@ test.describe('长按 G', () => {
 
     test('屏幕上的下一关键帧会停住时间线，退出按钮关闭教程', async ({ page }) => {
         await hoverToggle(page);
-        await expect(page.locator(CAPSULE)).toBeVisible({ timeout: 2000 });
+        await waitHoverArmed(page);
         await page.keyboard.down('g');
         await expect(page.locator(STAGE)).toBeVisible({ timeout: 2000 });
         await page.keyboard.up('g');
@@ -217,7 +211,7 @@ test.describe('触屏上的思索按钮', () => {
 test.describe('guardrails', () => {
     test('移动 100 次指针不产生任何 PonderHost 重渲染', async ({ page }) => {
         await hoverToggle(page);
-        await expect(page.locator(CAPSULE)).toBeVisible({ timeout: 2000 });
+        await waitHoverArmed(page);
 
         await page.evaluate(() => {
             (window as unknown as { __renderCounts?: Record<string, number> }).__renderCounts = {};
@@ -239,7 +233,7 @@ test.describe('章节', () => {
     /** 打开教程层并停在第一章。 */
     async function openStage(page: Page): Promise<void> {
         await hoverToggle(page);
-        await expect(page.locator(CAPSULE)).toBeVisible({ timeout: 2000 });
+        await waitHoverArmed(page);
         await page.keyboard.down('g');
         await expect(page.locator(STAGE)).toBeVisible({ timeout: 2000 });
         await page.keyboard.up('g');

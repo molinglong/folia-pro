@@ -73,13 +73,7 @@
     "directories": {
       "output": "release"
     },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "chthollyphile",
-        "repo": "folia-major"
-      }
-    ],
+    "publish": null,
     "files": [
       "dist/**/*",
       "electron/**/*",

@@ -170,3 +170,14 @@ export type BravaisSeamArtist = {
     /** 头像的替代文字（歌手名）。 */
     name: string;
 };
+
+/**
+ * @fork 本地魔改版：署名行（完整信息条里元数据行下面的艺人与发行信息）。投影在 bravaisBylineProjection.ts，
+ * 数据与网格信息面板的专辑块同一份；这里只带已排好的展示文字与回调，stage 只读、只调。
+ */
+export type BravaisSeamBylineData = {
+    /** 艺人名字；能进歌手页（suite 声明了 open-artist）时带 onOpen，否则只画纯文本。 */
+    artists: readonly { name: string; onOpen?: () => void }[];
+    /** 小字行（发行日期 · 出版方 ·…，已拼好）；一条一行，空数组就不画。 */
+    facts: readonly string[];
+};

@@ -3159,8 +3159,13 @@ function getUpdateCheckSupportReason() {
   return getCurrentReleaseChannel().updateEnabled ? null : 'channel';
 }
 
+// @fork 本地魔改版：永久断开与官方发布通道的连接（2026-10-11）。
+// 自动检查（scheduleUpdateCheck）、手动检查（checkForUpdates manual）、
+// 下载与安装（isAutoUpdaterSupported -> downloadAvailableUpdate）全部经过这里，
+// 返回 false 后桌面端不会再向 github.com/chthollyphile/folia-major 发起任何请求。
+// 恢复官方更新 = 把函数体改回 `return getUpdateCheckSupportReason() === null;`。
 function isUpdateCheckSupported() {
-  return getUpdateCheckSupportReason() === null;
+  return false;
 }
 
 function isDevUpdatePreviewEnabled() {

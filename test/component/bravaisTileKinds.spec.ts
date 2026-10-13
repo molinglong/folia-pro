@@ -146,6 +146,8 @@ test.describe('[bravais-only] tile kinds', () => {
         expect(sizes[1]).toBeCloseTo(sizes[0], 1);
         expect(await leftWithinFace(album.locator('.lattice-poster-badge'))).toBe(14);
         expect(await leftWithinFace(album.locator('.lattice-poster-copy'))).toBe(17);
+        // @fork 本地魔改版（用户：「添加圆角」）：类型标签是圆角的，量级取仓库里小控件那一档 8px（wall.css）。
+        expect(await album.locator('.lattice-poster-badge').evaluate(element => getComputedStyle(element).borderRadius)).toBe('8px');
         // 翻牌只转内容层：页边是内容层自己画的，外框没有阴影。
         expect(await album.evaluate(frame => getComputedStyle(frame).boxShadow)).toBe('none');
 
@@ -178,6 +180,8 @@ test.describe('[bravais-only] tile kinds', () => {
         await expect(liked.locator('.lattice-poster-badge')).toHaveClass(/\bis-special\b/);
         await expect(liked.locator('.lattice-poster-badge')).toHaveText('Playlist · 321');
         expect(await leftWithinFace(liked.locator('.lattice-poster-badge'))).toBe(14);
+        // @fork 本地魔改版：强调色那枚是同一个元素的 .is-special 档，圆角跟着一起（bravaisHome.css 没另写半径）。
+        expect(await liked.locator('.lattice-poster-badge').evaluate(element => getComputedStyle(element).borderRadius)).toBe('8px');
         expect((await stackEdgesOf(liked.locator('.bravais-tile-face'))).length).toBe(4);
     });
 

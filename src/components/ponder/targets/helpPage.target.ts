@@ -57,11 +57,8 @@ const commandExampleAnchors = {
 const ponderOverview: PonderSceneScript = {
     id: 'help-page-overview',
     titleKey: 'ponder.scenes.helpPageOverview',
-    action: {
-        kind: 'openSettings',
-        anchorId: 'ponderHints',
-        labelKey: 'ponder.actions.openPonderHints',
-    },
+    // @fork 本地魔改版：原先这里的 action 是打开 ponderHints 那档设置，设置项已随胶囊一起摘掉，
+    // 锚点 id 也退出了 SettingsAnchorId，本章不再带跳转按钮。
     anchors: ONBOARDING_ILLUSTRATION,
     steps: [
         { kind: 'keypress', id: 'pressCtrlG', keys: ['Ctrl G'], at: { anchor: 'page', y: 1, offset: { y: 20 } }, durationMs: 1400, keyframe: true },

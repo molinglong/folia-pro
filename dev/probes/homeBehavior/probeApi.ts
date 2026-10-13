@@ -209,6 +209,11 @@ export type HomeProbeApi = {
     setStageTools: (snapshot: { themeGeneration?: 'ready' | 'busy' | 'unavailable'; canShuffleQueue?: boolean } | null) => void;
     /** 应用的音量 store（useAudioSettingsStore：播放条、播放页面板、工具面板读写的同一份）。 */
     volume: () => { volume: number; isMuted: boolean };
+    /**
+     * @fork 本地魔改版：设置窗此刻的开关与落点（useSettingsModalStore）。
+     * 墙面工具面板底部新加的那颗齿轮就是写它的，用例在探针里看不到设置窗本体（探针不挂 App 的模态层），只能读这份状态。
+     */
+    settingsState: () => { isOpen: boolean; initialTab: string; initialSubview: string | null };
 
     // ---- 环境 ----
     /** 重新挂载整个首页（宿主 + Grid3D），模拟重启后回到首页（隐藏 store 先从存储重读）。 */

@@ -240,7 +240,9 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     useBravaisBeforePush(displayRef, getFocusedSlotKey);
 
     const playbackRef = useRef<BravaisStagePlayback>({});
-    playbackRef.current = { toggle: onTogglePlayback, enter: onEnterPlaybackView };
+    // @fork 本地魔改版：把右下角工具面板那颗「前往 Lattice」的同一个端口也交给聚焦卡（lattice），正在播放的歌上
+    // 因此能就近进海报墙，不必跑回工具面板。
+    playbackRef.current = { toggle: onTogglePlayback, enter: onEnterPlaybackView, lattice: onOpenLattice };
     const interactions = useBravaisInteractions({
         displayRef,
         focus,
@@ -254,6 +256,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         playbackRef,
         togglesCurrent: Boolean(onTogglePlayback),
         hasEnter: Boolean(onEnterPlaybackView),
+        hasLattice: Boolean(onOpenLattice),
     });
     // 交接期间墙不算落定。fb3 的「正在播放那首重新展开」：从 Lattice 回来时在翻完、缝开始张开（opening）那一刻就展开，
     // 与缝张开、窗打开同时进行（2026-10-10 用户：先等缝张开再放大，节奏拖沓）；相机让位按张开后的缝算。

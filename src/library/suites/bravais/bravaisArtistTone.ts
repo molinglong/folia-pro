@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore, type RefObject } from 'react';
 import { loadImagePixels } from '../../../utils/colorExtractor';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import { rgbToHsl, type Rgb } from '../../../utils/themeColorMath';
@@ -132,4 +132,32 @@ export const useBravaisArtistTone = (coverUrl: string | undefined, enabled: bool
     }, [url]);
     if (!enabled) return undefined;
     return url ? tone : null;
+};
+
+/**
+ * @fork 本地魔改版：缝的标题区底色取自这张封面（BravaisSeamTitleArea 传自己的 ref 进来）。
+ * 与歌手磁贴同一份缓存、同一条并发队列、同样首帧不等取色；差别在这里——结果不进 React 状态，
+ * 只往元素上写一个 --bravais-seam-tone，深浅由 CSS 自己算（bravais.css 的 color-mix）。
+ * 缝在换层时要整条翻，翻的时候被一次 setState 打断不值当；取色落定也就换一个自定义属性。
+ * 没有封面 / 取不到色相（黑白封面）/ 封面加载不出来 → 不写这个属性，标题区照旧不变色。
+ */
+export const useBravaisSeamTone = <T extends HTMLElement>(coverUrl: string | undefined, ref: RefObject<T | null>) => {
+    useEffect(() => {
+        const node = ref.current;
+        if (!node) return;
+        // 换封面先清掉旧色，免得上一层的色相留在这一层的标题区里。
+        node.style.removeProperty('--bravais-seam-tone');
+        if (!coverUrl) return;
+        const apply = () => {
+            const tone = peekArtistTone(coverUrl);
+            if (tone === undefined) {
+                requestArtistTone(coverUrl);
+                return;
+            }
+            if (tone) node.style.setProperty('--bravais-seam-tone', tone);
+            else node.style.removeProperty('--bravais-seam-tone');
+        };
+        apply();
+        return subscribeTone(coverUrl, apply);
+    }, [coverUrl, ref]);
 };

@@ -1,4 +1,4 @@
-import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection, BravaisSeamFilter } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamBylineData, BravaisSeamCollection, BravaisSeamFilter } from './bravaisSeamModels';
 import type { BravaisHomeLayer, BravaisHomeSeam } from './bravaisHomeModels';
 import type { LibraryHomeSpecialKind } from '../../core/model/homeSpecialCards';
 
@@ -65,6 +65,13 @@ export type BravaisSeamModel = {
     crumb: string;
     /** 元数据行：曲目数、来源等。 */
     meta: string;
+    /**
+     * @fork 本地魔改版：标题区取色底用的封面（集合层是专辑 / 歌单封面；歌手层不给，缝自己退到 artist.coverUrl）。
+     * 没有就不变色；取色复用歌手磁贴那套缓存与并发队列（bravaisArtistTone），首帧不等它。
+     */
+    coverUrl?: string;
+    /** @fork 本地魔改版：元数据行下面的署名行（专辑的艺人与发行信息）；没有就不占位。 */
+    byline?: BravaisSeamBylineData;
     /** 状态行（加载中、错误、空、本页签还没有墙面）；没有就不显示。 */
     status?: string;
     tabs?: readonly BravaisSeamTab[];

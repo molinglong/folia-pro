@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { MotionValue } from 'framer-motion';
-import { X, Keyboard, Loader2, Check, AlertCircle, ChevronLeft, Download, ExternalLink, CircleHelp } from 'lucide-react';
+import { X, Keyboard, Loader2, Check, AlertCircle, ChevronLeft, Download, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
 import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type ReplayGainMode, type TiltTuning, type StoredCustomLyricsFont, type VisualizerMode } from '../../types';
@@ -27,11 +27,11 @@ import DeveloperSettingsSubview from './settings/DeveloperSettingsSubview';
 import PlaybackSettingsSubview from './settings/PlaybackSettingsSubview';
 import InteractionSettingsSubview from './settings/InteractionSettingsSubview';
 import StorageSettingsSection from './settings/StorageSettingsSection';
-import { AiHelpPromptModal } from './AiHelpPromptModal';
+// @fork 本地魔改版：AiHelpPromptModal（「遇到问题？」弹窗）与 ReleaseNotesDialog（版本更新）不再挂载，源文件保留。
 import SettingsHelpActions from './SettingsHelpActions';
 import { openPonderNavigation } from '../../services/ponder/pagePonderTarget';
-import ReleaseNotesDialog from './ReleaseNotesDialog';
-import { JoinCommunityButton } from '../shared/JoinCommunityButton';
+
+// @fork 本地魔改版：JoinCommunityButton（QQ 群 / Discord 入口）已不再引用，保留源文件不动以便日后回滚。
 import { copyTextToClipboard } from '../../utils/clipboard';
 import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
@@ -431,8 +431,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showThemePark, setShowThemePark] = useState(false);
     const [showLyricFilterSettings, setShowLyricFilterSettings] = useState(false);
     const [showGlobalLyricOffset, setShowGlobalLyricOffset] = useState(false);
-    const [showAiHelpPrompt, setShowAiHelpPrompt] = useState(false);
-    const [showReleaseNotes, setShowReleaseNotes] = useState(false);
     const [versionCopied, setVersionCopied] = useState(false);
     const [stageAddressCopied, setStageAddressCopied] = useState(false);
     const [authorClickCount, setAuthorClickCount] = useState(0);
@@ -1085,9 +1083,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const isAnySubviewOpen = showVisPlayground
         || showThemePark
         || showLyricFilterSettings
-        || showGlobalLyricOffset
-        || showAiHelpPrompt
-        || showReleaseNotes;
+        || showGlobalLyricOffset;
 
     const closeAllSubviews = () => {
         if (shouldCloseModalOnSubviewBack) {
@@ -1098,8 +1094,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowThemePark(false);
         setShowLyricFilterSettings(false);
         setShowGlobalLyricOffset(false);
-        setShowAiHelpPrompt(false);
-        setShowReleaseNotes(false);
     };
 
     useEffect(() => {
@@ -1403,10 +1397,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 transition={shellTransition}
                                 className="space-y-6 select-none flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 pb-4"
                             >
-                                <SettingsHelpActions
-                                    onOpenReleaseNotes={() => setShowReleaseNotes(true)}
-                                    onOpenPonder={openPonderNavigation}
-                                />
+                                {/* @fork 本地魔改版：onOpenReleaseNotes（版本更新入口）已随组件一起删除。 */}
+                                <SettingsHelpActions onOpenPonder={openPonderNavigation} />
 
                                 {/* Navigation - REMOVED requested items */}
                                 {/* 
@@ -1474,52 +1466,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </ul>
                                 </div>
 
-                                {/* User Guide Button */}
-                                <div className="mt-6 flex flex-wrap justify-center gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAiHelpPrompt(true)}
-                                        className="px-6 py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-full text-sm font-medium flex items-center gap-2"
-                                        style={{ color: 'var(--text-primary)' }}
-                                    >
-                                        <CircleHelp size={16} />
-                                        {t('aiHelp.openButton', 'Need help?')}
-                                    </button>
-                                    <JoinCommunityButton />
-                                </div>
+                                {/* @fork 本地魔改版：「遇到问题？」（AI 提示词弹窗入口）与「加入社区」胶囊一并删除，
+                                    帮助页底部不再放任何按钮，只保留快捷键说明与思索入口。 */}
 
-                                {/* Author Info (Moved from Footer) */}
+                                {/* @fork 本地魔改版：帮助页底部的「Project: folia-major」署名行与版本信息按钮（点一下复制
+                                    VERSION_INFO）整块删除。外层容器改为只在检测到新版本时才渲染，否则删掉那两行后会留下
+                                    一条没有内容的分隔线；新版本的安装与下载入口原样保留。handleAuthorLabelClick、
+                                    handleCopyVersionInfo、versionCopied、VERSION_INFO 现在没有引用了，留着是方便恢复。 */}
+                                {updateStatus?.availableVersion && (
                                 <div className="mt-8 pt-6 border-t border-white/10 text-center shrink-0">
-                                    <div className="relative mb-1">
-                                        <p className="text-sm opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                            <button
-                                                type="button"
-                                                onClick={handleAuthorLabelClick}
-                                                className="hover:opacity-100 transition-opacity"
-                                                style={{ color: 'inherit' }}
-                                                aria-label={t('help.madeBy')}
-                                            >
-                                                {t('help.madeBy')}
-                                            </button>{' '}
-                                            <a href="https://github.com/chthollyphile/folia-major" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-white/30 hover:decoration-white">chthollyphile/folia-major</a>
-                                        </p>
-                                    </div>
                                     <div className="flex flex-col items-center gap-2 mt-6 mb-2 text-xs font-mono text-center">
-                                        {/* 第一行：原本的版本信息按钮 */}
-                                        <button
-                                            type="button"
-                                            onClick={handleCopyVersionInfo}
-                                            className="opacity-45 hover:opacity-100 transition-opacity cursor-copy hover:underline"
-                                            style={{ color: 'var(--text-secondary)' }}
-                                            title={versionCopied ? t('status.copied') : t('options.versionCopiedHint')}
-                                            aria-label={versionCopied ? t('options.versionCopiedHint') : t('options.versionCopiedHint')}
-                                        >
-                                            {versionCopied
-                                                ? t('status.copied')
-                                                : VERSION_INFO}
-                                        </button>
-
-                                        {/* 第二行：版本状态与安装操作 */}
+                                        {/* 版本状态与安装操作 */}
                                         {updateStatus?.availableVersion && (
                                             <>
                                                 <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 mt-0.5">
@@ -1629,6 +1586,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         )}
                                     </div>
                                 </div>
+                                )}
                             </motion.div>
                         ) : (
                             <motion.div
@@ -2195,19 +2153,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 lyrics={currentLyrics}
                 lyricCurrentTime={lyricCurrentTime}
                 onClose={() => closeSubviewOrModal(() => setShowGlobalLyricOffset(false))}
-            />
-            <AiHelpPromptModal
-                isOpen={showAiHelpPrompt}
-                isDaylight={isDaylight}
-                theme={theme}
-                onClose={() => setShowAiHelpPrompt(false)}
-                onCopyText={copyTextToClipboard}
-            />
-            <ReleaseNotesDialog
-                isOpen={showReleaseNotes}
-                isDaylight={isDaylight}
-                theme={theme}
-                onClose={() => setShowReleaseNotes(false)}
             />
         </motion.div>
     );

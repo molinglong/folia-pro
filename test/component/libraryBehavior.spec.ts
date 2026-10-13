@@ -1938,9 +1938,14 @@ test.describe('[bravais-only] collection page', () => {
         // 引号与竖排标题都在这个按钮里。
         await expect(area.locator('.bravais-seam-quote')).toHaveCount(2);
         await expect(area.locator('[data-bravais-seam-title]')).toHaveText(PUBLIC.name);
+        // @fork 本地魔改版（2026-10-13，用户批准的「封面取色底」方案 A）：标题区的底色改由 --bravais-seam-tone 的
+        // color-mix 画在元素自己的 background 上，悬停那层浅底挪到 ::after 叠加（各占一个属性，两者都能淡入、互不覆盖）。
+        // 所以这里读 getComputedStyle(node, '::after')；自己的 background 在悬停时保持不动，一并断住。
+        const restAfter = await area.evaluate(node => getComputedStyle(node, '::after').backgroundColor);
         const restBackground = await area.evaluate(node => getComputedStyle(node).backgroundColor);
         await area.hover();
-        await expect.poll(() => area.evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe(restBackground);
+        await expect.poll(() => area.evaluate(node => getComputedStyle(node, '::after').backgroundColor)).not.toBe(restAfter);
+        expect(await area.evaluate(node => getComputedStyle(node).backgroundColor)).toBe(restBackground);
 
         // 点引号（标题区域的一角）也算。
         await area.locator('.bravais-seam-quote').first().click();

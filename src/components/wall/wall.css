@@ -261,6 +261,11 @@
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.12em;
+    /* @fork 本地魔改版（用户：「添加圆角」）：这枚类型标签原本是直角的，圆角量级取本仓库小控件那一档
+       （bravais 的 .is-button 8px、墙面工具面板的小标签 6–7px），不是整枚胶囊 —— 高约 21px，8px 已经是
+       明显圆角而不会把「专辑 · 3」这种带空格的短字挤成一条。特殊集合那枚（.is-special，强调色底）是同一个
+       元素，一起圆了。 */
+    border-radius: 8px;
     /* No backdrop-filter here: one blurred badge per card promoted every poster to its own
        compositing layer, which is the wall's single largest GPU cost. A denser shade keeps the
        number legible over bright artwork without the readback. */

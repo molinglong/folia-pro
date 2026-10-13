@@ -29,6 +29,34 @@
     backdrop-filter: blur(24px);
 }
 
+/* @fork 本地魔改版（2026-10-13）：工具按钮正上方常驻的那一颗直达（companion，bravais 给的是「前往 Lattice」）。
+   绝对定位、不进文档流：.lattice-tools 这只盒子要保持 48×48，翻牌交接全程「同一颗按钮、矩形不动」的断言才不抖
+   （test/ui/wallHandoff.spec.ts）。质感照抄 SlideActionButton（bg-black/40 + backdrop-blur-md + shadow-lg）。
+   多了这一格，面板要往上让：48 按钮 + 10 间距 + 48 这颗 + 原来那 16 的空隙 = 122px。 */
+.lattice-tools-companion {
+    position: absolute;
+    right: 0;
+    bottom: 58px;
+    display: flex;
+    width: 48px;
+    height: 48px;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 9999px;
+    background: rgb(0 0 0 / 40%);
+    color: #fff;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%);
+    backdrop-filter: blur(12px);
+    cursor: pointer;
+    transition: transform 300ms ease, background-color 160ms ease;
+}
+
+.lattice-tools-companion:hover { transform: scale(1.05); }
+.lattice-tools-companion svg { width: 20px; height: 20px; }
+.lattice-tools.is-daylight .lattice-tools-companion { background: rgb(255 255 255 / 70%); color: #18181b; }
+.lattice-tools.has-companion .lattice-tools-panel { bottom: 122px; }
+
 .lattice-tools.is-daylight .lattice-tools-panel {
     border-color: rgb(0 0 0 / 7%);
     background: rgb(255 255 255 / 62%);
@@ -173,7 +201,16 @@
     border-top-color: rgb(0 0 0 / 9%);
 }
 
-.lattice-tools-help-trigger {
+/* @fork 本地魔改版：底部那一行右边是两颗图标按钮（设置、操作提示），包在 .lattice-tools-triggers 里；
+   齿轮与 ? 同一套尺寸，所以两条选择器合写。help-section 本身 space-between：灯在行首，两颗图标在行尾。 */
+.lattice-tools-triggers {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+.lattice-tools-help-trigger,
+.lattice-tools-settings-trigger {
     width: 38px;
     min-height: 38px;
     justify-content: center;

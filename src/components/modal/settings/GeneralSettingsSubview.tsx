@@ -6,7 +6,7 @@ import type { Theme } from '../../../types';
 import type { AppLanguagePreference } from '../../../i18n/config';
 import { CustomSelect } from '../../shared/CustomSelect';
 import PinnedCommandSettings from './PinnedCommandSettings';
-import PonderHintSettingsSection from './PonderHintSettingsSection';
+import PonderTouchButtonSettingsSection from './PonderTouchButtonSettingsSection';
 import PlaybackEntryViewSection from './PlaybackEntryViewSection';
 import LibrarySuiteSection from './LibrarySuiteSection';
 import BravaisSettingsSection from './BravaisSettingsSection';
@@ -223,7 +223,12 @@ const GeneralSettingsSubview: React.FC<GeneralSettingsSubviewProps> = ({
                 theme={theme}
             />
 
-            <PonderHintSettingsSection
+            {/* @fork 本地魔改版（用户：「把这个删了」→ 选定「彻底删掉胶囊 + 摘掉设置项」）：
+                原 PonderHintSettingsSection 里那组三档「思索教程提示」整块摘掉 —— 跟随光标的胶囊
+                不再渲染，这档设置就没有任何行为可以作用，留着是一处死配置。
+                同一个上游文件里还装着触屏灯泡的开关，它不在删除范围内，所以那一半搬到
+                PonderTouchButtonSettingsSection 继续挂在这里（原位、原样式、原锚点位置）。 */}
+            <PonderTouchButtonSettingsSection
                 settingsCardClass={settingsCardClass}
                 isDaylight={isDaylight}
                 accentColor={theme?.accentColor}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { USER_GUIDE_AUTO_OPEN_VERSION } from '../components/modal/userGuideContent';
 import { hasOnboardingLibrarySuiteChoice } from '../library/app/librarySuiteChoice';
 import { requestPlaybackEntryViewPrompt, usePlaybackEntryViewStore } from '../stores/usePlaybackEntryViewStore';
@@ -50,14 +50,14 @@ export const resolveStartupExperienceStep = ({
     // it, and not again once finished. Release notes are per version; the playback choice and the Ponder gate are
     // once per install, so having finished Ponder must not suppress a later release's notes.
     const releaseDue = isCurrentRelease && !hasFinishedThisRelease;
-    if (releaseDue && !hasSeenReleaseNotes) {
-        return 'release-notes';
-    }
+    // @fork 本地魔改版：首启不再弹「版本更新」（App.tsx 里的 ReleaseNotesDialog 挂载一并摘掉，这里没有别的入口），
+    // 也不再强制「认识思索模式」那一步（UserGuideModal 只有这里会打开，摘掉后思索功能与 Ctrl+G 照旧）。
+    // 两步都只删调用，源码文件保留；要恢复见 git 历史里这两个分支与 App.tsx 的挂载。
     // The library-interface page is owed once to every install, outside the release gate.
     if ((releaseDue && !hasChosenPlaybackEntryView) || needsLibrarySuitePrompt) {
         return 'playback-entry-view';
     }
-    return releaseDue && !hasSeenPonder ? 'ponder' : null;
+    return null;
 };
 
 const readLastSeenReleaseNotesVersion = (): string | null => (
@@ -67,20 +67,20 @@ const readLastSeenReleaseNotesVersion = (): string | null => (
 );
 
 /**
- * Runs the first-launch sequence: release notes, the two-page choice prompt (library interface, then
- * playback destination), then the Ponder shortcut gate. The prompt is gated by the playback choice alone,
- * so installs that answered the older single-page prompt are not asked again.
+ * Runs the first-launch sequence: the two-page choice prompt (library interface, then playback destination).
+ * The prompt is gated by the playback choice alone, so installs that answered the older single-page prompt
+ * are not asked again.
+ * @fork 本地魔改版：原来的序列是「发版说明 → 两页提问 → 思索引导」，首尾两步已摘掉，只剩中间这一页。
+ * 'release-notes' 与 'ponder' 仍留在 StartupExperienceStep 里，是为了恢复时不必改类型与调用方。
  */
 export const useStartupExperienceGate = () => {
     const lastSeenPonderVersion = useSettingsModalStore(state => state.lastSeenGuideVersion);
     const isPonderOnboardingOpen = useSettingsModalStore(state => state.isUserGuideModalOpen);
-    const setIsPonderOnboardingOpen = useSettingsModalStore(state => state.setIsUserGuideModalOpen);
     const hasChosenPlaybackEntryView = usePlaybackEntryViewStore(state => state.hasChosenPlaybackEntryView);
     const hasSeenLibrarySuitePrompt = usePlaybackEntryViewStore(state => state.hasSeenLibrarySuitePrompt);
     const needsLibrarySuitePrompt = hasOnboardingLibrarySuiteChoice() && !hasSeenLibrarySuitePrompt;
     const isPlaybackEntryViewPromptOpen = usePlaybackEntryViewStore(state => state.isPlaybackEntryViewPromptOpen);
-    const [lastSeenReleaseNotesVersion, setLastSeenReleaseNotesVersion] = useState(readLastSeenReleaseNotesVersion);
-    const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false);
+    const [lastSeenReleaseNotesVersion] = useState(readLastSeenReleaseNotesVersion);
     const appVersion = typeof __APP_VERSION__ === 'undefined' ? null : __APP_VERSION__;
 
     const nextStep = resolveStartupExperienceStep({
@@ -88,7 +88,9 @@ export const useStartupExperienceGate = () => {
         hasSeenPonder: lastSeenPonderVersion !== null,
         hasFinishedThisRelease: Boolean(appVersion && lastSeenPonderVersion === appVersion),
         hasSeenReleaseNotes: Boolean(appVersion && lastSeenReleaseNotesVersion === appVersion),
-        isReleaseNotesOpen,
+        // @fork 本地魔改版：发版说明与思索引导都不再由这里打开，所以两个 setState 与 closeReleaseNotes 一并摘掉。
+        // 开着的面板仍然要等它关：isPonderOnboardingOpen 保留在 resolve 的重入保护里，恢复时只补回挂载即可。
+        isReleaseNotesOpen: false,
         hasChosenPlaybackEntryView,
         needsLibrarySuitePrompt,
         isPlaybackEntryViewPromptOpen,
@@ -96,22 +98,8 @@ export const useStartupExperienceGate = () => {
     });
 
     useEffect(() => {
-        if (nextStep === 'release-notes') {
-            setIsReleaseNotesOpen(true);
-        } else if (nextStep === 'playback-entry-view') {
+        if (nextStep === 'playback-entry-view') {
             requestPlaybackEntryViewPrompt({ withLibrarySuite: hasOnboardingLibrarySuiteChoice() });
-        } else if (nextStep === 'ponder') {
-            setIsPonderOnboardingOpen(true);
         }
-    }, [nextStep, setIsPonderOnboardingOpen]);
-
-    const closeReleaseNotes = useCallback(() => {
-        if (appVersion) {
-            localStorage.setItem(LAST_SEEN_RELEASE_NOTES_VERSION_STORAGE_KEY, appVersion);
-            setLastSeenReleaseNotesVersion(appVersion);
-        }
-        setIsReleaseNotesOpen(false);
-    }, [appVersion]);
-
-    return { isReleaseNotesOpen, closeReleaseNotes };
+    }, [nextStep]);
 };

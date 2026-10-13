@@ -680,13 +680,10 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             overflowing: root.querySelector('.bravais-seam-home-nav')!.classList.contains('is-overflowing'),
             head: box(root.querySelector('.bravais-seam-home-nav .bravais-seam-home-head')),
             middle: box(root.querySelector('[data-bravais-home-body]')),
-            // fb11：中段底部的直达入口（入口挪进菜单或没有入口时没有）：从看得见的第一样（分隔线或入口）量到入口底边。
-            jumps: (() => {
-                const wrap = root.querySelector('[data-bravais-home-jumps] .bravais-seam-shortcuts-wrap');
-                if (!wrap) return null;
-                const first = box(wrap.firstElementChild)!;
-                return { ...box(wrap)!, top: first.top };
-            })(),
+            // @fork（2026-10-12）：直达入口并入页签列——它在页头里（页签那一列正下面），不再在中段底部；
+            // 中段底部那一块（[data-bravais-home-jumps]）留成空节点（测量钩子要求它在）。
+            headShortcuts: box(root.querySelector('.bravais-seam-home-nav [data-bravais-shortcuts]')),
+            jumpsEmpty: root.querySelector('[data-bravais-home-jumps]')?.childElementCount === 0,
             dock: box(root.querySelector('.bravais-seam-dock')),
             account: box(root.querySelector(':scope > [data-bravais-account-slot]')),
             accountInMiddle: root.querySelector('[data-bravais-home-body] [data-bravais-account-slot]') !== null,
@@ -755,15 +752,15 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             for (let i = 0; i < parts.length; i += 1) {
                 for (let j = i + 1; j < parts.length; j += 1) expect(overlaps(parts[i], parts[j])).toBe(false);
             }
-            // 中段在页头与下面那一段（账户入口，没有时是工具格）之间竖直居中（上下留白相等），不贴着页签。
-            // fb11：直达入口贴在中段底部（离下面那一段一个段间距），中段内层在页头与入口之间居中。
-            const jumps = layout.jumps;
-            if (jumps) {
-                expect(jumps.bottom).toBeLessThanOrEqual(lower.top - 10);
-                expect(jumps.top).toBeGreaterThanOrEqual(layout.middle!.bottom - 0.5);
+            // 中段（只剩二级切换 / 状态那一块）在页头与下面那一段（账户入口，没有时是工具格）之间竖直居中（上下留白相等）。
+            // @fork：直达入口并入页签列——它在页头里面、页签列的正下面；中段底部那一块空着（只留给测量钩子）。
+            expect(layout.jumpsEmpty).toBe(true);
+            if (layout.headShortcuts) {
+                expect(layout.headShortcuts.top).toBeGreaterThanOrEqual(layout.tabsBox!.bottom - 0.5);
+                expect(layout.headShortcuts.bottom).toBeLessThanOrEqual(layout.head!.bottom + 0.5);
             }
             const above = layout.middle!.top - layout.head!.bottom;
-            const below = (jumps?.top ?? lower.top) - layout.middle!.bottom;
+            const below = lower.top - layout.middle!.bottom;
             expect(above).toBeGreaterThanOrEqual(10);
             expect(Math.abs(above - below)).toBeLessThanOrEqual(2);
         }
@@ -802,10 +799,13 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         // 1440×1100：标题 + 全名。
         let layout = await expectTidy(page);
         expect(layout.fit).toBe('titled');
-        expect(layout.title).toMatchObject({ state: 'shown', text: 'Library' });
-        expect(layout.title.height).toBeGreaterThan(10);
-        // 标题是横排的一行小字，不再与页签列并排占一大块。
+        // @fork（2026-10-12，用户：上面的删了、留空白，以后装 logo）：「书库」这一行的文字清空，节点与它那一格高度留着
+        //（min-height 顶住）；可访问的名字没丢——页签列的 aria-label 仍是 Library。
+        expect(layout.title).toMatchObject({ state: 'shown', text: '' });
+        expect(layout.title.height).toBeGreaterThanOrEqual(15);
+        // 这一行还是页头最上面的一条，不与页签列并排占一大块。
         expect(layout.title.height).toBeLessThan(30);
+        expect(layout.tablistName).toBe('Library');
         expect(layout.tabs.map(tab => tab.key)).toEqual(['playlist', 'radio', 'albums', 'local', 'navidrome']);
         expect(layout.tabs.every(tab => !tab.short && tab.writingMode === 'vertical-rl' && tab.text === tab.title)).toBe(true);
         // 工具格固定的几格（探针没有队列入口）；本页签的与 app 级的入口都在「⋯」里，本页签的在前、分隔线、app 级的在后。
@@ -824,10 +824,12 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
 
         // 一路往下压窗口高度：级别只按 titled → untitled → short 的顺序走，三级都出现过。
+        // @fork：直达入口并入页签列后比原来那两行横排字高出一截，而这里已经 setNowPlaying（状态行也占一段），
+        // 「带标题（装 logo 那一格）+ 入口」要到 1100 以上才放得下，所以扫描从 1400 起。
         const order = ['titled', 'untitled', 'short'];
         const firstAt = new Map<string, number>();
         let previous = 0;
-        for (let height = 1100; height >= 480; height -= 10) {
+        for (let height = 1400; height >= 480; height -= 10) {
             await resize(page, height);
             const fit = await root(page).getAttribute('data-bravais-home-fit');
             const rank = order.indexOf(fit ?? '');
@@ -837,11 +839,11 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         }
         expect([...firstAt.keys()]).toEqual(order);
 
-        // 中等高度：无标题 + 全名。标题视觉隐藏，可访问名还在（标题文字与页签列的 aria-label）。
+        // 中等高度：这一格收掉（连同留白，min-height 归零），可访问名还在（页签列的 aria-label）。
         await resize(page, firstAt.get('untitled')!);
         layout = await expectTidy(page);
         expect(layout.fit).toBe('untitled');
-        expect(layout.title).toMatchObject({ state: 'hidden', text: 'Library' });
+        expect(layout.title).toMatchObject({ state: 'hidden', text: '', height: 1 });
         expect(layout.title.width).toBeLessThanOrEqual(1);
         expect(layout.tablistName).toBe('Library');
         expect(layout.tabs.every(tab => !tab.short && tab.text === tab.title)).toBe(true);
@@ -869,7 +871,18 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(active.label).toBe(layout.fit === 'short' ? 'F' : 'Folders');
 
         // 再拉高：回到标题 + 全名。
-        await resize(page, 1100);
+        // @fork（2026-10-12）：直达入口并入页签列后，这一列的高度随「当前页签有哪几个入口、全名多长」变（本地页签那一列
+        // 比默认页签高一截），1100 已放不进「带标题（装 logo 那一格）+ 入口」。所以这里不写死档位高度：从当前高度往上
+        // 找第一个回到 titled 的高度。找不到就红——阶梯真回不去时不会被放宽掉。
+        let restored = 0;
+        for (let height = 1100; height <= 1600; height += 20) {
+            await resize(page, height);
+            if (await root(page).getAttribute('data-bravais-home-fit') === 'titled') {
+                restored = height;
+                break;
+            }
+        }
+        expect(restored, '本地页签的「带标题 + 入口」在 1600 以内没回到 titled').toBeGreaterThan(0);
         await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'titled');
         await expect(seam(page).locator('[data-bravais-tab][data-bravais-tab-short]')).toHaveCount(0);
         await expectTidy(page);
@@ -882,6 +895,9 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
     });
 
     test('the local rows sit centred between the tabs and the tools: one vertical label on the active row, icons on the rest', async ({ page }) => {
+        // @fork：入口并入页签列后，本地这一档（二级切换 + 两个入口）要在 1400 上下才放得下「带标题（装 logo 那一格）」；
+        // 1100 已经退成「不带标题 + 入口」，那一格让给了入口。
+        await resize(page, 1400);
         await showLocal(page);
         const layout = await expectTidy(page);
         expect(layout.fit).toBe('titled');
@@ -919,7 +935,9 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
         await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(120);
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
-        expect(await menuItems(page)).toEqual(['filter', 'manage-hidden']);
+        // @fork：这里窗口只有 900 高、页签是英文全名——入口并入页签列后比原来那两行横排字高一截，这一档放不下，
+        // 于是照旧先于二级切换让位、排在「⋯」菜单最前面（让位顺序没改，只是各级的分界线上移）。
+        expect(await menuItems(page)).toEqual(['shortcut-liked', 'shortcut-cloud', 'rule', 'filter', 'manage-hidden']);
         await page.keyboard.press('Escape');
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
@@ -1141,16 +1159,20 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(accountList(page)).toHaveCount(0);
     });
 
-    // fb8：入口是 grid 切换器的样子——头像 / 平台徽章 + 名字，不写账户状态（状态在可访问名与 title 里）。
-    test('the signed-in entry shows the avatar and the nickname, falling back to the platform badge', async ({ page }) => {
+    // @fork（2026-10-12，用户：用户头像 + 用户名那里只保留头像，名字删了）：入口只剩那一颗圆——已登录是头像，
+    // 没有头像是平台徽章；昵称不再写在按钮上，仍在可访问名与 title 里。平台列表那些行不受影响。
+    test('the signed-in entry is the avatar alone, falling back to the platform badge', async ({ page }) => {
         await expectTidy(page);
         const toggle = seam(page).locator('[data-bravais-account-toggle="strip"]');
         const nickname = homeUserName(PROBE_PROVIDER_A);
         await expect(toggle.locator('[data-bravais-account-avatar="badge"]')).toBeVisible();
-        await expect(toggle).toHaveText(new RegExp(`${nickname}$`));
-        await expect(toggle.locator('.is-name')).toHaveText(nickname);
+        // 按钮上不再有昵称（平台徽章那颗圆自己的首字母还在）。
+        await expect(toggle).not.toContainText(nickname);
+        await expect(toggle.locator('.is-name')).toHaveCount(0);
         await expect(toggle).toHaveAccessibleName(`Switch online music provider · ${PROBE_PROVIDER_A} · ${nickname}`);
         await expect(toggle).toHaveAttribute('title', `Switch online music provider · ${PROBE_PROVIDER_A} · ${nickname}`);
+        // 只有一颗圆（32px）加上下内边距，没有原来那行名字的高度。
+        expect((await toggle.boundingBox())!.height).toBeLessThan(50);
 
         await page.evaluate(async ({ providerId }) => {
             const modulePath = '/src/stores/useOnlineProviderAccountStore.ts';
@@ -1163,7 +1185,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(image).toBeVisible();
         await expect.poll(() => image.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
         await expect(toggle.locator('[data-bravais-account-avatar="badge"]')).toHaveCount(0);
-        await expect(toggle.locator('.is-name')).toHaveText(nickname);
+        await expect(toggle.locator('.is-name')).toHaveCount(0);
 
         // 列表的行：头像 / 徽章 + 平台名，当前已登录那一行下面是昵称；状态与「切换至 X」在可访问名里。
         await toggle.click();
@@ -1235,13 +1257,17 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(stageTool).toHaveAccessibleName('Stage player');
         await expect(stageTool).toHaveText('Stage');
         await expect(stageTool).toHaveAttribute('data-stage-active', 'false');
-        // 一整行：宽同两格，在其余工具上面。
+        // 一整行：竖着一列里最上面那一个（@fork：工具格从 2×2 改成竖着一列后，1 / -1 只剩 40px，
+        // 舞台入口显式写回两格宽 88px）。它比下面的图标宽，但整列同一条中线，且设置格在搜索格下面而不是右边。
         const wide = (await stageTool.boundingBox())!;
         const search = (await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="search"]').boundingBox())!;
         const settings = (await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="settings"]').boundingBox())!;
+        const centre = (box: { x: number; width: number }) => box.x + box.width / 2;
         expect(wide.y + wide.height).toBeLessThanOrEqual(search.y + 0.5);
-        expect(Math.abs(wide.x - search.x)).toBeLessThan(1);
-        expect(Math.abs((wide.x + wide.width) - (settings.x + settings.width))).toBeLessThan(1);
+        expect(Math.abs(centre(wide) - centre(search))).toBeLessThan(1);
+        expect(Math.abs(centre(search) - centre(settings))).toBeLessThan(1);
+        expect(wide.width).toBeGreaterThan(search.width + 0.5);
+        expect(settings.y).toBeGreaterThan(search.y + 0.5);
         // 菜单里没有它。
         await more.click();
         await expect(menu).toBeVisible();

@@ -387,41 +387,10 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createSettingsCommand('settings-graphics', 'Graphics settings', 'Open static mode, frame rate cap, Linux glow fix and reduced motion', ['graphics', 'performance', 'frame rate', 'fps', 'rendering', '图形', '图形设置', '性能', '帧率', '渲染'], 'options', 'graphics'),
     createSettingsCommand('settings-mods', 'Mod settings', 'Open the mod system switch and the installed mods', ['mod manager', 'mod system', 'plugins', '模组设置', '模组系统', '插件'], 'options', 'mods', { platform: ['electron'] }),
     createSettingsCommand('settings-lab', 'Lab settings', 'Open experimental settings', ['lab', 'experimental', '实验', '实验室'], 'options', 'lab'),
-    createSettingsAnchorCommand(
-        'settings-ponder-hints',
-        'Ponder tutorial hints',
-        'Choose when the hold-G tutorial hint appears',
-        ['ponder', 'tutorial hint', '思索', '教程提示'],
-        'ponderHints',
-    ),
-    // 三档设置照 playback-entry-view-* 的先例：一值一条命令，isAvailable 把当前值那条藏掉。
-    // createToggleCommand 只能表达两态，套不上。
-    defineCommand({
-        id: 'ponder-hints-always',
-        group: 'settings',
-        title: 'Ponder hints: always show',
-        description: 'Show the hold-G hint on every teachable control',
-        keywords: ['ponder hints always', '思索提示 始终显示'],
-        isAvailable: context => (context ? context.settings.ponderHintVisibility !== 'always' : true),
-        execute: (_input, context) => {
-            if (context.settings.ponderHintVisibility === 'always') return false;
-            context.settings.setPonderHintVisibility('always');
-            return true;
-        },
-    }),
-    defineCommand({
-        id: 'ponder-hints-unseen',
-        group: 'settings',
-        title: 'Ponder hints: only where I have not looked',
-        description: 'Stop hinting a control once its tutorial has been watched',
-        keywords: ['ponder hints unseen', '思索提示 仅未看过'],
-        isAvailable: context => (context ? context.settings.ponderHintVisibility !== 'unseen' : true),
-        execute: (_input, context) => {
-            if (context.settings.ponderHintVisibility === 'unseen') return false;
-            context.settings.setPonderHintVisibility('unseen');
-            return true;
-        },
-    }),
+    // @fork 本地魔改版（用户：「把这个删了」→「彻底删掉胶囊 + 摘掉设置项」）：
+    // settings-ponder-hints 那条锚点命令，和 always / unseen / off 三条设值命令一起摘掉 ——
+    // 胶囊不再渲染，这三条命令写下去的行为在屏幕上看不见、摸不着，留着就是三条骗人的入口。
+    // 触屏灯泡那颗（ponder-touch-button-toggle）不一样，它控制的东西还在，保留。
     createToggleCommand(
         'ponder-touch-button-toggle',
         'settings',
@@ -430,19 +399,6 @@ export const settingsCommands: CommandPaletteCommand[] = [
         ['ponder touch button', 'lightbulb', '触屏思索按钮', '灯泡按钮'],
         context => context.settings.togglePonderTouchButton(),
     ),
-    defineCommand({
-        id: 'ponder-hints-off',
-        group: 'settings',
-        title: 'Ponder hints: off',
-        description: 'Never show the hold-G hint',
-        keywords: ['ponder hints off', '思索提示 关闭'],
-        isAvailable: context => (context ? context.settings.ponderHintVisibility !== 'off' : true),
-        execute: (_input, context) => {
-            if (context.settings.ponderHintVisibility === 'off') return false;
-            context.settings.setPonderHintVisibility('off');
-            return true;
-        },
-    }),
     {
         id: 'settings-player-bottom-bar-position',
         group: 'settings',

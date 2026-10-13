@@ -24,7 +24,7 @@ const AutomixTransitionAnimation = lazy(() => import('./components/app/overlays/
 const loadLattice = () => import('./components/app/lattice/Lattice');
 const Lattice = lazy(loadLattice);
 import { UserGuideModal } from './components/modal/UserGuideModal';
-import ReleaseNotesDialog from './components/modal/ReleaseNotesDialog';
+// @fork 本地魔改版：ReleaseNotesDialog 不再挂载，import 一并去掉（源文件保留）。
 import { PlaybackEntryViewPrompt } from './components/modal/playback-entry-view/PlaybackEntryViewPrompt';
 import { LatticeFmNotice } from './components/modal/playback-entry-view/LatticeFmNotice';
 import { useStartupExperienceGate } from './hooks/useStartupExperienceGate';
@@ -284,7 +284,9 @@ export default function App() {
         [transitionMode, crossfadeMaxSec, transitionPerformance],
     );
 
-    const startupExperience = useStartupExperienceGate();
+    // @fork 本地魔改版：这个钩子现在只驱动首启的「资料库界面 / 播放后进入的视图」两页提问；
+    // 它原先还会开「版本更新」弹窗与思索引导，两者已摘掉，返回值不再被使用。
+    useStartupExperienceGate();
 
     useEffect(() => initializeSyncCoordinator(), []);
 
@@ -2881,12 +2883,8 @@ export default function App() {
             />
 
             <AppDialogs model={appDialogsModel} />
-            <ReleaseNotesDialog
-                isOpen={startupExperience.isReleaseNotesOpen}
-                isDaylight={isDaylight}
-                theme={theme}
-                onClose={startupExperience.closeReleaseNotes}
-            />
+            {/* @fork 本地魔改版：「版本更新」弹窗（ReleaseNotesDialog）不再挂载——首启不弹、设置里那张卡也早已删掉，
+                这个 fork 里没有任何入口能看到它。组件源文件 src/components/modal/ReleaseNotesDialog.tsx 保留。 */}
             <UserGuideModal theme={theme} />
             <PlaybackEntryViewPrompt theme={theme} />
             <LatticeFmNotice />

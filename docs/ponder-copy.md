@@ -2,27 +2,40 @@
 
 > 这份文档供手工改稿使用。文案原表保持 `zh-CN.ts` 的 key 结构；修改后请把最终文本同步回 `src/i18n/locales/zh-CN.ts`。
 
+## 0. @fork 本地魔改版：思索提示胶囊与它的设置项已删除（2026-10-12）
+
+用户「把这个删了」→ 选定「彻底删掉胶囊 + 摘掉设置项」。本仓库相对上游少了这些东西，本文档下面相关行按此读：
+
+- `src/components/ponder/PonderHintCapsule.tsx`：**文件还在，已无人渲染**。悬停和 Ctrl+G 长按期间都不再有跟随光标的胶囊，长按过程没有任何进度反馈（这是用户当场接受的代价）。
+- 已摘除入口、文案 key 仍留在三语 locale 里（`ponderLocaleCoverage` 还按旧清单核对，删 key 会红）：
+  `options.ponderHints` / `ponderHintsDesc` / `ponderHintsAlways` / `ponderHintsUnseen` / `ponderHintsOff`、
+  `ponder.hintCapsule` / `hintCapsuleHold` / `hintCapsulePage`、`ponder.actions.openPonderHints`。
+- 命令面板少四条：`settings-ponder-hints`、`ponder-hints-always`、`ponder-hints-unseen`、`ponder-hints-off`（`ponder-touch-button-toggle` 保留）。
+- 设置里 `ponderHints` 锚点没了；同位置换成 `ponderTouchButton`，因为上游那个文件里还挂着触屏灯泡开关，它不在删除范围内，已拆成 `PonderTouchButtonSettingsSection.tsx`。
+- 章节少一章：`ponder-basics` 的 `help-page-hint-settings`（整章只讲那个开关）删除，目标从三章变两章；`help-page` 第一章 `help-page-overview` 的「去设置」按钮也一并去掉，章数仍是四。
+- **仍未改**：`help-page-overview` 与 `ponder-basics` 第一、二章的字幕还在描述「悬停会出现提示、按住看擦除走满」，示意图里也还画着那颗胶囊。它们讲的是已经被删掉的可见反馈，属于已知偏差；要修的是三语字幕 + 示意图状态，是另一刀。
+
 ## 1. 入口、设置与命令面板文案
 
 | Key | 中文文案 | 对应组件 / 场景 |
 | --- | --- | --- |
 | `help.ponder` | 思索帮助页 | src/components/modal/SettingsHelpActions.tsx |
 | `help.ponderDescription` | 了解 Folia 的基本操作与运行逻辑 | src/components/modal/SettingsHelpActions.tsx |
-| `options.ponderHints` | 思索教程提示 | src/components/modal/settings/PonderHintSettingsSection.tsx |
-| `options.ponderHintsDesc` | 把指针停在可教学的控件上会提示长按 G，松手后打开一段演示该手势的动画教程。 | src/components/modal/settings/PonderHintSettingsSection.tsx |
-| `options.ponderHintsAlways` | 始终显示 | src/components/modal/settings/PonderHintSettingsSection.tsx |
-| `options.ponderHintsUnseen` | 仅未看过的区域 | src/components/modal/settings/PonderHintSettingsSection.tsx |
-| `options.ponderHintsOff` | 关闭 | src/components/modal/settings/PonderHintSettingsSection.tsx |
-| `options.ponderTouchButton` | 触屏思索按钮 | src/components/modal/settings/PonderHintSettingsSection.tsx |
-| `options.ponderTouchButtonDesc` | 触屏设备上右上角那颗灯泡：进入页面时露几秒，之后点右上角唤回。关掉它之后，触屏上就只能从命令窗口进入思索。 | src/components/modal/settings/PonderHintSettingsSection.tsx |
-| `commandPalette.commands.settings-ponder-hints.title` | 思索教程提示 | src/components/command-palette/commands/settingsCommands.ts |
-| `commandPalette.commands.settings-ponder-hints.description` | 设置长按 G 的提示什么时候出现 | src/components/command-palette/commands/settingsCommands.ts |
-| `commandPalette.commands.ponder-hints-always.title` | 思索提示：始终显示 | src/components/command-palette/commands/settingsCommands.ts |
-| `commandPalette.commands.ponder-hints-always.description` | 所有可教学的控件都提示长按 G | src/components/command-palette/commands/settingsCommands.ts |
-| `commandPalette.commands.ponder-hints-unseen.title` | 思索提示：仅未看过的区域 | src/components/command-palette/commands/settingsCommands.ts |
-| `commandPalette.commands.ponder-hints-unseen.description` | 某个控件的教程看过之后就不再提示它 | src/components/command-palette/commands/settingsCommands.ts |
-| `commandPalette.commands.ponder-hints-off.title` | 思索提示：关闭 | src/components/command-palette/commands/settingsCommands.ts |
-| `commandPalette.commands.ponder-hints-off.description` | 不再显示长按 G 的提示 | src/components/command-palette/commands/settingsCommands.ts |
+| `options.ponderHints` | 思索教程提示 | @fork 入口已删（原 src/components/modal/settings/PonderHintSettingsSection.tsx，文件不存在） |
+| `options.ponderHintsDesc` | 把指针停在可教学的控件上会提示长按 G，松手后打开一段演示该手势的动画教程。 | @fork 入口已删（同上） |
+| `options.ponderHintsAlways` | 始终显示 | @fork 入口已删（同上） |
+| `options.ponderHintsUnseen` | 仅未看过的区域 | @fork 入口已删（同上） |
+| `options.ponderHintsOff` | 关闭 | @fork 入口已删（同上） |
+| `options.ponderTouchButton` | 触屏思索按钮 | src/components/modal/settings/PonderTouchButtonSettingsSection.tsx |
+| `options.ponderTouchButtonDesc` | 触屏设备上右上角那颗灯泡：进入页面时露几秒，之后点右上角唤回。关掉它之后，触屏上就只能从命令窗口进入思索。 | src/components/modal/settings/PonderTouchButtonSettingsSection.tsx |
+| `commandPalette.commands.settings-ponder-hints.title` | 思索教程提示 | @fork 命令已删（src/components/command-palette/commands/settingsCommands.ts 里不再注册） |
+| `commandPalette.commands.settings-ponder-hints.description` | 设置长按 G 的提示什么时候出现 | @fork 命令已删 |
+| `commandPalette.commands.ponder-hints-always.title` | 思索提示：始终显示 | @fork 命令已删 |
+| `commandPalette.commands.ponder-hints-always.description` | 所有可教学的控件都提示长按 G | @fork 命令已删 |
+| `commandPalette.commands.ponder-hints-unseen.title` | 思索提示：仅未看过的区域 | @fork 命令已删 |
+| `commandPalette.commands.ponder-hints-unseen.description` | 某个控件的教程看过之后就不再提示它 | @fork 命令已删 |
+| `commandPalette.commands.ponder-hints-off.title` | 思索提示：关闭 | @fork 命令已删 |
+| `commandPalette.commands.ponder-hints-off.description` | 不再显示长按 G 的提示 | @fork 命令已删 |
 | `commandPalette.commands.ponder-touch-button-toggle.title` | 触屏思索按钮 | src/components/command-palette/commands/settingsCommands.ts |
 | `commandPalette.commands.ponder-touch-button-toggle.description` | 显示或隐藏触屏右上角那颗灯泡 | src/components/command-palette/commands/settingsCommands.ts |
 | `commandPalette.commands.ponder-current-page.title` | 思索当前页面 | src/components/command-palette/commands/settingsCommands.ts |
@@ -70,7 +83,7 @@
 | `pinned-commands` | `ponder.targets.pinnedCommands` | basics | `src/components/ponder/targets/pinnedCommands.target.ts` | 见目标文件 hoverSelector / 页面级入口 | src/components/ponder/surfaces/PonderCommandSettingsSurfaces.tsx → PonderPinnedCommandsSurface | `pinned-commands-slots`<br>`pinned-commands-vs-recent` |
 | `player-bar` | `ponder.targets.playerBar` | playback | `src/components/ponder/targets/playerBar.target.ts` | 见目标文件 hoverSelector / 页面级入口 | src/components/ponder/surfaces/PonderPlayerBarSurface.tsx<br>src/components/ponder/PonderSurfaceContents.tsx → BottomUiSettingsContents<br>src/components/ponder/PonderSurfaceContents.tsx → PickerContents<br>src/components/ponder/PonderSurfaceContents.tsx → QueueContents<br>src/components/ponder/PonderSurfaceContents.tsx → VolumeContents | `player-bar-basics`<br>`player-bar-height`<br>`player-bar-slots`<br>`player-bar-shuffle`<br>`player-bar-volume` |
 | `player-page` | `ponder.targets.playerPage` | playback | `src/components/ponder/targets/playerPage.target.ts` | 见目标文件 hoverSelector / 页面级入口 | src/components/ponder/surfaces/PonderPlayerPageSurface.tsx | `player-page-layout`<br>`player-page-open-palette`<br>`player-page-run-commands`<br>`player-page-shuffle` |
-| `ponder-basics` | `ponder.targets.ponderBasics` | basics | `src/components/ponder/targets/ponderBasics.target.ts` | 见目标文件 hoverSelector / 页面级入口 | src/components/ponder/surfaces/PonderOnboardingSurface.tsx<br>src/components/ponder/PonderSurfaceContents.tsx → PageContents(settings-page) | `help-page-ponder`<br>`help-page-whole-page`<br>`help-page-hint-settings` |
+| `ponder-basics` | `ponder.targets.ponderBasics` | basics | `src/components/ponder/targets/ponderBasics.target.ts` | 见目标文件 hoverSelector / 页面级入口 | src/components/ponder/surfaces/PonderOnboardingSurface.tsx | `help-page-ponder`<br>`help-page-whole-page`（@fork：原第三章 `help-page-hint-settings` 已删，它整章只讲被删掉的那档设置） |
 | `queue-command-surface` | `ponder.targets.queueCommandSurface` | playback | `src/components/ponder/targets/queueCommandSurface.target.ts` | 见目标文件 hoverSelector / 页面级入口 | src/components/ponder/surfaces/PonderQueueCommandSurface.tsx | `queue-command-facets`<br>`queue-command-batch` |
 | `queue-settings` | `ponder.targets.queueSettings` | playback | `src/components/ponder/targets/queueSettings.target.ts` | 见目标文件 hoverSelector / 页面级入口 | src/components/ponder/surfaces/PonderPlaybackSettingsSurfaces.tsx → PonderQueueSettingsSurface | `queue-settings-behavior` |
 | `replay-gain-settings` | `ponder.targets.replayGainSettings` | playback | `src/components/ponder/targets/replayGainSettings.target.ts` | 见目标文件 hoverSelector / 页面级入口 | src/components/ponder/surfaces/PonderPlaybackSettingsSurfaces.tsx → PonderReplayGainSurface | `replay-gain-modes`<br>`replay-gain-mirrored` |
@@ -1322,7 +1335,7 @@
 | `ponder-basics` | `help-page-ponder` | 你已经在思索里了 | `ponder.captions.onboarding.hold` | 按住不放，进度走满后打开教程；提前松手会取消。 | page：一页界面 | `ponder.anchors.onboarding.page` |
 | `ponder-basics` | `help-page-whole-page` | 整页的教程，以及触屏怎么办 | `ponder.captions.onboarding.wholePage` | 不想找组件也行：在任意页面上按住 Ctrl + G，打开的是整页的教程 —— 这一页上有什么、各在哪、能怎么操作。 | page：一页界面 | `ponder.anchors.onboarding.page` |
 | `ponder-basics` | `help-page-whole-page` | 整页的教程，以及触屏怎么办 | `ponder.captions.onboarding.touchBulb` | 触屏没有悬停，所以用右上角灯泡打开本页教程。它出现几秒后会收起，点右上角可再次唤出。鼠标看不到它是正常的。 | touchBulb：触屏上的思索按钮 | `ponder.anchors.onboarding.touchBulb` |
-| `ponder-basics` | `help-page-hint-settings` | 看够了就把提示关掉 | `ponder.captions.onboarding.hintSettings` | 可在设置 · 实验室关闭思索提示，或只提示未看过的区域。下方按钮可直接打开设置。 | page：设置 | `ponder.anchors.pages.settings` |
+| ~~`ponder-basics`~~ | ~~`help-page-hint-settings`~~ | 看够了就把提示关掉 | `ponder.captions.onboarding.hintSettings` | 可在设置 · 实验室关闭思索提示，或只提示未看过的区域。下方按钮可直接打开设置。 | page：设置 | `ponder.anchors.pages.settings` —— **@fork：这一章已整章删除**（它唯一的动作是打开已不存在的 ponderHints 锚点） |
 | `queue-command-surface` | `queue-command-facets` | @ 把范围收窄 | `ponder.captions.queueCommand.whatItIs` | {{mod}} + P 打开队列窗口。输入即可筛选，↑↓选择，Enter 播放。 | input：输入行 | `ponder.anchors.queueCommand.input` |
 | `queue-command-surface` | `queue-command-facets` | @ 把范围收窄 | `ponder.captions.queueCommand.atSign` | 输入 @ 可筛选队列中的歌手或专辑；后面会显示各项包含的歌曲数。 | suggestions：歌手 / 专辑建议 | `ponder.anchors.queueCommand.suggestions` |
 | `queue-command-surface` | `queue-command-facets` | @ 把范围收窄 | `ponder.captions.queueCommand.narrowed` | 选中后会收成输入行标签，列表只显示该项的歌曲。 | input：输入行 | `ponder.anchors.queueCommand.input` |

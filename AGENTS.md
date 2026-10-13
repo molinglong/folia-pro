@@ -82,4 +82,32 @@ skill 只负责地图和编译器都推不出来的东西：口头术语到名�
 - 如果用户指出的是潜在 bug 或不合理设计，需要直接指出问题并给出建议，不回避。
 - 如果创建了新的文件，在导入行结束后插入当前文件的注释
 - 如果创建了复杂的函数，写出简短的注释，说明函数功能
+
+<!-- @fork:start 本地魔改版新增段。同步上游时只冲突在这一段，保留整块即可，别整文件覆盖。 -->
+## 本 fork 专属 skills（上游没有这些）
+
+这个仓库是 Folia 的本地魔改分叉：不推 GitHub、改动长期不提交、上游还在快速动。上面那批 skill
+管的是「怎么写 Folia 的代码」，下面这批管的是「怎么在这个分叉上动手」。两条线都要读。
+
+- `fork-minimal-edit`
+  路径：`skills/fork-minimal-edit/SKILL.md`
+  用于任何可回滚性改动：`@fork` 锚点怎么写、为什么删入口不删源文件、脏工作区纪律、
+  以及移除类改动必须配反向断言 + 致死校验。
+- `fork-build-package`
+  路径：`skills/fork-build-package/SKILL.md`
+  用于跑起来或出包：dev/打包命令选择、输出目录固定 `C:/folia-build`（中文路径会 EPERM）、
+  前置文件已在仓库里、装依赖不要覆盖 registry、构建后三条 smoke test。
+- `fork-official-disconnect`
+  路径：`skills/fork-official-disconnect/SKILL.md`
+  用于核对或撤销「与官方断开」：四个门禁的确切位置、为什么不能用 netstat 判定、
+  备份在哪、恢复官方更新要走哪几步。
+- `fork-upstream-sync`
+  路径：`skills/fork-upstream-sync/SKILL.md`
+  用于取上游改动：同步前必查 `src/mods/folium/contract.ts`、`rg -n "@fork"` 当回滚地图、
+  mods 同 id 只认先扫到的、模组平台与改源码两条路的取舍。
+
+代码地图在本 fork 是本地自动维护：上游的 `codemap-sync` workflow 依赖 GitHub push，这里用不了，
+改由 `.git/hooks/pre-commit` 调 `dev/fork/refresh-map.mjs --stage` 在每次提交前重生成并暂存
+`docs/CODEMAP.md`。钩子失败只警告、不阻塞提交；卸载：`node dev/fork/install-map-hook.mjs --remove`。
+<!-- @fork:end -->
  

@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
-import { CircleHelp, Command, Layers3, Settings2, X, type LucideIcon } from 'lucide-react';
+import { CircleHelp, Command, Layers3, Settings, Settings2, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLatticeSettingsStore } from '../../stores/useLatticeSettingsStore';
 import { openCommandPalette } from '../../stores/useAppViewStore';
+import { openSettings } from '../../stores/useSettingsModalStore';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { usePlayerBottomBarBottomPx } from '../../hooks/usePlayerBottomBarBottomPx';
 import { SlideActionButton } from '../shared/SlideActionButton';
@@ -21,6 +22,12 @@ import './WallToolsButton.css';
 // 翻牌交接（设计稿 §7「进入队列」）：App 在首页层与 Lattice 之上挂一个 WallToolsDock，两面墙的按钮都「认领」进同一个
 // dock、由它画出唯一的一颗——进 / 出 Lattice 时按钮节点不重建、原地不动，只换条目与帮助。没有 dock 的地方（组件探针、
 // Ponder 的合成界面）照旧就地渲染。
+// @fork 本地魔改版：底部那一行多了「设置」齿轮（`[data-wall-tools-settings]`，在操作提示的左边），点了先收面板再 openSettings('options')。
+// 用户实测：设置入口只在主页窄缝的工具格里，站在墙上要改设置得跑回主页。加在共享组件里，bravais 资料库墙与 Lattice 两面都有它；
+// 帮助弹层 `.lattice-tools-help` 仍是 help-section 的直接子节点（flex-basis: 100% 靠这一点）。
+// @fork 本地魔改版（2026-10-13）：可选的 `companion`——工具按钮正上方常驻的一颗直达图标（bravais 给的是「前往 Lattice」）。
+// 加在这里而不是各墙自己画，是因为它跟着 dock 的认领走：进了 Lattice 最上面那份归 Lattice、它不给 companion，这颗自然消失，
+// 回资料库墙又出现，全程同一个 DOM 节点。不给 companion 时（Lattice、组件探针）渲染出的 DOM 与原来等价。
 
 /** 面板里的一行：动作（点了默认收起面板）或开关（menuitemcheckbox，点了不收起）。 */
 export type WallToolsEntry =
@@ -115,6 +122,24 @@ export type WallToolsButtonProps = {
      * 不在 dock 里（就地渲染）时不看它。
      */
     claimed?: boolean;
+    /**
+     * @fork 本地魔改版：工具按钮正上方常驻的那一颗直达动作（不给时 DOM 与原来一样）。
+     * 走 dock 的认领机制：哪面墙在最上面，画的就是它那一份——bravais 给了「前往 Lattice」，Lattice 不给，
+     * 于是进了海报墙这颗自然消失，回资料库墙又回来，与按钮同一个节点、不闪。
+     */
+    companion?: WallToolsCompanion;
+};
+
+/**
+ * @fork 本地魔改版：常驻那颗的形状。图标按钮，与工具按钮同一套玻璃质感；点了不做二次确认、不展开面板。
+ * `kbd` 只进 tooltip，不进可访问名（与快捷动作那一排同一处理）。
+ */
+export type WallToolsCompanion = {
+    id: string;
+    icon: LucideIcon;
+    label: string;
+    kbd?: string;
+    onSelect: () => void;
 };
 
 /** dock 的登记处（WallToolsDock 提供）：按钮把自己的 props 认领进去，dock 画最后认领的那一份。 */
@@ -285,7 +310,7 @@ function WallToolsRow({ entry, onDone }: { entry: WallToolsEntry; onDone: () => 
 }
 
 /** 按钮与面板本身（dock 里与就地渲染都画这一份）。 */
-export function WallToolsSurface({ idPrefix, label, isDaylight, entries, help, quickActions }: WallToolsButtonProps) {
+export function WallToolsSurface({ idPrefix, label, isDaylight, entries, help, quickActions, companion }: WallToolsButtonProps) {
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
@@ -333,8 +358,18 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, entries, help, q
         openCommandPalette();
     };
 
+    // @fork 本地魔改版：面板底部那颗齿轮做的事。设置入口原本只在主页窄缝的工具格里，站在这面墙上要改设置得先跑回主页。
+    // 走的是应用自己的 openSettings（命令面板与各处直达入口同一条路）：只给 tab='options'，不给子页与锚点，
+    // 于是落在设置记住的那一组（没有记录时是它的缺省组）。先收面板，免得设置窗盖在半开的面板上。
+    const handleOpenSettings = () => {
+        close();
+        openSettings('options');
+    };
+
     const panelId = `${idPrefix}-panel`;
     const helpId = `${idPrefix}-help`;
+    // @fork 本地魔改版：常驻那颗的图标（没有 companion 时是 undefined，下面那一格整块不画）。
+    const CompanionIcon = companion?.icon;
     const rows = isOpen ? (typeof entries === 'function' ? entries() : entries) : [];
     const quick = isOpen && quickActions ? (typeof quickActions === 'function' ? quickActions() : quickActions) : [];
     // 叠色开关两边都有（颜色与强度的细调仍在设置页与命令面板）。
@@ -348,7 +383,7 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, entries, help, q
     };
 
     return (
-        <motion.div ref={rootRef} style={{ bottom: bottomPx }} className={`lattice-tools group ${isDaylight ? 'is-daylight' : ''}`}>
+        <motion.div ref={rootRef} style={{ bottom: bottomPx }} className={`lattice-tools group ${isDaylight ? 'is-daylight' : ''}${companion ? ' has-companion' : ''}`}>
             <AnimatePresence initial={false}>
                 {isOpen && (
                     <motion.div
@@ -376,18 +411,32 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, entries, help, q
                                 <span className={lightsOn ? 'is-active' : ''}>{t('home.latticeLightsOn')}</span>
                                 <span className={lightsOn ? '' : 'is-active'}>{t('home.latticeLightsOff')}</span>
                             </button>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                className="lattice-tools-action lattice-tools-help-trigger"
-                                aria-label={t('home.latticeHelp')}
-                                title={t('home.latticeHelp')}
-                                aria-expanded={showHelp}
-                                aria-controls={helpId}
-                                onClick={() => setShowHelp(visible => !visible)}
-                            >
-                                <CircleHelp aria-hidden="true" />
-                            </button>
+                            {/* @fork 本地魔改版：两颗图标按钮（设置、操作提示）包在同一层里，灯光那一颗仍占行首。 */}
+                            <div className="lattice-tools-triggers">
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    data-wall-tools-settings
+                                    className="lattice-tools-action lattice-tools-settings-trigger"
+                                    aria-label={t('home.wallToolsSettings')}
+                                    title={t('home.wallToolsSettings')}
+                                    onClick={handleOpenSettings}
+                                >
+                                    <Settings aria-hidden="true" />
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="lattice-tools-action lattice-tools-help-trigger"
+                                    aria-label={t('home.latticeHelp')}
+                                    title={t('home.latticeHelp')}
+                                    aria-expanded={showHelp}
+                                    aria-controls={helpId}
+                                    onClick={() => setShowHelp(visible => !visible)}
+                                >
+                                    <CircleHelp aria-hidden="true" />
+                                </button>
+                            </div>
                             <AnimatePresence initial={false}>
                                 {showHelp && (
                                     <motion.div
@@ -408,6 +457,22 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, entries, help, q
                 )}
             </AnimatePresence>
 
+            {/* @fork 本地魔改版：常驻那颗排在工具按钮的正上方，且不进文档流（CSS 里绝对定位）。两个理由：
+                左边放不下——SlideActionButton 悬停 / 拖动时向左展开的那条 96px 轨道会压住它；
+                进文档流会让 .lattice-tools 这只盒子从 48×48 长高，而 test/ui/wallHandoff.spec.ts 全程断言它的
+                矩形不动（翻牌交接两面墙共用这一颗）。没有 companion 时下面这一格整块不画，DOM 与原来等价。 */}
+            {companion && CompanionIcon && (
+                <button
+                    type="button"
+                    className="lattice-tools-companion"
+                    data-wall-tools-companion={companion.id}
+                    aria-label={companion.label}
+                    title={[companion.label, companion.kbd].filter(Boolean).join(' · ')}
+                    onClick={companion.onSelect}
+                >
+                    <CompanionIcon aria-hidden="true" />
+                </button>
+            )}
             <SlideActionButton
                 icon={isOpen ? X : Settings2}
                 title={label}

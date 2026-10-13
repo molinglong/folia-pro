@@ -16,6 +16,8 @@ import BravaisSeamSearch from './BravaisSeamSearch';
 import BravaisDirectoryPanel from './BravaisDirectoryPanel';
 import BravaisSeamArtist from './BravaisSeamArtist';
 import BravaisSeamAbout from './BravaisSeamAbout';
+// @fork 本地魔改版：元数据行下面的署名行（专辑的艺人 / 发行信息）。
+import BravaisSeamByline from './BravaisSeamByline';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import BravaisSeamAccount from './BravaisSeamAccount';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
@@ -87,13 +89,16 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
             </div>
             {seam.filter && <BravaisSeamFilterField filter={seam.filter} />}
             {/* fb10：标题区域（引号 + 竖排大标题）本身就是「收起信息条」，面包屑拿到整行宽度。 */}
+            {/* @fork 本地魔改版：这一块的底色取自封面——集合层给 seam.coverUrl，歌手页没给时退到它的头像。 */}
             <BravaisSeamTitleArea title={seam.title} fontSize={verticalTitleSize(seam.title, 52, 26)} label={t('libraryBravais.seamCollapseStrip')}
-                onCollapse={collapse} />
+                onCollapse={collapse} toneUrl={seam.coverUrl ?? seam.artist?.coverUrl} />
             <div className="bravais-seam-rule" />
             {/* 歌手页的统计已是「关于艺术家」的附注：相同时元数据行不重复（过滤中是匹配数，照常显示）。 */}
             {!(seam.artist?.stats && seam.artist.stats === seam.meta) && (
                 <BravaisSeamFlipText as="div" flipKey={seam.meta} className="bravais-seam-meta">{seam.meta}</BravaisSeamFlipText>
             )}
+            {/* @fork 本地魔改版：署名行（艺人 + 发行信息）紧跟元数据行，在描述之前；没有可显示的就整块不画。 */}
+            {seam.byline && <BravaisSeamByline byline={seam.byline} />}
             {seam.artist && <BravaisSeamArtist artist={seam.artist} />}
             {collection?.description && (
                 <BravaisSeamAbout data-bravais-seam-about="collection" text={collection.description} textAttribute="data-bravais-collection-description" />
