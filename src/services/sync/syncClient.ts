@@ -2,16 +2,22 @@ import type {
     SyncProviderConfig,
     SyncRemoteState,
     SyncThemeManifest,
+    SyncedCollectionRecord,
+    SyncedPlatformSessionRecord,
     SyncedSettingsRecord,
     SyncedThemeRecord,
     WorkerHealthResponse,
 } from './syncTypes';
 import {
+    parseSyncCollectionRecord,
+    parseSyncPlatformSessionRecord,
     parseSyncRemoteState,
     parseSyncThemeManifest,
     parseSyncedSettingsRecord,
     parseSyncedThemeRecords,
 } from './syncSchema';
+import { getActiveSession, whenSessionHydrated } from './syncConfig';
+import { refreshSession, shouldRefreshSession } from './authClient';
 
 // src/services/sync/syncClient.ts
 // HTTP adapter for Folia's user-hosted sync API.
@@ -35,29 +41,65 @@ const buildUrl = (config: SyncProviderConfig, path: string) => (
     `${config.workerBaseUrl.replace(/\/+$/, '')}${path}`
 );
 
+// 鉴权优先级：登录会话 → 兼容模式全局 SYNC_TOKEN。未水合完先等一下，避免启动竞态。
+const resolveBearerToken = async (config: SyncProviderConfig): Promise<string | null> => {
+    await whenSessionHydrated();
+    const session = getActiveSession();
+    if (session) {
+        if (shouldRefreshSession(session)) {
+            const refreshed = await refreshSession();
+            if (refreshed) return refreshed.accessToken;
+        }
+        return session.accessToken;
+    }
+    return config.authToken || null;
+};
+
 const requestJson = async <T,>(
     config: SyncProviderConfig,
     path: string,
     init: RequestInit = {},
 ): Promise<T> => {
+    const bearerToken = await resolveBearerToken(config);
     const response = await fetch(buildUrl(config, path), {
         ...init,
         headers: {
             Accept: 'application/json',
             ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-            Authorization: `Bearer ${config.authToken}`,
-            ...init.headers,
+            ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
         },
     });
+
+    // 会话 access token 意外失效（时钟偏差/服务端重启）：刷新一次再重试。
+    // 刷新在 authClient 内单飞，重试只做一次，避免循环。
+    if (response.status === 401 && getActiveSession()) {
+        const refreshed = await refreshSession();
+        if (refreshed) {
+            const retryResponse = await fetch(buildUrl(config, path), {
+                ...init,
+                headers: {
+                    Accept: 'application/json',
+                    ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+                    Authorization: `Bearer ${refreshed.accessToken}`,
+                },
+            });
+            if (retryResponse.ok) {
+                return await parseResponse<T>(retryResponse);
+            }
+        }
+    }
 
     if (!response.ok) {
         throw new SyncClientError(`Sync request failed: ${response.status}`, response.status);
     }
 
+    return await parseResponse<T>(response);
+};
+
+const parseResponse = async <T,>(response: Response): Promise<T> => {
     if (response.status === 204) {
         return null as T;
     }
-
     return await response.json() as T;
 };
 
@@ -113,6 +155,80 @@ export const putRemoteThemes = async (
         method: 'POST',
         body: JSON.stringify({ themes }),
     });
+};
+
+// 服务端无数据时回 200 + null；旧服务端没有该路由时是 404，同样按"无远端数据"处理。
+export const getRemoteCollection = async (
+    config: SyncProviderConfig,
+    providerId: string,
+): Promise<SyncedCollectionRecord | null> => {
+    try {
+        return parseSyncCollectionRecord(await requestJson(config, `/collections/${providerId}`));
+    } catch (error) {
+        if (error instanceof SyncClientError && error.status === 404) {
+            return null;
+        }
+        throw error;
+    }
+};
+
+export const putRemoteCollection = async (
+    config: SyncProviderConfig,
+    providerId: string,
+    record: SyncedCollectionRecord,
+) => {
+    await requestJson(config, `/collections/${providerId}`, {
+        method: 'PUT',
+        body: JSON.stringify(record),
+    });
+};
+
+// 旧服务端（schema ≤ 2）无该路由回 404，与"无远端数据"同义，静默降级为 null。
+export const getRemotePlatformSession = async (
+    config: SyncProviderConfig,
+    providerId: string,
+): Promise<SyncedPlatformSessionRecord | null> => {
+    try {
+        return parseSyncPlatformSessionRecord(await requestJson(config, `/platform-sessions/${providerId}`));
+    } catch (error) {
+        if (error instanceof SyncClientError && (error.status === 404 || error.status === 400)) {
+            return null;
+        }
+        throw error;
+    }
+};
+
+export const putRemotePlatformSession = async (
+    config: SyncProviderConfig,
+    providerId: string,
+    record: SyncedPlatformSessionRecord,
+) => {
+    await requestJson(config, `/platform-sessions/${providerId}`, {
+        method: 'PUT',
+        body: JSON.stringify(record),
+    });
+};
+
+/** 返回 stale 时的服务端 updatedAt（409 语义），供调用方决定是否重试或放弃。 */
+export const deleteRemotePlatformSession = async (
+    config: SyncProviderConfig,
+    providerId: string,
+    options: { ifUpdatedAt?: string } = {},
+): Promise<{ ok: true } | { ok: false; staleUpdatedAt: string | null }> => {
+    const query = options.ifUpdatedAt ? `?ifUpdatedAt=${encodeURIComponent(options.ifUpdatedAt)}` : '';
+    try {
+        await requestJson(config, `/platform-sessions/${providerId}${query}`, { method: 'DELETE' });
+        return { ok: true };
+    } catch (error) {
+        if (error instanceof SyncClientError && error.status === 409) {
+            return { ok: false, staleUpdatedAt: null };
+        }
+        if (error instanceof SyncClientError && (error.status === 404 || error.status === 400)) {
+            // 旧服务端没有该路由：登出目标已达成，按成功处理。
+            return { ok: true };
+        }
+        throw error;
+    }
 };
 
 export const getRemoteThemesByBuckets = async (

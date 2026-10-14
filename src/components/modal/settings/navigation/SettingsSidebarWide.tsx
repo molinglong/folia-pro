@@ -3,11 +3,12 @@ import { Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../../types';
 import type { SettingsAnchorId } from './settingsAnchorModel';
-import type { SettingsNavAnchor, SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
+import type { SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
 import { searchSettingsNav } from './settingsNavSearch';
 // src/components/modal/settings/navigation/SettingsSidebarWide.tsx
-// Wide-layout settings navigation: grouped sections with every subsection table of contents open,
-// under a search box that narrows the list. The narrow chip strip has no search on purpose.
+// Wide-layout settings navigation: a flat list of grouped sections under a search box that
+// narrows the list. The anchor table of contents used to hang under the active section; it was
+// removed on purpose, so the sidebar is sections only. The narrow chip strip has no search either.
 
 type SettingsSidebarWideProps = {
     groups: SettingsNavGroup[];
@@ -30,12 +31,10 @@ export const SettingsSidebarWide: React.FC<SettingsSidebarWideProps> = ({
 }) => {
     const { t, i18n } = useTranslation();
     const [query, setQuery] = useState('');
-    const accentColor = theme?.accentColor || (isDaylight ? '#44403c' : '#f4f4f5');
     const search = useMemo(
         () => searchSettingsNav(groups, query, i18n.language),
         [groups, query, i18n.language],
     );
-
     const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Enter' && search.firstHit) {
             event.preventDefault();
@@ -54,33 +53,6 @@ export const SettingsSidebarWide: React.FC<SettingsSidebarWideProps> = ({
             setQuery('');
         }
     };
-
-    const renderTableOfContents = (sectionId: SettingsSectionId, anchors: SettingsNavAnchor[]) => (
-        <div className="mt-1 flex flex-col gap-0.5 pl-[26px]">
-            {anchors.map((anchor) => {
-                const isActive = activeSectionId === sectionId && activeAnchorId === anchor.id;
-                return (
-                    <button
-                        key={anchor.id}
-                        type="button"
-                        title={anchor.label}
-                        // The highlight is colour and opacity only; assistive tech and tests need
-                        // the state said out loud.
-                        aria-current={isActive ? 'true' : undefined}
-                        onClick={() => onSelectAnchor(sectionId, anchor.id)}
-                        className={`relative rounded-lg py-1.5 pl-3 pr-2 text-left text-xs transition-colors ${isActive ? (isDaylight ? 'bg-black/[0.04]' : 'bg-white/[0.06]') : (isDaylight ? 'hover:bg-black/[0.025]' : 'hover:bg-white/[0.035]')}`}
-                        style={{ color: 'var(--text-primary)', opacity: isActive ? 0.95 : 0.55 }}
-                    >
-                        <span
-                            className="absolute inset-y-1 left-0 w-[2px] rounded-full transition-opacity"
-                            style={{ backgroundColor: accentColor, opacity: isActive ? 1 : 0 }}
-                        />
-                        <span className="block truncate">{anchor.label}</span>
-                    </button>
-                );
-            })}
-        </div>
-    );
 
     return (
         <div className="w-1/3 max-w-[264px] shrink-0 overflow-y-auto custom-scrollbar pr-3 flex flex-col gap-5 border-r border-white/10 pb-4 items-stretch">
@@ -137,6 +109,8 @@ export const SettingsSidebarWide: React.FC<SettingsSidebarWideProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => onSelectSection(section.id)}
+                                    // Active state was carried by the highlight alone; say it out loud now.
+                                    aria-current={isActive ? 'true' : undefined}
                                     className={`w-full p-3 rounded-xl border transition-colors flex items-center justify-between gap-3 text-left ${isActive ? (isDaylight ? 'border-zinc-300/70 bg-white/80' : 'border-white/20 bg-white/10') : (isDaylight ? 'border-transparent hover:bg-white/50' : 'border-transparent hover:bg-white/5')}`}
                                 >
                                     <div className="flex min-w-0 items-center gap-3">
@@ -148,7 +122,6 @@ export const SettingsSidebarWide: React.FC<SettingsSidebarWideProps> = ({
                                         </div>
                                     </div>
                                 </button>
-                                {section.anchors.length > 0 && renderTableOfContents(section.id, section.anchors)}
                             </div>
                         );
                     })}

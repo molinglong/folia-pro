@@ -329,29 +329,50 @@
 }
 
 /* 熄灯（实测反馈 1 从 Lattice.css 搬来，Lattice 与 bravais 共用同一份灯光设置）。每张海报里一层，正在播放的那张不熄；
-   熄灯时叠色归零（两层不叠加）。bravais 在 bravais.css 里另有几条豁免（聚焦卡、悬停、键盘焦点、全透明档的窗）。 */
+   熄灯时叠色归零（两层不叠加）。bravais 在 bravais.css 里另有几条豁免（聚焦卡、悬停、键盘焦点、全透明档的窗）。
+   2026-10-14 加特效：
+   - 遮罩背景保留纯黑/纯白的底色（测试读 backgroundColor === rgb(0,0,0)，与旧版一致），另在 background-image 上加一层
+     径向渐变把边缘再压 28%——中心稍亮、边缘更暗，视觉上像是从卡心往外退开，替代之前平面糊黑的观感。
+   - 过渡时长由 260ms ease 提到 420ms cubic-bezier(.25,.46,.45,.94)（起峰快、尾巴柔和）。逐张延迟由 React 在
+     span 上写 transitionDelay（距离当前播放海报越远熄得越晚），CSS 层不管这个变量，只保留 duration/easing。
+   - 正在播放那张在关灯态加外发光：走 filter: drop-shadow 而不是往 box-shadow 插层，一方面保留与叠页边阴影
+     槽位的固定编号（bravaisTileKinds 测试靠 index 3–6 取色），另一方面避开在两个不同阴影列表之间插值时颜色
+     落在 oklab 中间值导致 settled 测一直等不到 srgb 落定的问题。现网已有的 transition: filter 600ms 自然接上淡入淡出。 */
 .lattice-poster-lights-out {
+    --lights-edge: rgba(0, 0, 0, 0.28);
     position: absolute;
     inset: 0;
     /* Lights-out covers the complete poster, including its copy and badge. */
     z-index: 5;
     pointer-events: none;
-    background: #000;
+    background-color: #000;
+    background-image: radial-gradient(ellipse 120% 120% at 50% 50%, transparent 0%, var(--lights-edge) 100%);
     opacity: 0;
-    transition: opacity 260ms ease;
+    transition: opacity 420ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .lattice-root.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-lights-out {
     opacity: 0.82;
 }
 
+.lattice-root.is-daylight .lattice-poster-lights-out { --lights-edge: rgba(255, 255, 255, 0.28); }
 .lattice-root.is-daylight.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-lights-out {
-    background: #fff;
+    background-color: #fff;
 }
 
 .lattice-root.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-tint {
     opacity: 0;
 }
 
-/* 降级状态的来源同 wall.css 里海报的那条规则（useMotionSettingsStore → <html data-reduce-motion>）。 */
-:root[data-reduce-motion~='lattice'] .lattice-poster-lights-out { transition: none; }
+/* 关灯态的聚光：正在播放那张向外发一层软光，光色跟随主题强调色。用 filter 而非 box-shadow：
+   - 不插到已有 box-shadow 的固定槽位（bravais 叠页边靠阴影 index 3–6 取色，插进去会错一位）；
+   - 不在两个不同长度的阴影列表之间插值，避开颜色落在 oklab 中间值导致 settled 测一直放不定的问题；
+   - 上面 .lattice-poster 已有 transition: box-shadow 600ms ease, filter 600ms ease，开/关灯的淡入淡出白吃。 */
+.lattice-root.is-lights-out .lattice-poster.is-current {
+    filter:
+        drop-shadow(0 0 18px color-mix(in srgb, var(--text-accent, var(--text-primary, #fff)) 34%, transparent))
+        drop-shadow(0 0 44px color-mix(in srgb, var(--text-accent, var(--text-primary, #fff)) 14%, transparent));
+}
+
+/* 降级：动效关闭时清掉涟漪延迟，只保留淡入淡出（沿用现网行为）。外发光不属于动画，保留。 */
+:root[data-reduce-motion~='lattice'] .lattice-poster-lights-out { transition: none; transition-delay: 0ms !important; }

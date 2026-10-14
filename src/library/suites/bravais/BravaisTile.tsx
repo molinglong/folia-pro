@@ -69,6 +69,12 @@ type BravaisTileProps = {
     entrance?: BravaisEntrance | null;
     didDragRef: MutableRefObject<boolean>;
     handlers: BravaisTileHandlers;
+    /**
+     * 涟漪熄灯：关灯/开灯时这一张的熄灯层相对中心的延迟（ms）。BravaisWall 按与正在播放那一项中心的欧氏距离算，
+     * 与 Lattice 那边共用同一份公式（components/wall/lightsRipple.ts）。写入 span 的 inline transitionDelay；
+     * bravaisAppearance.css 里的 hover/focus 豁免把它强制归 0ms，保证“立刻亮”。
+     */
+    lightsRippleDelay: number;
 };
 
 const rotation = (degrees: number) => `perspective(1400px) rotateY(${degrees}deg)`;
@@ -122,6 +128,7 @@ function BravaisTile({
     entrance = null,
     didDragRef,
     handlers,
+    lightsRippleDelay,
 }: BravaisTileProps) {
     countRender('BravaisTile');
     const faceRef = useRef<HTMLElement>(null);
@@ -325,8 +332,9 @@ function BravaisTile({
                             </span>
                         )}
                         <span className="lattice-poster-shade" />
-                        {/* 实测反馈 1：熄灯层（wall.css；全透明档的窗与聚焦卡等豁免在 bravais.css）。 */}
-                        <span className="lattice-poster-lights-out" />
+                        {/* 实测反馈 1：熄灯层（wall.css；全透明档的窗与聚焦卡等豁免在 bravais.css）。
+                           inline transitionDelay 把“这一张多晚开始暗”交给上一层的涟漪公式。 */}
+                        <span className="lattice-poster-lights-out" style={{ transitionDelay: `${lightsRippleDelay}ms` }} />
                         {!face.seeThrough && <span className="lattice-poster-tint" />}
                         <BravaisTileBadge item={display} current={isCurrent} />
                         {(display.hideable || display.selected) && (

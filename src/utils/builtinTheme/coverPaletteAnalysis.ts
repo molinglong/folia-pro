@@ -4,7 +4,7 @@ import { getHueDistance, hexToHsl, normalizeHue, type Hsl } from '../themeColorM
 // Reads the cover's extracted colors and decides the color skeleton of a built-in theme: which
 // hue leads, which hue accents it, and how saturated/deep the backgrounds should read.
 
-export type HarmonyScheme = 'analogous' | 'complementary' | 'split' | 'triadic' | 'duotone' | 'monochrome';
+export type HarmonyScheme = 'duotone' | 'monochrome';
 export type PaletteTone = 'ink' | 'tinted' | 'rich';
 
 export type CoverPalette = {
@@ -19,7 +19,6 @@ export type CoverPalette = {
 const MIN_SUPPORT_SATURATION = 0.15;
 const MIN_SUPPORT_HUE_DISTANCE = 25;
 const MAX_SUPPORT_HUE_DISTANCE = 160;
-const MONOCHROME_SATURATION_CEILING = 0.18;
 
 // Prefers colors that are both saturated and mid-lightness: those carry the cover's identity,
 // while near-black / near-white pixels only describe its background.
@@ -62,48 +61,22 @@ const pickSupportHue = (parsedColors: Hsl[], base: Hsl) => {
     return support ? support.h : null;
 };
 
-const pickScheme = (
-    baseSaturation: number,
-    supportHue: number | null,
-    random: () => number,
-): HarmonyScheme => {
-    // A real second hue on the cover is the most "from this artwork" accent available.
-    if (supportHue !== null && random() < 0.65) {
-        return 'duotone';
-    }
-
-    return pickWeighted<HarmonyScheme>(random, [
-        { value: 'analogous', weight: 3 },
-        { value: 'complementary', weight: 2 },
-        { value: 'split', weight: 2 },
-        { value: 'triadic', weight: 1.5 },
-        { value: 'monochrome', weight: baseSaturation < MONOCHROME_SATURATION_CEILING ? 2.5 : 0 },
-    ]);
+const pickScheme = (supportHue: number | null): HarmonyScheme => {
+    // The accent must stay on the artwork: a real second hue when the cover carries one, the
+    // leading hue again when it doesn't. Random harmony schemes are what sent yellow covers to
+    // green and blue ones to purple — the wheel spin never reads as "this song's colors".
+    return supportHue !== null ? 'duotone' : 'monochrome';
 };
 
 const resolveAccentHue = (
     scheme: HarmonyScheme,
     baseHue: number,
     supportHue: number | null,
-    random: () => number,
 ) => {
-    const sign = random() < 0.5 ? -1 : 1;
-
-    switch (scheme) {
-        case 'duotone':
-            return supportHue ?? baseHue;
-        case 'analogous':
-            return baseHue + sign * (20 + random() * 15);
-        case 'complementary':
-            return baseHue + 150 + random() * 30;
-        case 'split':
-            return baseHue + (sign < 0 ? 150 : 210);
-        case 'triadic':
-            return baseHue + sign * 120;
-        case 'monochrome':
-        default:
-            return baseHue;
+    if (scheme === 'duotone') {
+        return supportHue ?? baseHue;
     }
+    return baseHue;
 };
 
 // Turns raw cover swatches into the hue/tone contract the built-in theme generator builds on.
@@ -114,14 +87,14 @@ export const analyzeCoverPalette = (coverColors: string[], random: () => number)
 
     const base = pickBaseColor(parsedColors, random);
     const supportHue = pickSupportHue(parsedColors, base);
-    const scheme = pickScheme(base.s, supportHue, random);
+    const scheme = pickScheme(supportHue);
     const accentJitter = scheme === 'monochrome' ? 0 : (random() - 0.5) * 16;
 
     return {
         baseHue: normalizeHue(base.h),
         baseSaturation: base.s,
         baseLightness: base.l,
-        accentHue: normalizeHue(resolveAccentHue(scheme, base.h, supportHue, random) + accentJitter),
+        accentHue: normalizeHue(resolveAccentHue(scheme, base.h, supportHue) + accentJitter),
         scheme,
         tone: pickWeighted<PaletteTone>(random, [
             { value: 'ink', weight: 3 },

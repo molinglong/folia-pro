@@ -13,16 +13,31 @@ export const getStoredBoolean = (key: string, fallback: boolean) => {
     return saved !== null ? saved === 'true' : fallback;
 };
 
-export const setStoredBoolean = (key: string, value: boolean) => {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem(key, String(value));
-    }
-};
-
 export const getStoredString = (key: string, fallback: string) => {
     if (typeof window === 'undefined') {
         return fallback;
     }
 
     return localStorage.getItem(key) || fallback;
+};
+
+/** Reads a stored string without a fallback, so callers can tell "never written" apart from "written empty". */
+export const readStoredStringOrNull = (key: string): string | null => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    return localStorage.getItem(key);
+};
+
+export const setStoredString = (key: string, value: string) => {
+    if (typeof window !== 'undefined') {
+        localStorage.setItem(key, value);
+    }
+};
+
+export const setStoredBoolean = (key: string, value: boolean) => {
+    if (typeof window !== 'undefined') {
+        localStorage.setItem(key, String(value));
+    }
 };

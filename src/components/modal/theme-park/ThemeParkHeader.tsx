@@ -1,40 +1,28 @@
 import React from 'react';
 import { ChevronLeft, Palette, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { ThemeEditTarget } from './themeParkDraft';
 
 // src/components/modal/theme-park/ThemeParkHeader.tsx
-// Theme Park title bar: which theme the session is editing (AI vs custom), the session reset, and
-// the save action whose label follows the selected target.
-
-const TARGETS: Array<{ id: ThemeEditTarget; labelKey: string; }> = [
-    { id: 'ai', labelKey: 'theme.targetAiTheme' },
-    { id: 'custom', labelKey: 'theme.targetCustomTheme' },
-];
+// Theme Park title bar: the session hint, the session reset, and the save action.
 
 type ThemeParkHeaderProps = {
-    target: ThemeEditTarget;
     targetHint: string;
     isDaylight: boolean;
     canSave: boolean;
-    onTargetChange: (target: ThemeEditTarget) => void;
     onReset: () => void;
     onSave: () => void;
     onClose: () => void;
 };
 
 const ThemeParkHeader: React.FC<ThemeParkHeaderProps> = ({
-    target,
     targetHint,
     isDaylight,
     canSave,
-    onTargetChange,
     onReset,
     onSave,
     onClose,
 }) => {
     const { t } = useTranslation();
-    const selectedBg = isDaylight ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.12)';
 
     return (
         <div className="flex flex-col gap-4 border-b border-white/10 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
@@ -58,22 +46,6 @@ const ThemeParkHeader: React.FC<ThemeParkHeaderProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <div className="flex items-center gap-1 rounded-full bg-white/5 p-1">
-                    {TARGETS.map(({ id, labelKey }) => (
-                        <button
-                            key={id}
-                            type="button"
-                            onClick={() => onTargetChange(id)}
-                            className="rounded-full px-3 py-2 text-sm leading-none whitespace-nowrap transition-colors"
-                            style={{
-                                color: 'var(--text-primary)',
-                                backgroundColor: target === id ? selectedBg : 'transparent',
-                            }}
-                        >
-                            {t(labelKey)}
-                        </button>
-                    ))}
-                </div>
                 <button
                     type="button"
                     onClick={onReset}
@@ -92,7 +64,7 @@ const ThemeParkHeader: React.FC<ThemeParkHeaderProps> = ({
                     style={{ color: 'var(--text-primary)' }}
                 >
                     <Palette size={14} />
-                    <span>{t(target === 'custom' ? 'options.saveAndApplyCustomTheme' : 'options.aiThemeQuickEditSave')}</span>
+                    <span>{t('options.aiThemeQuickEditSave')}</span>
                 </button>
             </div>
         </div>

@@ -17,7 +17,9 @@ import OnlineLyricsTab from './panelTab/OnlineLyricsTab';
 import type { OnlineLyricsState } from '../types';
 import type { AudioQualityPreference } from '../types/onlineMusic';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
-import { getPlaybackSourceRef, getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
+import { getPlaybackSourceRef, getPlaybackSongSource, getPlaybackSongKey, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
+import { getSongCoverUrl } from '../services/onlineMusic/songMetadata';
+import { toSafeRemoteUrl } from '../utils/appPlaybackHelpers';
 import { resolveLikeAvailability } from '../utils/playerLikeAvailability';
 import { usePlayerBottomBarBottomPx } from '../hooks/usePlayerBottomBarBottomPx';
 import { getSizedCoverUrl } from '../utils/coverUrl';
@@ -55,7 +57,6 @@ type UnifiedPanelPlaybackProps = {
     onThemeChange: (theme: Theme) => void;
     bgMode: ThemeMode;
     onBgModeChange: (mode: ThemeMode) => void;
-    hasCustomTheme: boolean;
     themeSourceModel: ThemeSourceModel;
     onResetTheme: () => void;
     defaultTheme: Theme;
@@ -172,7 +173,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         onThemeChange,
         bgMode,
         onBgModeChange,
-        hasCustomTheme,
         themeSourceModel,
         defaultTheme,
         daylightTheme,
@@ -239,6 +239,9 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     } = account;
     const coverAreaRef = React.useRef<HTMLDivElement>(null);
     const [isCoverActionsVisible, setIsCoverActionsVisible] = React.useState(false);
+    // 队列页的预览：点一行不再直接切歌，先把这首当成预览（上面那块封面换成它），
+    // 真要听再由那一行浮出来的播放键交给 onPlaySong。面板关掉 / 离开队列页 / 换了正在播放的歌都会收掉。
+    const [queuePreviewSong, setQueuePreviewSong] = React.useState<SongResult | null>(null);
     const [showGuideLine, setShowGuideLine] = React.useState(false);
     const [isDragging, setIsDragging] = React.useState(false);
     const guideHideTimeoutRef = React.useRef<number | null>(null);
@@ -597,6 +600,32 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     }, [currentTab, currentSong?.id]);
 
     React.useEffect(() => {
+        if (!isOpen || currentTab !== 'queue') {
+            setQueuePreviewSong(null);
+        }
+    }, [isOpen, currentTab]);
+
+    // 正在播放的歌一变（点了播放键、切歌、跑完下一首），预览就没必要留着了。
+    React.useEffect(() => {
+        setQueuePreviewSong(null);
+    }, [currentSong?.id]);
+
+    const handleQueuePreview = React.useCallback((song: SongResult) => {
+        setQueuePreviewSong(song);
+    }, []);
+    // 预览的那首已经不在队列里（被移除、队列被替换）时，按没有预览处理，封面回到当前这首。
+    const queuePreviewKey = queuePreviewSong ? getPlaybackSongKey(queuePreviewSong) : null;
+    const isQueuePreviewActive = Boolean(queuePreviewKey)
+        && playQueue.some(song => getPlaybackSongKey(song) === queuePreviewKey);
+    // 封面：预览时换成那首自己的封面（来源已经过元数据解析，这里再过一遍与全站同款的安全地址处理）。
+    const artworkCoverUrl = React.useMemo(() => {
+        if (!isQueuePreviewActive || !queuePreviewSong) {
+            return coverUrl;
+        }
+        return toSafeRemoteUrl(getSongCoverUrl(queuePreviewSong)) ?? null;
+    }, [coverUrl, isQueuePreviewActive, queuePreviewSong]);
+
+    React.useEffect(() => {
         if (supportsHover || !isCoverActionsVisible) {
             return undefined;
         }
@@ -648,8 +677,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                     }}
                                     className={`w-full aspect-square rounded-2xl overflow-hidden shadow-lg relative mb-4 ${placeholderBg} flex items-center justify-center group cursor-pointer`}
                                 >
-                                    {coverUrl ? (
-                                        <img src={getSizedCoverUrl(coverUrl, 512)} alt="Art" decoding="async" className="w-full h-full object-cover" />
+                                    {artworkCoverUrl ? (
+                                        <img src={getSizedCoverUrl(artworkCoverUrl, 512)} alt="Art" decoding="async" className="w-full h-full object-cover" />
                                     ) : (
                                         <Disc size={40} className="text-white/20" />
                                     )}
@@ -823,7 +852,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onThemeChange={onThemeChange}
                                             bgMode={bgMode}
                                             onBgModeChange={onBgModeChange}
-                                            hasCustomTheme={hasCustomTheme}
                                             themeSourceModel={themeSourceModel}
                                             defaultTheme={defaultTheme}
                                             daylightTheme={daylightTheme}
@@ -872,6 +900,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 playQueue={playQueue}
                                                 currentSong={currentSong}
                                                 onPlaySong={onPlaySong}
+                                                onPreviewSong={handleQueuePreview}
+                                                previewSongKey={isQueuePreviewActive ? queuePreviewKey : null}
                                                 queueScrollRef={queueScrollRef}
                                                 shouldScrollToCurrent={isOpen && currentTab === 'queue'}
                                                 onShuffle={onShuffle}

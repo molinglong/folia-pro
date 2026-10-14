@@ -13,8 +13,8 @@ const translate = (key: string): string => {
     return typeof value === 'string' ? value : key;
 };
 
-const desktopGroups = buildSettingsNavGroups(translate, { isElectron: true });
-const webGroups = buildSettingsNavGroups(translate, { isElectron: false });
+const desktopGroups = buildSettingsNavGroups(translate, { isElectron: true, isCustomPresetActive: true });
+const webGroups = buildSettingsNavGroups(translate, { isElectron: false, isCustomPresetActive: true });
 
 const sectionIds = (groups: ReturnType<typeof buildSettingsNavGroups>) => flattenSettingsNavItems(groups).map(item => item.id);
 
@@ -50,7 +50,7 @@ describe('searchSettingsNav', () => {
         const result = searchSettingsNav(desktopGroups, '图形', 'zh-CN');
         const graphics = flattenSettingsNavItems(result.groups).find(item => item.id === 'graphics');
 
-        expect(graphics?.anchors.map(anchor => anchor.id)).toEqual(['graphicsPerformance', 'graphicsMotion']);
+        expect(graphics?.anchors.map(anchor => anchor.id)).toEqual(['graphicsPreset', 'graphicsQualitySwitches', 'graphicsMotion', 'graphicsPerformance']);
     });
 
     it('never surfaces a section the platform does not show', () => {

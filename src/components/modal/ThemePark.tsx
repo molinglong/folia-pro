@@ -14,7 +14,6 @@ import {
 } from '../../types';
 import { getVisualizerModeLabel } from '../visualizer/registry';
 import { normalizeThemeHexColor } from '../../services/themeSanitizer';
-import { BASE_DUAL_THEME } from '../../services/baseThemes';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
 import { extractColors } from '../../utils/colorExtractor';
 import { buildRecommendedColors } from '../../utils/themeEditorPalette';
@@ -32,15 +31,13 @@ import { useThemeParkPreviewClock } from './theme-park/useThemeParkPreviewClock'
 import {
     isDualThemeNameValid,
     type EditableMode,
-    type ThemeEditTarget,
     type ThemeParkTab,
 } from './theme-park/themeParkDraft';
 
 // src/components/modal/ThemePark.tsx
 // Full theme editor: live visualizer preview on the left, and a tabbed editor on the right that
 // covers every editable Theme field (colors, names/descriptions, word colors and lyric icons,
-// plus the manual AI JSON round trip). The edit target — the song's AI theme or the saved custom
-// theme — is chosen inside the editor; both drafts stay alive while the modal is open.
+// plus the manual AI JSON round trip) for the song's AI theme.
 
 interface ThemeParkProps {
     initialTheme: DualTheme;
@@ -60,7 +57,6 @@ interface ThemeParkProps {
     lyricsFontWeight?: number | null;
     lyricsCustomFontFamily?: string | null;
     onClose: () => void;
-    onSaveCustomTheme: (dualTheme: DualTheme) => void;
     onSaveAiTheme: (dualTheme: DualTheme, song: SongResult | null, songKey: ThemeCacheSongKey | null) => void;
 }
 
@@ -89,7 +85,6 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     lyricsFontWeight,
     lyricsCustomFontFamily,
     onClose,
-    onSaveCustomTheme,
     onSaveAiTheme,
 }) => {
     const { t } = useTranslation();
@@ -98,13 +93,11 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     const [activeTab, setActiveTab] = useState<ThemeParkTab>('colors');
     const [coverColors, setCoverColors] = useState<string[]>([]);
 
-    // Shared theme-editing context (also feeding the quick editor): the live AI / custom themes
+    // Shared theme-editing context (also feeding the quick editor): the live AI theme
     // plus the current song, so a saved AI theme lands on the right cache entry.
-    const { aiTheme, customTheme, bgMode, coverUrl, song, songKey, promptSourceText, isPureMusic, songTitle } = useThemeQuickEditorStore(
+    const { aiTheme, coverUrl, song, songKey, promptSourceText, isPureMusic, songTitle } = useThemeQuickEditorStore(
         useShallow(state => ({
             aiTheme: state.aiTheme,
-            customTheme: state.customTheme,
-            bgMode: state.bgMode,
             coverUrl: state.coverUrl,
             song: state.song,
             songKey: state.songKey,
@@ -115,8 +108,6 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     );
 
     const {
-        target,
-        setTarget,
         mode,
         setMode,
         activeColorKey,
@@ -133,11 +124,8 @@ const ThemePark: React.FC<ThemeParkProps> = ({
         buildFinalTheme,
     } = useThemeParkDraft({
         aiTheme,
-        customTheme,
-        bgMode,
         seedTheme: initialTheme,
         isDaylight,
-        defaultCustomTheme: BASE_DUAL_THEME,
     });
 
     const { currentTime, audioPower, audioBands, currentLineIndex } = useThemeParkPreviewClock(visualizerMode, isPaused);
@@ -182,11 +170,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
         }
 
         const finalTheme = buildFinalTheme();
-        if (target === 'custom') {
-            onSaveCustomTheme(finalTheme);
-        } else {
-            onSaveAiTheme(finalTheme, song, songKey);
-        }
+        onSaveAiTheme(finalTheme, song, songKey);
     };
 
     // 仅当 mouse down 和 click 都在 overlay 元素本身发生时才触发关闭，
@@ -201,9 +185,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
         }
     };
 
-    const targetHint = target === 'custom'
-        ? (customTheme ? t('theme.targetCustomHint') : t('theme.targetCustomNewHint'))
-        : (aiTheme ? t('theme.targetAiHint') : t('theme.targetAiNewHint'));
+    const targetHint = aiTheme ? t('theme.targetAiHint') : t('theme.targetAiNewHint');
 
     return (
         <motion.div
@@ -226,11 +208,9 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                 className={`mx-auto flex h-full max-w-7xl flex-col overflow-hidden rounded-[32px] border ${borderColor} ${glassBg} shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
             >
                 <ThemeParkHeader
-                    target={target}
                     targetHint={targetHint}
                     isDaylight={isDaylight}
                     canSave={isNameValid}
-                    onTargetChange={setTarget}
                     onReset={reset}
                     onSave={handleSave}
                     onClose={onClose}

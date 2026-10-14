@@ -465,7 +465,6 @@ test('设置里的歌词动画与配色两组各自能单独思索', async ({ pa
     await expect(stage).toBeVisible();
     await settled(stage);
     await expectAligned(stage, 'presetDefault', '[data-ponder-theme-default]');
-    await expectAligned(stage, 'presetCustom', '[data-ponder-theme-custom]');
     await expectAligned(stage, 'source', '[data-ponder-theme-source]');
     await expect(stage.locator('[data-ponder-theme-park-open]')).toHaveCount(1);
 });
@@ -539,7 +538,7 @@ test('那四组各自的结果层真的演出来了', async ({ page }) => {
     await expect(stage.locator('[data-ponder-import-derived-block]')).toBeVisible();
 });
 
-test('对话框与两块整屏编辑器：锚点落在合成界面的真实元素上', async ({ page }) => {
+test('对话框与整屏编辑器：锚点落在合成界面的真实元素上', async ({ page }) => {
     await page.locator('[data-probe-open="audio-equalizer-presets"]').click();
     let stage = page.locator('[data-testid="ponder-stage"]');
     await expect(stage).toBeVisible();
@@ -563,15 +562,6 @@ test('对话框与两块整屏编辑器：锚点落在合成界面的真实元�
     await expectAligned(stage, 'sectionReset', '[data-ponder-playground-section-reset]');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(500);
-
-    await page.locator('[data-probe-open="theme-park-target"]').click();
-    stage = page.locator('[data-testid="ponder-stage"]');
-    await expect(stage).toBeVisible();
-    await settled(stage);
-    await expectAligned(stage, 'targetToggle', '[data-ponder-park-target]');
-    await expectAligned(stage, 'save', '[data-ponder-park-save]');
-    await expectAligned(stage, 'colorRows', '[data-ponder-park-colors]');
-    await expectAligned(stage, 'modeToggle', '[data-ponder-park-mode]');
 });
 
 test('那三处的结果层真的换上来了', async ({ page }) => {

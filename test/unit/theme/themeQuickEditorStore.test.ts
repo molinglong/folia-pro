@@ -3,7 +3,7 @@ import { useThemeQuickEditorStore } from '@/stores/useThemeQuickEditorStore';
 import type { DualTheme } from '@/types';
 
 // test/unit/theme/themeQuickEditorStore.test.ts
-// Covers the shared quick editor state for AI, fallback AI, and custom themes.
+// Covers the shared quick editor state for AI and fallback AI themes.
 
 const aiTheme: DualTheme = {
     light: {
@@ -26,24 +26,10 @@ const aiTheme: DualTheme = {
     },
 };
 
-const customTheme: DualTheme = {
-    light: {
-        ...aiTheme.light,
-        name: 'Custom Light',
-        provider: 'Custom',
-    },
-    dark: {
-        ...aiTheme.dark,
-        name: 'Custom Dark',
-        provider: 'Custom',
-    },
-};
-
 describe('useThemeQuickEditorStore', () => {
     beforeEach(() => {
         useThemeQuickEditorStore.setState({
             aiTheme: null,
-            customTheme: null,
             bgMode: 'default',
             coverUrl: null,
             song: null,
@@ -61,7 +47,6 @@ describe('useThemeQuickEditorStore', () => {
     it('stores the latest editor context snapshot', () => {
         useThemeQuickEditorStore.getState().setContext({
             aiTheme,
-            customTheme,
             bgMode: 'ai',
             coverUrl: 'https://example.test/cover.jpg',
             song: null,
@@ -74,7 +59,6 @@ describe('useThemeQuickEditorStore', () => {
 
         expect(useThemeQuickEditorStore.getState()).toMatchObject({
             aiTheme,
-            customTheme,
             bgMode: 'ai',
             coverUrl: 'https://example.test/cover.jpg',
             songKey: 42,
@@ -87,7 +71,6 @@ describe('useThemeQuickEditorStore', () => {
     it('opens AI and fallback dual themes through the AI editor kind', () => {
         useThemeQuickEditorStore.getState().setContext({
             aiTheme,
-            customTheme: null,
             bgMode: 'ai',
             coverUrl: null,
             song: null,
@@ -105,47 +88,9 @@ describe('useThemeQuickEditorStore', () => {
         });
     });
 
-    it('opens custom themes through the custom editor kind', () => {
-        useThemeQuickEditorStore.getState().setContext({
-            aiTheme: null,
-            customTheme,
-            bgMode: 'custom',
-            coverUrl: null,
-            song: null,
-            songKey: null,
-            isDaylight: false,
-            promptSourceText: null,
-            isPureMusic: false,
-            songTitle: undefined,
-        });
-
-        useThemeQuickEditorStore.getState().openEditor('custom');
-        expect(useThemeQuickEditorStore.getState()).toMatchObject({
-            isOpen: true,
-            editorKind: 'custom',
-        });
-    });
-
-    it('uses the active editable source when no editor kind is passed', () => {
+    it('uses the AI editor when no editor kind is passed', () => {
         useThemeQuickEditorStore.getState().setContext({
             aiTheme,
-            customTheme,
-            bgMode: 'custom',
-            coverUrl: null,
-            song: null,
-            songKey: null,
-            isDaylight: false,
-            promptSourceText: null,
-            isPureMusic: false,
-            songTitle: undefined,
-        });
-        useThemeQuickEditorStore.getState().openEditor();
-        expect(useThemeQuickEditorStore.getState().editorKind).toBe('custom');
-
-        useThemeQuickEditorStore.getState().closeEditor();
-        useThemeQuickEditorStore.getState().setContext({
-            aiTheme,
-            customTheme,
             bgMode: 'ai',
             coverUrl: null,
             song: null,
@@ -162,7 +107,6 @@ describe('useThemeQuickEditorStore', () => {
     it('opens the AI editor even before an AI theme has been generated', () => {
         useThemeQuickEditorStore.getState().setContext({
             aiTheme: null,
-            customTheme: null,
             bgMode: 'default',
             coverUrl: null,
             song: null,
@@ -179,23 +123,5 @@ describe('useThemeQuickEditorStore', () => {
             editorKind: 'ai',
             canOpenEditor: true,
         });
-    });
-
-    it('does not open unavailable custom editor kinds', () => {
-        useThemeQuickEditorStore.getState().setContext({
-            aiTheme: null,
-            customTheme: null,
-            bgMode: 'default',
-            coverUrl: null,
-            song: null,
-            songKey: null,
-            isDaylight: false,
-            promptSourceText: null,
-            isPureMusic: false,
-            songTitle: undefined,
-        });
-
-        useThemeQuickEditorStore.getState().openEditor('custom');
-        expect(useThemeQuickEditorStore.getState().isOpen).toBe(false);
     });
 });

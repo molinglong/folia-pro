@@ -1,4 +1,5 @@
-import { SYNC_PROVIDER, type SyncProviderConfig, type SyncRuntimeStatus } from './syncTypes';
+import { getFromCache, removeFromCache, saveToCache } from '../db';
+import { SYNC_PROVIDER, type SyncAccountSession, type SyncProviderConfig, type SyncRuntimeStatus } from './syncTypes';
 
 // src/services/sync/syncConfig.ts
 // Local persistence for user-owned sync server settings and runtime status.
@@ -48,6 +49,12 @@ const emitEvent = (eventName: string) => {
 
 export const getSyncConfig = (): SyncProviderConfig => {
     const stored = readJson<Partial<SyncProviderConfig>>(SYNC_CONFIG_STORAGE_KEY, {});
+    const account = stored.account
+        && typeof stored.account === 'object'
+        && typeof (stored.account as { userId?: unknown }).userId === 'string'
+        && typeof (stored.account as { email?: unknown }).email === 'string'
+        ? stored.account
+        : undefined;
     return {
         ...DEFAULT_CONFIG,
         ...stored,
@@ -55,6 +62,7 @@ export const getSyncConfig = (): SyncProviderConfig => {
         workerBaseUrl: typeof stored.workerBaseUrl === 'string' ? stored.workerBaseUrl.trim() : '',
         authToken: typeof stored.authToken === 'string' ? stored.authToken.trim() : '',
         enabled: Boolean(stored.enabled),
+        account,
     };
 };
 
@@ -68,12 +76,53 @@ export const saveSyncConfig = (config: SyncProviderConfig) => {
         enabled: config.enabled,
         workerBaseUrl: config.workerBaseUrl.trim().replace(/\/+$/, ''),
         authToken: config.authToken.trim(),
+        account: config.account ?? null,
     }));
     emitEvent(SYNC_CONFIG_EVENT);
 };
 
+// --- 账号会话存储 ---
+// token 本体只进 IndexedDB（避免 XSS 直接可读 localStorage）；localStorage 只存非敏感的
+// userId/email 供 UI 展示。内存里持有一份，让同步流程能同步地判断"是否已配置"。
+
+const SESSION_CACHE_KEY = 'folia_sync_session_v1';
+
+let memorySession: SyncAccountSession | null = null;
+let sessionHydrated: Promise<void> | null = null;
+
+const hydrateSession = async (): Promise<void> => {
+    const stored = await getFromCache<SyncAccountSession>(SESSION_CACHE_KEY);
+    if (stored && typeof stored.accessToken === 'string' && typeof stored.refreshToken === 'string') {
+        memorySession = stored;
+    }
+};
+
+export const whenSessionHydrated = (): Promise<void> => {
+    if (!sessionHydrated) {
+        sessionHydrated = isBrowser()
+            ? hydrateSession().catch(() => undefined)
+            : Promise.resolve();
+    }
+    return sessionHydrated;
+};
+
+// 模块加载即开始水合，启动早期的请求不至于总是错过会话。
+void whenSessionHydrated();
+
+export const getActiveSession = (): SyncAccountSession | null => memorySession;
+
+export const storeSession = (session: SyncAccountSession) => {
+    memorySession = session;
+    void saveToCache(SESSION_CACHE_KEY, session);
+};
+
+export const clearStoredSession = () => {
+    memorySession = null;
+    void removeFromCache(SESSION_CACHE_KEY);
+};
+
 export const isSyncConfigured = (config = getSyncConfig()) => (
-    config.enabled && Boolean(config.workerBaseUrl && config.authToken)
+    config.enabled && Boolean(config.workerBaseUrl) && Boolean(config.authToken || memorySession)
 );
 
 export const getSyncStatus = (): SyncRuntimeStatus => readJson(SYNC_STATUS_STORAGE_KEY, DEFAULT_STATUS);

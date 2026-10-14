@@ -105,6 +105,7 @@
 - `dev/probes/pagePonder.probe.tsx`
 - `dev/probes/pendoloSubtitleDualRow.probe.tsx`
 - `dev/probes/playbackLyricsSettings.probe.tsx`
+- `dev/probes/playbackQuick.probe.tsx`
 - `dev/probes/playerBarModButtons.probe.tsx`
 - `dev/probes/playerBottomBar.probe.tsx`
 - `dev/probes/ponderBravaisSeam.probe.tsx`

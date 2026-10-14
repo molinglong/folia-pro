@@ -3,8 +3,8 @@ import { applyStoredAnimationIntensityToDualTheme } from '../services/themePrefe
 import { FALLBACK_AI_DUAL_THEME } from '../services/themeSanitizer';
 import { generateBuiltinDualTheme } from '../utils/builtinTheme/generateBuiltinDualTheme';
 
-export type ThemeSourceKind = 'default' | 'ai' | 'custom';
-export type EditableThemeSourceKind = 'ai' | 'custom';
+export type ThemeSourceKind = 'default' | 'ai';
+export type EditableThemeSourceKind = 'ai';
 
 export type ThemeSourceOption = {
     source: ThemeSourceKind;
@@ -22,6 +22,10 @@ export type ThemeSourceModel = {
     editableSource: EditableThemeSourceKind | null;
     canOpenQuickEditor: boolean;
     hasLocalAiTheme: boolean;
+    // False while the "ai" slot only shows the hard-coded sanitizer fallback: the slot stays
+    // clickable (click generates a real theme) but swatches must not pass the placeholder off as
+    // this song's palette.
+    hasSavedAiTheme: boolean;
 };
 
 export const getBaseThemeForMode = ({
@@ -58,7 +62,6 @@ export const buildThemeSourceModel = ({
     bgMode,
     aiTheme,
     legacyTheme,
-    customTheme,
     isDaylight,
     defaultTheme,
     daylightTheme,
@@ -67,61 +70,37 @@ export const buildThemeSourceModel = ({
     bgMode: ThemeSourceKind;
     aiTheme: DualTheme | null;
     legacyTheme: Theme | null;
-    customTheme: DualTheme | null;
     isDaylight: boolean;
     defaultTheme: Theme;
     daylightTheme: Theme;
     currentSongHasLocalAiTheme: boolean;
 }): ThemeSourceModel => {
     const defaultSourceTheme = getBaseThemeForMode({ defaultTheme, daylightTheme, isDaylight });
+    const hasSavedAiTheme = Boolean(aiTheme || legacyTheme);
     const aiSourceTheme = aiTheme
         ? getSelectedDualTheme(aiTheme, isDaylight)
         : legacyTheme ?? getSelectedDualTheme(FALLBACK_AI_DUAL_THEME, isDaylight);
-    const customSourceTheme = customTheme
-        ? getSelectedDualTheme(customTheme, isDaylight)
-        : null;
 
     const options: Record<ThemeSourceKind, ThemeSourceOption> = {
         default: buildThemeSourceOption('default', defaultSourceTheme, true, false),
         ai: buildThemeSourceOption('ai', aiSourceTheme, true, Boolean(aiTheme || !legacyTheme)),
-        custom: buildThemeSourceOption('custom', customSourceTheme, Boolean(customTheme), Boolean(customTheme)),
     };
 
     const activeSource = options[bgMode]?.available ? bgMode : 'default';
-    const editableSource = options[activeSource].editable && activeSource !== 'default'
-        ? activeSource
-        : null;
+    // Legacy single-layer AI themes stay display-only: the quick editor edits a DualTheme, so
+    // opening it here would silently swap the user's legacy palette for the sanitizer fallback.
+    const editableSource = activeSource === 'ai' && options.ai.editable ? 'ai' : null;
 
     return {
         activeSource,
         current: options[activeSource],
         options,
         editableSource,
-        canOpenQuickEditor: options.ai.editable || options.custom.editable,
+        canOpenQuickEditor: options.ai.editable,
         hasLocalAiTheme: currentSongHasLocalAiTheme,
+        hasSavedAiTheme,
     };
 };
-
-export const buildDefaultCustomDualTheme = ({
-    defaultTheme,
-    daylightTheme,
-}: {
-    defaultTheme: Theme;
-    daylightTheme: Theme;
-}): DualTheme => applyStoredAnimationIntensityToDualTheme({
-    light: {
-        ...daylightTheme,
-        wordColors: [],
-        lyricsIcons: [],
-        provider: 'Custom',
-    },
-    dark: {
-        ...defaultTheme,
-        wordColors: [],
-        lyricsIcons: [],
-        provider: 'Custom',
-    },
-});
 
 export const resolveBgModeTheme = ({
     mode,

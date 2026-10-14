@@ -41,6 +41,8 @@ import { shouldMountPlayerVisualizer } from './components/app/presentation/playe
 import { resolveWallHandoffPresentation } from './components/app/presentation/wallHandoffPresentation';
 import { useWallHandoffDirector } from './components/app/presentation/wallHandoffDirector';
 import WallToolsDockHost from './components/wall/WallToolsDock';
+import HomeStylePanel from './components/home/HomeStylePanel';
+import PlaybackQuickPanel from './components/floating-player/PlaybackQuickPanel';
 import { buildPlayerViewFlags } from './components/app/presentation/buildPlayerViewFlags';
 import { buildVisualizerTheme } from './components/app/presentation/buildVisualizerTheme';
 import { createCoverUrlResolver } from './components/app/playback/createCoverUrlResolver';
@@ -108,6 +110,7 @@ import { useLyricApiPublisher } from './hooks/useLyricApiPublisher';
 import { useSessionRestoreController } from './hooks/useSessionRestoreController';
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
+import { resolveSongThemeAutoGenerationEnabled } from './utils/songThemeAutoGeneration';
 import { useThemeController } from './hooks/useThemeController';
 import { useOnlineSongMetadataHydration } from './hooks/useOnlineSongMetadataHydration';
 import { resolveCommandPaletteSearchSource, resolveSearchSource, useSearchNavigationStore } from './stores/useSearchNavigationStore';
@@ -616,10 +619,7 @@ export default function App() {
         theme,
         setTheme,
         aiTheme,
-        customTheme,
-        hasCustomTheme,
         themeSourceModel,
-        isCustomThemePreferred,
         songThemeAutoSwitchEnabled,
         songThemeAutoGenerateEnabled,
         themeGenerationSource,
@@ -632,10 +632,7 @@ export default function App() {
         restoreCachedThemeForSong,
         generateAITheme,
         getThemeParkSeedTheme,
-        saveCustomDualTheme,
         saveEditedAiDualTheme,
-        applyCustomTheme,
-        handleCustomThemePreferenceChange,
         handleSongThemeAutoSwitchChange,
         handleSongThemeAutoGenerateChange,
         handleThemeGenerationSourceChange,
@@ -646,7 +643,6 @@ export default function App() {
 
     useThemeQuickEditorContext({
         aiTheme,
-        customTheme,
         bgMode,
         coverUrl,
         restoreCachedThemeForSong,
@@ -1838,14 +1834,11 @@ export default function App() {
         stageSource,
     ]);
     const activeDualTheme = useMemo(() => {
-        if (bgMode === 'custom' && customTheme) {
-            return customTheme;
-        }
         if (bgMode === 'ai') {
             return aiTheme ?? FALLBACK_AI_DUAL_THEME;
         }
         return BASE_DUAL_THEME;
-    }, [bgMode, customTheme, aiTheme]);
+    }, [bgMode, aiTheme]);
 
     // Built while the overlay is open even outside dev, because the packaged desktop build has no
     // console of its own and this overlay is the only way to read one. Still gated rather than
@@ -1887,7 +1880,13 @@ export default function App() {
     ]);
     const themeParkSeedTheme = useMemo(() => getThemeParkSeedTheme(), [getThemeParkSeedTheme]);
     useSongThemeAutoGeneration({
-        enabled: songThemeAutoSwitchEnabled && songThemeAutoGenerateEnabled,
+        // Product rule: colors follow the cover per song. The free cover path only bows to the
+        // auto-switch gate; the auto-generate switch guards AI spend only.
+        enabled: resolveSongThemeAutoGenerationEnabled({
+            themeGenerationSource,
+            songThemeAutoSwitchEnabled,
+            songThemeAutoGenerateEnabled,
+        }),
         isLyricsLoading,
         themeGenerationSource,
         generateAITheme,
@@ -2224,7 +2223,6 @@ export default function App() {
         setTheme,
         bgMode,
         handleBgModeChange,
-        hasCustomTheme,
         themeSourceModel,
         handleResetTheme,
         toggleTransparentModeWithHandoff,
@@ -2778,6 +2776,13 @@ export default function App() {
             </AnimatePresence>
             </WallToolsDockHost>
 
+            {/* 主页样式内联浮层：由 bravais 墙右下角那颗常驻 companion（原「前往 Lattice」）打开，挂在首页层同级。 */}
+            <HomeStylePanel isDaylight={isDaylight} theme={theme} />
+
+            {/* @fork 本地魔改版（2026-10-14）：播放快捷二级浮层，由胶囊右槽（默认动作 playback-quick）打开；
+                音量 / 静音 / 洗牌从 bravais 墙工具面板搬到这里，播放的事跟着播放器走。 */}
+            <PlaybackQuickPanel isDaylight={isDaylight} onShuffle={shuffleQueue} />
+
             {/* --- VISUALIZER (Background Layer & Main Click Target) --- */}
             {/* 指针隐藏跟着控制栏的空闲时钟走，不另起一套计时：控件收起时页面上已经没有可点的东西，
                 所以指针一起消失；任何鼠标移动都会同时唤回两者。class 只挂在这个视觉层容器上，
@@ -2838,7 +2843,7 @@ export default function App() {
                 <PlayerPanel model={playerPanelModel} />
             )}
 
-            <ThemeQuickEditorHost onSaveAiTheme={saveEditedAiDualTheme} onSaveCustomTheme={saveCustomDualTheme} />
+            <ThemeQuickEditorHost onSaveAiTheme={saveEditedAiDualTheme} />
 
             {/* Mounted here rather than inside the panel that used to own it: the picker answers a
                 question about the current song, and a shortcut has to reach it with the panel shut. */}

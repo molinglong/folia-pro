@@ -68,7 +68,6 @@ export type PlayerPanelDeps = {
     setTheme: UnifiedPanelProps['playback']['onThemeChange'];
     bgMode: UnifiedPanelProps['playback']['bgMode'];
     handleBgModeChange: UnifiedPanelProps['playback']['onBgModeChange'];
-    hasCustomTheme: UnifiedPanelProps['playback']['hasCustomTheme'];
     themeSourceModel: UnifiedPanelProps['playback']['themeSourceModel'];
     handleResetTheme: UnifiedPanelProps['playback']['onResetTheme'];
     toggleTransparentModeWithHandoff: UnifiedPanelProps['playback']['onToggleTransparentPlayerBackground'];
@@ -133,7 +132,6 @@ export const buildPlayerPanelModel = ({
     setTheme,
     bgMode,
     handleBgModeChange,
-    hasCustomTheme,
     themeSourceModel,
     handleResetTheme,
     defaultTheme,
@@ -219,7 +217,6 @@ export const buildPlayerPanelModel = ({
             onThemeChange: setTheme,
             bgMode,
             onBgModeChange: handleBgModeChange,
-            hasCustomTheme,
             themeSourceModel,
             onResetTheme: handleResetTheme,
             defaultTheme,

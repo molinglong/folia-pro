@@ -68,6 +68,7 @@ import { selectStageSettingsSnapshot, useStageSettingsStore } from '../../stores
 import { useSettingsModalStore } from '../../stores/useSettingsModalStore';
 import { selectAudioSettingsSnapshot, useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
 import { selectHomeLayoutSettingsSnapshot, useHomeLayoutSettingsStore } from '../../stores/useHomeLayoutSettingsStore';
+import { useGraphicsPresetStore } from '../../stores/useGraphicsPresetStore';
 import { setNavidromeEnabledState, useLibraryStore } from '../../stores/useLibraryStore';
 import { hasLibrarySuiteChoice } from '../../library/registry';
 import { useIsBravaisLibraryActive } from '../../library/app/bravaisLibraryActive';
@@ -88,15 +89,10 @@ interface SettingsModalProps {
     theme?: Theme;
     bgMode: ThemeMode;
     onApplyDefaultTheme: () => void;
-    hasCustomTheme: boolean;
     themeParkInitialTheme: DualTheme;
-    isCustomThemePreferred: boolean;
     songThemeAutoSwitchEnabled: boolean;
     songThemeAutoGenerateEnabled: boolean;
-    onSaveCustomTheme: (dualTheme: DualTheme) => void;
     onSaveAiTheme: (dualTheme: DualTheme, song: SongResult | null, songKey: ThemeCacheSongKey | null) => void;
-    onApplyCustomTheme: () => void;
-    onToggleCustomThemePreferred: (enabled: boolean) => void;
     onToggleSongThemeAutoSwitch: (enabled: boolean) => void;
     themeGenerationSource: ThemeGenerationSource;
     onChangeThemeGenerationSource: (source: ThemeGenerationSource) => void;
@@ -127,7 +123,6 @@ interface SettingsModalProps {
     onReplayGainModeChange: (mode: ReplayGainMode) => void;
     onToggleTransparentPlayerBackground?: (enabled: boolean) => Promise<void> | void;
     aiTheme?: DualTheme | null;
-    customTheme?: DualTheme | null;
 }
 
 const QUARK_DOWNLOAD_URL = 'https://pan.quark.cn/s/6e4c6fa3bc6f';
@@ -152,15 +147,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     theme,
     bgMode,
     onApplyDefaultTheme,
-    hasCustomTheme,
     themeParkInitialTheme,
-    isCustomThemePreferred,
     songThemeAutoSwitchEnabled,
     songThemeAutoGenerateEnabled,
-    onSaveCustomTheme,
     onSaveAiTheme,
-    onApplyCustomTheme,
-    onToggleCustomThemePreferred,
     onToggleSongThemeAutoSwitch,
     themeGenerationSource,
     onChangeThemeGenerationSource,
@@ -191,7 +181,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onReplayGainModeChange,
     onToggleTransparentPlayerBackground,
     aiTheme,
-    customTheme,
 }) => {
     const { t } = useTranslation();
     // Track the press origin per overlay so nested subview backdrops do not overwrite each other.
@@ -1279,9 +1268,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const canEnableAutoUpdate = Boolean(electronSettings.ENABLE_UPDATE_CHECK && updateStatus?.autoUpdateSupported);
 
     const isBravaisSuiteActive = useIsBravaisLibraryActive();
+    // 图形设置的两个细粒度锚点（性能/减少动效）只在档位是「自定义」时才渲染出来；
+    // 选了预设档位会被折叠隐藏，侧栏目录要跟着收掉这两条，不然会链到一个不存在的目的地。
+    const isCustomPresetActive = useGraphicsPresetStore(state => state.graphicsPreset === 'custom');
     const settingsNavGroups = useMemo(
-        () => buildSettingsNavGroups(t, { isElectron, hasLibrarySuiteChoice: hasLibrarySuiteChoice(), isBravaisSuiteActive }),
-        [t, isElectron, isBravaisSuiteActive],
+        () => buildSettingsNavGroups(t, { isElectron, hasLibrarySuiteChoice: hasLibrarySuiteChoice(), isBravaisSuiteActive, isCustomPresetActive }),
+        [t, isElectron, isBravaisSuiteActive, isCustomPresetActive],
     );
     const activeSettingsNavItem = findSettingsNavItem(settingsNavGroups, activeSettingsSection);
     const prefersReducedMotion = useReducedMotionFor('settingsScroll');
@@ -1639,17 +1631,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             <AppearanceSettingsSubview
                                                 accentOutlineColor={accentOutlineColor}
                                                 bgMode={bgMode}
-                                                hasCustomTheme={hasCustomTheme}
-                                                isCustomThemePreferred={isCustomThemePreferred}
                                                 isDaylight={isDaylight}
                                                 followSystemTheme={followSystemTheme}
-                                                onApplyCustomTheme={onApplyCustomTheme}
                                                 onApplyDefaultTheme={onApplyDefaultTheme}
                                                 onOpenThemePark={() => setShowThemePark(true)}
                                                 onOpenVisPlayground={() => setShowVisPlayground(true)}
                                                 onToggleSongThemeAutoGenerate={onToggleSongThemeAutoGenerate}
                                                 onToggleFollowSystemTheme={onSetFollowSystemTheme}
-                                                onToggleCustomThemePreferred={onToggleCustomThemePreferred}
                                                 onToggleSongThemeAutoSwitch={onToggleSongThemeAutoSwitch}
                                                 themeGenerationSource={themeGenerationSource}
                                                 onChangeThemeGenerationSource={onChangeThemeGenerationSource}
@@ -1658,7 +1646,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 onToggleTransparentPlayerBackground={resolvedToggleTransparentPlayerBackground}
                                                 onToggleAutoHidePlayerChrome={onToggleAutoHidePlayerChrome}
                                                 onToggleAutoHideCursorWithPlayerChrome={onToggleAutoHideCursorWithPlayerChrome}
-                                                onSaveCustomTheme={onSaveCustomTheme}
                                                 settingsCardClass={settingsCardClass}
                                                 songThemeAutoSwitchEnabled={songThemeAutoSwitchEnabled}
                                                 songThemeAutoGenerateEnabled={songThemeAutoGenerateEnabled}
@@ -1678,7 +1665,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 grid3dCardStyle={grid3dCardStyle}
                                                 onChangeGrid3dCardStyle={onChangeGrid3dCardStyle}
                                                 aiTheme={aiTheme}
-                                                customTheme={customTheme}
                                             />
                                         )}
                                         {activeSettingsSection === 'general' && (
@@ -2120,10 +2106,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         lyricsFontScale={lyricsFontScale}
                         lyricsFontWeight={lyricsFontWeight}
                         lyricsCustomFontFamily={lyricsCustomFontFamily}
-                        onSaveCustomTheme={(dualTheme) => {
-                            onSaveCustomTheme(dualTheme);
-                            setShowThemePark(false);
-                        }}
                         onSaveAiTheme={(dualTheme, song, songKey) => {
                             onSaveAiTheme(dualTheme, song, songKey);
                             setShowThemePark(false);

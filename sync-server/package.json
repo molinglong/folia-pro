@@ -12,7 +12,8 @@
     "deploy:cf": "wrangler deploy",
     "dev:node": "tsx watch src/node.ts",
     "start:node": "tsx src/node.ts",
-    "build:node": "tsc"
+    "build:node": "tsc",
+    "test:node": "tsx test/auth.probe.ts"
   },
   "allowScripts": {
     "better-sqlite3": true

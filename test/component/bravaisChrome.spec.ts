@@ -29,8 +29,7 @@ const stack = (page: Page) => page.evaluate(() => window.__homeProbe!.stack());
 const tools = (page: Page) => page.getByRole('button', { name: 'Wall tools', exact: true });
 const panel = (page: Page) => page.getByRole('menu', { name: 'Wall tools', exact: true });
 const quick = (page: Page, id: string) => panel(page).locator(`[data-wall-tools-quick="${id}"]`);
-const volumeSlider = (page: Page) => panel(page).getByRole('slider', { name: 'Volume', exact: true });
-const audio = (page: Page) => page.evaluate(() => window.__homeProbe!.volume());
+// @fork 本地魔改版（2026-10-14）：音量滑条与洗牌格已搬进胶囊的 PlaybackQuickPanel，面板里的 volumeSlider / audio helper 随旧用例一起删。
 // @fork 本地魔改版：底部那行「设置」齿轮写的状态（探针不挂设置窗本体，只看 store）。
 const settingsState = (page: Page) => page.evaluate(() => window.__homeProbe!.settingsState());
 const back = (page: Page) => page.locator('[data-library-stage="bravais"] .lattice-back');
@@ -208,14 +207,15 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await expect(panel(page)).toHaveCount(0);
     });
 
-    test('the tools panel groups one-shot actions on top, the volume below them and the wall appearance last', async ({ mount, page }) => {
+    test('the tools panel groups one-shot actions on top and the wall appearance below them', async ({ mount, page }) => {
         await mountBravais(mount, page);
         await page.evaluate(() => window.__homeProbe!.setLattice(true));
         await tools(page).click();
         const menu = panel(page);
         await expect(menu).toBeVisible();
 
-        // 顺序：快捷动作一排（四格）→ 音量 → 「墙面外观」小标题 → 透光 → 叠色 → 灯与帮助。
+        // 顺序：快捷动作一排（三格）→ 「墙面外观」小标题 → 透光 → 叠色 → 灯与帮助。
+        // @fork 本地魔改版（2026-10-14）：原本的音量滑条一行与洗牌一格已搬进胶囊的播放快捷浮层。
         const order = await menu.evaluate(node => [...node.children].map(child => {
             if (child.classList.contains('lattice-tools-quick')) {
                 return `quick:${[...child.querySelectorAll<HTMLElement>('[data-wall-tools-quick]')].map(button => button.dataset.wallToolsQuick).join(',')}`;
@@ -226,8 +226,7 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
             return child.textContent?.trim().split(/\s/)[0] ?? '';
         }));
         expect(order).toEqual([
-            'quick:locate-playing,shuffle-queue,generate-theme,open-lattice',
-            'slider',
+            'quick:locate-playing,generate-theme,open-lattice',
             'heading',
             'Wall',
             'Poster',
@@ -237,8 +236,6 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         // 快捷动作的可访问名是全名，图标下是短字，tooltip 带按键提示。
         await expect(quick(page, 'locate-playing')).toHaveAccessibleName('Locate the playing song');
         await expect(quick(page, 'locate-playing')).toHaveAttribute('title', /: \+ C/);
-        await expect(quick(page, 'shuffle-queue')).toHaveAccessibleName('Shuffle the queue');
-        await expect(quick(page, 'shuffle-queue')).toHaveAttribute('title', /: \+ R/);
         await expect(quick(page, 'generate-theme')).toHaveAccessibleName('Generate a theme for this song');
         await expect(quick(page, 'open-lattice')).toHaveAccessibleName('Go to Lattice');
         await expect(quick(page, 'open-lattice')).toHaveAttribute('title', /Ctrl \+ B/);
@@ -280,21 +277,17 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await expect(panel(page).getByRole('menuitem', { name: 'Settings', exact: true })).toBeVisible();
     });
 
-    // @fork 本地魔改版（2026-10-13）：工具按钮正上方那颗常驻的「前往 Lattice」（companion，[data-wall-tools-companion]）。
-    // 用户实测「进入 Lattice 好麻烦」——面板里那一格要先展开面板才点得到，于是把它同时提到按钮外面。
-    // 三条几何断言是这一格的设计根据：它绝对定位（不进文档流，.lattice-tools 保持 48×48，翻牌交接的矩形断言才不抖）、
-    // 排在按钮正上方（左边是 SlideActionButton 向左展开的 96px 轨道）、面板打开时让开它（CSS 的 .has-companion）。
-    test('a persistent Lattice button sits above the tools button and reaches the host without opening the panel', async ({ mount, page }) => {
+    // @fork 本地魔改版（2026-10-14）：工具按钮正上方那颗常驻 companion 已从「前往 Lattice」换成「主页样式」
+    //   （[data-wall-tools-companion]，点开主页样式内联浮层）。它不再依赖 onOpenLattice 端口，所以在 bravais 墙上恒画；
+    //   进 Lattice 仍走面板里那一格 open-lattice / Ctrl + B / 聚焦卡那颗。三条几何断言不变：它绝对定位
+    //   （不进文档流，.lattice-tools 保持 48×48，翻牌交接的矩形断言才不抖）、排在按钮正上方、面板打开时让开它。
+    test('a persistent Home style button sits above the tools button and opens the style panel without the tools panel', async ({ mount, page }) => {
         await mountBravais(mount, page);
         const companion = page.locator('[data-wall-tools-companion]');
 
-        // 宿主没给 onOpenLattice：整块不画（与面板里那一格同一个门）。
-        await expect(companion).toHaveCount(0);
-
-        await page.evaluate(() => window.__homeProbe!.setLattice(true));
+        // companion 恒画（不再看 onOpenLattice），可访问名换成「主页样式」。
         await expect(companion).toHaveCount(1);
-        await expect(companion).toHaveAccessibleName('Go to Lattice');
-        await expect(companion).toHaveAttribute('title', /Ctrl \+ B/);
+        await expect(companion).toHaveAccessibleName('Home style');
 
         // 位置与尺寸：与工具按钮同宽同高、右缘对齐、在它正上方 10px。
         const box = (await companion.boundingBox())!;
@@ -309,9 +302,13 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         expect(stackBox.width).toBeCloseTo(48, 0);
         expect(stackBox.height).toBeCloseTo(48, 0);
 
-        // 点它：直接交给宿主，不展开面板、不碰播放。
+        // 点它：打开主页样式浮层（写 useHomeStylePanelStore.isOpen），不展开工具面板。
         await companion.click();
-        await expect.poll(async () => (await calls(page, 'openLattice')).length).toBe(1);
+        await expect.poll(() => page.evaluate(async () => {
+            const storeModulePath = '/src/stores/useHomeStylePanelStore.ts';
+            const m = await import(/* @vite-ignore */ storeModulePath);
+            return m.useHomeStylePanelStore.getState().isOpen as boolean;
+        })).toBe(true);
         await expect(panel(page)).toHaveCount(0);
 
         // 面板仍然能开，而且整块在常驻那颗之上，不盖住它。
@@ -321,26 +318,23 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(box.y + 0.5);
     });
 
-    test('without a playable song the theme and the shuffle are disabled with a reason; with one they reach the host and keep the panel open', async ({ mount, page }) => {
+    test('without a playable song the theme is disabled with a reason; with one it reaches the host and keeps the panel open', async ({ mount, page }) => {
         await mountBravais(mount, page);
         await tools(page).click();
         const menu = panel(page);
         // 探针的宿主缺省没给 onOpenLattice：没有那一格。
         await expect(quick(page, 'open-lattice')).toHaveCount(0);
 
-        // 缺省（没有歌）：主题与洗牌都不可用，tooltip / aria-description 写原因。
+        // 缺省（没有歌）：主题不可用，tooltip / aria-description 写原因。
+        // @fork 本地魔改版（2026-10-14）：洗牌格已搬进胶囊的播放快捷浮层，这里不再断言它。
         await expect(quick(page, 'generate-theme')).toBeDisabled();
         await expect(quick(page, 'generate-theme')).toHaveAttribute('aria-description', 'Needs a playing song with lyrics (or pure music)');
         await expect(quick(page, 'generate-theme')).toHaveAttribute('title', /Needs a playing song/);
-        await expect(quick(page, 'shuffle-queue')).toBeDisabled();
-        await expect(quick(page, 'shuffle-queue')).toHaveAttribute('aria-description', /two or more songs/);
 
-        // 宿主说可以了：两格可用，点了交给宿主（命令面板的同一条命令），面板不收起。
+        // 宿主说可以了：那格可用，点了交给宿主（命令面板的同一条命令），面板不收起。
         await page.evaluate(() => window.__homeProbe!.setStageTools({ themeGeneration: 'ready', canShuffleQueue: true }));
         await expect(quick(page, 'generate-theme')).toBeEnabled();
         await expect(quick(page, 'generate-theme')).not.toHaveAttribute('aria-description', /.+/);
-        await quick(page, 'shuffle-queue').click();
-        await expect.poll(async () => (await calls(page, 'shuffleQueue')).length).toBe(1);
         await expect(menu).toBeVisible();
         await quick(page, 'generate-theme').click();
         await expect.poll(async () => (await calls(page, 'generateTheme')).length).toBe(1);
@@ -369,60 +363,8 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await expect(panel(page)).toHaveCount(0);
     });
 
-    test('the volume slider reads and writes the app volume: keys step it, a drag previews then commits, the icon mutes', async ({ mount, page }) => {
-        await seedStorage(page, [['player_volume', '0.4'], ['player_is_muted', 'false']]);
-        await mountBravais(mount, page);
-        await tools(page).click();
-        const slider = volumeSlider(page);
-        await expect(slider).toHaveValue('0.4');
-        await expect(slider).toHaveAttribute('aria-valuetext', '40%');
-        await expect(panel(page).locator('.lattice-tools-slider-value')).toHaveText('40%');
-
-        // 键盘：方向键一步 5%，PageUp 10%，Home / End 到头；每一下都直接写进同一个音量 store（与播放条、播放页面板同一份）。
-        await slider.focus();
-        await page.keyboard.press('ArrowUp');
-        await expect.poll(() => audio(page)).toEqual({ volume: 0.45, isMuted: false });
-        await page.keyboard.press('ArrowLeft');
-        await page.keyboard.press('ArrowLeft');
-        await expect.poll(async () => (await audio(page)).volume).toBe(0.35);
-        await page.keyboard.press('PageUp');
-        await expect.poll(async () => (await audio(page)).volume).toBe(0.45);
-        await page.keyboard.press('End');
-        await expect.poll(async () => (await audio(page)).volume).toBe(1);
-        await expect(slider).toHaveAttribute('aria-valuetext', '100%');
-        await page.keyboard.press('Home');
-        await expect.poll(async () => (await audio(page)).volume).toBe(0);
-        expect(await page.evaluate(() => localStorage.getItem('player_volume'))).toBe('0');
-        // 墙没有把这些方向键当成移动焦点（焦点还在滑条上，墙上没有键盘聚焦环）。
-        await expect(slider).toBeFocused();
-        await expect(page.locator('.lattice-poster.is-focused')).toHaveCount(0);
-
-        // 拖动：途中只经宿主预览（不写 store），松手才写。
-        await page.evaluate(() => window.__homeProbe!.clearLog());
-        const box = (await slider.boundingBox())!;
-        const y = box.y + box.height / 2;
-        await page.mouse.move(box.x + box.width * 0.2, y);
-        await page.mouse.down();
-        for (let step = 1; step <= 6; step++) await page.mouse.move(box.x + box.width * (0.2 + step * 0.09), y);
-        expect((await audio(page)).volume).toBe(0);
-        expect((await calls(page, 'previewVolume')).length).toBeGreaterThan(0);
-        await page.mouse.up();
-        await expect.poll(async () => (await audio(page)).volume).toBeGreaterThan(0.6);
-        const dragged = (await audio(page)).volume;
-        expect(dragged).toBeLessThan(0.85);
-        await expect(slider).toHaveAttribute('aria-valuetext', `${Math.round(dragged * 100)}%`);
-
-        // 左侧图标：静音切换（同一个 isMuted）；静音时滑条显示 0、读作「Muted」，再拖 / 按键就先解除静音。
-        await panel(page).getByRole('button', { name: 'Mute', exact: true }).click();
-        await expect.poll(() => audio(page)).toEqual({ volume: dragged, isMuted: true });
-        await expect(panel(page).getByRole('button', { name: 'Unmute', exact: true })).toHaveAttribute('aria-pressed', 'true');
-        await expect(slider).toHaveValue('0');
-        await expect(slider).toHaveAttribute('aria-valuetext', 'Muted');
-        await slider.focus();
-        await page.keyboard.press('ArrowUp');
-        await expect.poll(() => audio(page)).toEqual({ volume: 0.05, isMuted: false });
-        await expect(panel(page).getByRole('button', { name: 'Mute', exact: true })).toHaveAttribute('aria-pressed', 'false');
-    });
+    // @fork 本地魔改版（2026-10-14）：原本的「音量滑条读写 / 键盘步进 / 拖动预览 / 图标静音」整条用例随音量滑条
+    // 一起搬进胶囊的 PlaybackQuickPanel（读写同一个 useAudioSettingsStore；墙上键盘事件回归由后面的焦点用例守）。
 
     test('the hidden back button shows in the top-left corner or on keyboard focus; at the home root it returns to the player only with a song', async ({ mount, page }) => {
         await mountBravais(mount, page);

@@ -11,9 +11,9 @@ import {
 import { applyVisualizerTuningsToSettings } from '../../visualizer/tuningRegistry';
 import { ObsCopyCssButton } from '../../shared/ObsCopyCssButton';
 import { mergeUrlBackgroundList } from '../../../utils/urlBackground';
-import { compressConfig, decompressConfig, readSavedCustomTheme } from '../../../utils/appearanceCodec';
+import { compressConfig, decompressConfig } from '../../../utils/appearanceCodec';
 import { importFoliumParams, snapshotFoliumParams } from '../../../mods/folium/paramStore';
-import { ACTIVATE_CUSTOM_THEME_KEY, buildImportPlan, THEME_DARK_KEY, THEME_LIGHT_KEY, type ImportPlan } from '../../../utils/appearanceImportPlan';
+import { buildImportPlan, type ImportPlan } from '../../../utils/appearanceImportPlan';
 import { isFontFamilyAvailable } from '../../../utils/fontAvailability';
 import ImportConfirmDialog from './ImportConfirmDialog';
 import { extractCfgFromInput } from '../../../utils/obsUrl';
@@ -45,17 +45,13 @@ import { isLibraryWallSeamStyle } from '../../../utils/libraryWallSeamStyle';
 type AppearanceSettingsSubviewProps = {
     accentOutlineColor: string;
     bgMode: ThemeMode;
-    hasCustomTheme: boolean;
-    isCustomThemePreferred: boolean;
     isDaylight: boolean;
     followSystemTheme: boolean;
-    onApplyCustomTheme: () => void;
     onApplyDefaultTheme: () => void;
     onOpenThemePark: () => void;
     onOpenVisPlayground: () => void;
     onToggleSongThemeAutoGenerate: (enabled: boolean) => void;
     onToggleFollowSystemTheme: (enabled: boolean) => void;
-    onToggleCustomThemePreferred: (enabled: boolean) => void;
     onToggleSongThemeAutoSwitch: (enabled: boolean) => void;
     themeGenerationSource: ThemeGenerationSource;
     onChangeThemeGenerationSource: (source: ThemeGenerationSource) => void;
@@ -64,7 +60,6 @@ type AppearanceSettingsSubviewProps = {
     onToggleTransparentPlayerBackground: (enabled: boolean) => void;
     onToggleAutoHidePlayerChrome: (enabled: boolean) => void;
     onToggleAutoHideCursorWithPlayerChrome: (enabled: boolean) => void;
-    onSaveCustomTheme: (dualTheme: DualTheme) => void;
     settingsCardClass: string;
     songThemeAutoSwitchEnabled: boolean;
     songThemeAutoGenerateEnabled: boolean;
@@ -84,7 +79,6 @@ type AppearanceSettingsSubviewProps = {
     grid3dCardStyle: 'image' | 'card';
     onChangeGrid3dCardStyle: (style: 'image' | 'card') => void;
     aiTheme?: DualTheme | null;
-    customTheme?: DualTheme | null;
 };
 
 // ==========================================
@@ -94,17 +88,13 @@ type AppearanceSettingsSubviewProps = {
 const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     accentOutlineColor,
     bgMode,
-    hasCustomTheme,
-    isCustomThemePreferred,
     isDaylight,
     followSystemTheme,
-    onApplyCustomTheme,
     onApplyDefaultTheme,
     onOpenThemePark,
     onOpenVisPlayground,
     onToggleSongThemeAutoGenerate,
     onToggleFollowSystemTheme,
-    onToggleCustomThemePreferred,
     onToggleSongThemeAutoSwitch,
     themeGenerationSource,
     onChangeThemeGenerationSource,
@@ -113,7 +103,6 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     onToggleTransparentPlayerBackground,
     onToggleAutoHidePlayerChrome,
     onToggleAutoHideCursorWithPlayerChrome,
-    onSaveCustomTheme,
     settingsCardClass,
     songThemeAutoSwitchEnabled,
     songThemeAutoGenerateEnabled,
@@ -133,7 +122,6 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     grid3dCardStyle,
     onChangeGrid3dCardStyle,
     aiTheme,
-    customTheme,
 }) => {
     const { t } = useTranslation();
     // OBS static URL points to this web deploy, so the copy button is web-only (no shareable URL under Electron).
@@ -145,15 +133,14 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     // Parsed config held back until the user confirms which groups to take.
     const [pendingImport, setPendingImport] = useState<{ config: any; plan: ImportPlan; } | null>(null);
 
-    const [exportThemeType, setExportThemeType] = useState<'custom' | 'ai' | 'none'>(() => {
+    const [exportThemeType, setExportThemeType] = useState<'ai' | 'none'>(() => {
         if (bgMode === 'ai' && aiTheme) return 'ai';
-        if (customTheme) return 'custom';
         return 'none';
     });
     // A deliberate pick (clicking a theme button) freezes the auto-follow below; without it the
     // effect keeps overwriting the user's choice on any theme change.
     const exportThemePickedRef = React.useRef(false);
-    const pickExportThemeType = (value: 'custom' | 'ai' | 'none') => {
+    const pickExportThemeType = (value: 'ai' | 'none') => {
         exportThemePickedRef.current = true;
         setExportThemeType(value);
     };
@@ -163,10 +150,10 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     // deliberate choice. bgMode is not a dependency -- the buttons are gated on the themes themselves.
     React.useEffect(() => {
         setExportThemeType(prev => {
-            if (!exportThemePickedRef.current) return aiTheme ? 'ai' : customTheme ? 'custom' : 'none';
-            return (prev === 'ai' && !aiTheme) || (prev === 'custom' && !customTheme) ? 'none' : prev;
+            if (!exportThemePickedRef.current) return aiTheme ? 'ai' : 'none';
+            return prev === 'ai' && !aiTheme ? 'none' : prev;
         });
-    }, [aiTheme, customTheme]);
+    }, [aiTheme]);
 
     const storeThemeSettings = useThemeSettingsStore(useShallow(state => ({
         handleToggleFollowSystemTheme: state.setFollowSystemTheme,
@@ -284,12 +271,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     const lyricsStyleBorderEnd = theme?.secondaryColor || theme?.primaryColor || accentOutlineColor;
 
     const buildCurrentConfig = () => {
-        let exportTheme: DualTheme | null = null;
-        if (exportThemeType === 'custom') {
-            exportTheme = customTheme || readSavedCustomTheme() || null;
-        } else if (exportThemeType === 'ai') {
-            exportTheme = aiTheme || null;
-        }
+        const exportTheme: DualTheme | null = exportThemeType === 'ai' ? (aiTheme || null) : null;
         const foliumParams = snapshotFoliumParams();
         return {
             theme: exportTheme,
@@ -364,14 +346,12 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             const customFont = uiStoreTypographySettings.lyricsCustomFont;
             const plan = buildImportPlan({
                 incoming: config,
-                current: { ...buildVisualSettingsConfig(), theme: customTheme ?? null },
-                switches: { isCustomThemePreferred, songThemeAutoSwitchEnabled, songThemeAutoGenerateEnabled },
+                current: buildVisualSettingsConfig(),
                 customFontSource: customFont?.source ?? null,
                 customFontLabel: customFont?.label ?? customFont?.family ?? null,
                 incomingFontAvailable: config.lyricsCustomFontFamily
                     ? isFontFamilyAvailable(String(config.lyricsCustomFontFamily))
                     : undefined,
-                isCustomThemeActive: bgMode === 'custom',
                 // A config names an uploaded image or emoji pack by source, but never carries it.
                 assets: {
                     hasCappellaEmojiPack: useVisualizerAssetStore.getState().storedCappellaEmojiPack.length > 0,
@@ -389,29 +369,12 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         }
     };
 
-    // `keys` are the plan's change keys, which are the config field names apart from the two theme
-    // sides. Anything not picked is left exactly as it is.
+    // `keys` are the plan's change keys, which are the config field names. Anything not picked is
+    // left exactly as it is.
     const applyImportedConfig = (config: any, keys: string[]) => {
         const has = (key: string) => keys.includes(key);
         try {
-            // 1. Restore Theme, per side: taking someone's night colours must not drag their day
-            // ones along, so the side that was not picked keeps whatever is saved now.
-            const savesTheme = Boolean(config.theme) && (has(THEME_LIGHT_KEY) || has(THEME_DARK_KEY));
-            if (savesTheme) {
-                const base = customTheme ?? config.theme;
-                // Saving already switches the mode to custom (see saveCustomDualTheme), which is why
-                // the plan links the activate row to the side rows instead of offering it separately.
-                onSaveCustomTheme({
-                    light: has(THEME_LIGHT_KEY) ? config.theme.light : base.light,
-                    dark: has(THEME_DARK_KEY) ? config.theme.dark : base.dark,
-                });
-            } else if (has(ACTIVATE_CUSTOM_THEME_KEY)) {
-                // Nothing to save -- the incoming theme is the one already stored, so this row is
-                // the whole of what the user asked for.
-                onApplyCustomTheme();
-            }
-
-            // 2. Restore Visualizer Setup
+            // 1. Restore Visualizer Setup
             if (has('visualizerMode') && config.visualizerMode) {
                 storeVisualizer.handleSetVisualizerMode(config.visualizerMode);
             }
@@ -746,7 +709,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                             <Palette size={16} />
                         </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                         <button
                             onClick={onApplyDefaultTheme}
                             className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all"
@@ -759,20 +722,6 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                         >
                             <div className="w-6 h-6 rounded-full shadow-sm" style={{ background: `linear-gradient(135deg, ${themeParkInitialTheme.light.backgroundColor}, ${themeParkInitialTheme.dark.backgroundColor})`, borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.15)' }} />
                             <span className="text-xs font-semibold" style={{ color: isDaylight ? '#27272a' : '#e4e4e7' }}>{t('options.themePresetsDefault') || 'Default'}</span>
-                        </button>
-                        <button
-                            onClick={onApplyCustomTheme}
-                            disabled={!hasCustomTheme}
-                            className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                            style={{
-                                ...getAccentOptionStyle(bgMode === 'custom'),
-                                backgroundColor: bgMode === 'custom'
-                                    ? (isDaylight ? `${accentOutlineColor}12` : `${accentOutlineColor}18`)
-                                    : (isDaylight ? 'rgba(255, 255, 255, 0.72)' : 'rgba(255, 255, 255, 0.08)'),
-                            }}
-                        >
-                            <div className="w-6 h-6 rounded-full" style={{ background: hasCustomTheme ? `linear-gradient(135deg, ${themeParkInitialTheme.light.accentColor}, ${themeParkInitialTheme.dark.accentColor})` : 'rgba(114,119,134,0.4)' }} />
-                            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{t('options.customTheme') || 'Custom'}</span>
                         </button>
                     </div>
                     <div className={`p-3 rounded-xl border space-y-3 ${settingsCardClass}`}>
@@ -846,24 +795,6 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                             style={{ backgroundColor: followSystemTheme ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                         >
                             <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${followSystemTheme ? 'translate-x-6' : 'translate-x-0'}`} />
-                        </button>
-                    </div>
-                    <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${settingsCardClass}`}>
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                {t('options.preferCustomTheme')}
-                            </div>
-                            <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.preferCustomThemeDesc')}
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => hasCustomTheme && onToggleCustomThemePreferred(!isCustomThemePreferred)}
-                            disabled={!hasCustomTheme}
-                            className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!isCustomThemePreferred ? toggleOffBackgroundClass : ''} disabled:opacity-40 disabled:cursor-not-allowed`}
-                            style={{ backgroundColor: isCustomThemePreferred ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                        >
-                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${isCustomThemePreferred ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
                     </div>
                     <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${settingsCardClass}`}>
@@ -1020,17 +951,6 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                                 >
                                     <Palette size={12} className="opacity-70" />
                                     <span>{t('options.exportAiTheme')}: {aiTheme.light.name || 'AI'}</span>
-                                </button>
-                            )}
-                            {customTheme && (
-                                <button
-                                    type="button"
-                                    onClick={() => pickExportThemeType('custom')}
-                                    className="px-2.5 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1.5"
-                                    style={getAccentOptionStyle(exportThemeType === 'custom')}
-                                >
-                                    <Palette size={12} className="opacity-70" />
-                                    <span>{t('options.exportCustomTheme')}: {customTheme.light.name || 'Custom'}</span>
                                 </button>
                             )}
                             <button

@@ -68,8 +68,13 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     electronSettings: { section: 'desktop', labelKey: 'options.electronSettings', electronOnly: true },
 
     // GraphicsSettingsSubview
+    // 档位选择器常驻；它选中非「自定义」时，下面两个被档位接管的细粒度栏位（画质开关、减少动效）会折叠
+    // 隐藏，侧栏目录跟着收起，不然会链到一个不存在的目的地（同 requiresBravaisSuite 的处理路子）。
+    // graphicsPerformance（静态模式/原生模糊/光晕量化）不受档位管，任何时候都常驻。
+    graphicsPreset: { section: 'graphics', labelKey: 'options.graphicsPresetSection' },
+    graphicsQualitySwitches: { section: 'graphics', labelKey: 'options.graphicsQualitySwitchesSection', requiresCustomPreset: true },
+    graphicsMotion: { section: 'graphics', labelKey: 'options.reduceMotionSection', requiresCustomPreset: true },
     graphicsPerformance: { section: 'graphics', labelKey: 'options.labPerformanceSection' },
-    graphicsMotion: { section: 'graphics', labelKey: 'options.reduceMotionSection' },
 
     // ModsSettingsSubview
     modSystem: { section: 'mods', labelKey: 'options.enableModSystem', electronOnly: true },
@@ -78,7 +83,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     // LabSettingsModal
     labPlayerUi: { section: 'lab', labelKey: 'options.labPlayerUiSection' },
     labWindowAndTools: { section: 'lab', labelKey: 'options.labWindowAndToolsSection' },
-} as const satisfies Record<string, { section: SettingsSubviewId; labelKey: string; electronOnly?: boolean; requiresLibrarySuiteChoice?: boolean; requiresBravaisSuite?: boolean }>;
+} as const satisfies Record<string, { section: SettingsSubviewId; labelKey: string; electronOnly?: boolean; requiresLibrarySuiteChoice?: boolean; requiresBravaisSuite?: boolean; requiresCustomPreset?: boolean }>;
 
 export type SettingsAnchorId = keyof typeof SETTINGS_ANCHOR_DEFINITIONS;
 

@@ -205,16 +205,31 @@ describe('sync schema parsing', () => {
     });
 
     it('parses remote state watermarks', () => {
+        // 兼容模式（schema 1）与账号域（schema 2）都要接受；返回值统一为当前 schema。
         expect(parseSyncRemoteState({
             schemaVersion: 1,
             settingsUpdatedAt: '2026-07-08T00:00:00.000Z',
             themesUpdatedAt: '2026-07-08T01:00:00.000Z',
             themeCount: 12.8,
         })).toEqual({
-            schemaVersion: 1,
+            schemaVersion: 2,
+            scoped: false,
             settingsUpdatedAt: '2026-07-08T00:00:00.000Z',
             themesUpdatedAt: '2026-07-08T01:00:00.000Z',
             themeCount: 12,
+        });
+        expect(parseSyncRemoteState({
+            schemaVersion: 2,
+            scoped: true,
+            settingsUpdatedAt: null,
+            themesUpdatedAt: null,
+            themeCount: 0,
+        })).toEqual({
+            schemaVersion: 2,
+            scoped: true,
+            settingsUpdatedAt: null,
+            themesUpdatedAt: null,
+            themeCount: 0,
         });
     });
 

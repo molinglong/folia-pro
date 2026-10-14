@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import ThemedDialog from '../../shared/ThemedDialog';
 import { getVisualizerModeLabel, hasVisualizerMode } from '../../visualizer/registry';
 import { getVisualizerBackgroundModeLabel, hasVisualizerBackgroundMode } from '../../visualizer/backgrounds/registry';
-import { ACTIVATE_CUSTOM_THEME_KEY, THEME_DARK_KEY, THEME_LIGHT_KEY, type ImportChange, type ImportGroup, type ImportPlan } from '../../../utils/appearanceImportPlan';
+import { type ImportChange, type ImportGroup, type ImportPlan } from '../../../utils/appearanceImportPlan';
 import { resolveSettingLabelKey, resolveSettingValueLabelKey } from '../../../utils/settingLabelLookup';
 import { isLibraryWallSeamStyle, LIBRARY_WALL_SEAM_STYLE_LABEL_KEYS } from '../../../utils/libraryWallSeamStyle';
 
@@ -14,8 +14,7 @@ import { isLibraryWallSeamStyle, LIBRARY_WALL_SEAM_STYLE_LABEL_KEYS } from '../.
 // declined row shows what it keeps instead of what it would have become.
 //
 // Derived rows are the reason this dialog exists. They are changes the config never asked for --
-// unpinning a custom theme, discarding an uploaded font -- so they are always shown, never folded
-// into a collapsed list.
+// discarding an uploaded font -- so they are always shown, never folded into a collapsed list.
 
 interface ImportConfirmDialogProps {
     isOpen: boolean;
@@ -36,15 +35,11 @@ const GROUP_LABEL_KEYS: Record<ImportGroup, string> = {
 };
 
 const DERIVED_LABEL_KEYS: Record<string, string> = {
-    isCustomThemePreferred: 'options.importDerivedUnpin',
     uploadedLyricsFont: 'options.importDerivedUploadedFont',
 };
 
 // Field names that already have a label elsewhere in settings are reused as-is; the rest get one.
 const FIELD_LABEL_KEYS: Record<string, string> = {
-    [THEME_LIGHT_KEY]: 'options.importFieldThemeLight',
-    [THEME_DARK_KEY]: 'options.importFieldThemeDark',
-    [ACTIVATE_CUSTOM_THEME_KEY]: 'options.importFieldActivateCustomTheme',
     followSystemTheme: 'options.followSystemTheme',
     visualizerMode: 'options.visualizerMode',
     visualizerOpacity: 'options.visualizerOpacity',
@@ -169,15 +164,6 @@ const BoxControl: React.FC<{
 const isHexColor = (value: unknown): value is string =>
     typeof value === 'string' && /^#[0-9a-f]{3,8}$/i.test(value.trim());
 
-// A single theme side, as split out by the plan.
-const isThemeSide = (value: unknown): value is {
-    name?: string;
-    backgroundColor?: string;
-    primaryColor?: string;
-    accentColor?: string;
-    secondaryColor?: string;
-} => Boolean(value) && typeof value === 'object' && 'backgroundColor' in (value as object);
-
 const ImportConfirmDialog: React.FC<ImportConfirmDialogProps> = ({
     isOpen, plan, isDaylight, onCancel, onConfirm,
 }) => {
@@ -251,29 +237,6 @@ const ImportConfirmDialog: React.FC<ImportConfirmDialogProps> = ({
         // A row that reads "频谱样式  bar -> line" mixes the panel's wording with the store's ids.
         if (named) return <span className={cls}>{named}</span>;
 
-        // Theme sides are usually named after the preset they were seeded from, so the names would
-        // read as an identical pair while the colours are what actually differ.
-        if (isThemeSide(value)) {
-            // Every colour that renders, so a difference is never hidden behind an identical accent.
-            const swatches: Array<[string, string | undefined]> = [
-                ['background', value.backgroundColor],
-                ['primary', value.primaryColor],
-                ['accent', value.accentColor],
-                ['secondary', value.secondaryColor],
-            ];
-            return (
-                <span className={`inline-flex items-center gap-1 ${dimmed ? mutedColor : ''}`}>
-                    {swatches.map(([name, color]) => (
-                        <span
-                            key={name}
-                            title={`${name} ${color ?? ''}`}
-                            className={`h-3.5 w-3.5 rounded-sm border border-white/20 ${dimmed ? 'opacity-40' : ''}`}
-                            style={{ backgroundColor: color }}
-                        />
-                    ))}
-                </span>
-            );
-        }
         if (key === 'visualizerMode' && typeof value === 'string' && hasVisualizerMode(value)) {
             return <span className={cls}>{getVisualizerModeLabel(value, k => t(k))}</span>;
         }

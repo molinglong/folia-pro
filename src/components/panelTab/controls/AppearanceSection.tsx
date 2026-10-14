@@ -36,7 +36,6 @@ interface AppearanceSectionProps {
     onToggleCoverColorBg: (enable: boolean) => void;
     themeSourceModel: ThemeSourceModel;
     onBgModeChange: (mode: ThemeMode) => void;
-    hasCustomTheme: boolean;
     defaultTheme: Theme;
     daylightTheme: Theme;
     onClosePanel?: () => void;
@@ -54,7 +53,6 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
     onToggleCoverColorBg,
     themeSourceModel,
     onBgModeChange,
-    hasCustomTheme,
     defaultTheme,
     daylightTheme,
     onClosePanel,
@@ -202,7 +200,6 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                 <ThemeSourceRow
                     themeSourceModel={themeSourceModel}
                     onBgModeChange={onBgModeChange}
-                    hasCustomTheme={hasCustomTheme}
                     defaultTheme={defaultTheme}
                     daylightTheme={daylightTheme}
                     isDaylight={isDaylight}

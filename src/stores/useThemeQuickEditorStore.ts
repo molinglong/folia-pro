@@ -5,11 +5,10 @@ import type { ThemeCacheSongKey } from '../services/themeCache';
 // src/stores/useThemeQuickEditorStore.ts
 // Holds the quick editor's open state and the latest editable theme snapshots.
 
-export type ThemeQuickEditorKind = 'ai' | 'custom';
+export type ThemeQuickEditorKind = 'ai';
 
 type ThemeQuickEditorContext = {
     aiTheme: DualTheme | null;
-    customTheme: DualTheme | null;
     bgMode: ThemeMode;
     coverUrl: string | null;
     song: SongResult | null;
@@ -29,33 +28,8 @@ type ThemeQuickEditorState = ThemeQuickEditorContext & {
     closeEditor: () => void;
 };
 
-const canOpenKind = (state: ThemeQuickEditorContext, kind: ThemeQuickEditorKind) => (
-    kind === 'ai' ? true : Boolean(state.customTheme)
-);
-
-const resolveDefaultEditorKind = (state: ThemeQuickEditorContext): ThemeQuickEditorKind | null => {
-    if (state.bgMode === 'custom' && state.customTheme) {
-        return 'custom';
-    }
-
-    if (state.bgMode === 'ai') {
-        return 'ai';
-    }
-
-    if (state.aiTheme) {
-        return 'ai';
-    }
-
-    if (state.customTheme) {
-        return 'custom';
-    }
-
-    return 'ai';
-};
-
-export const useThemeQuickEditorStore = create<ThemeQuickEditorState>((set, get) => ({
+export const useThemeQuickEditorStore = create<ThemeQuickEditorState>((set) => ({
     aiTheme: null,
-    customTheme: null,
     bgMode: 'default',
     coverUrl: null,
     song: null,
@@ -67,25 +41,14 @@ export const useThemeQuickEditorStore = create<ThemeQuickEditorState>((set, get)
     isOpen: false,
     editorKind: null,
     canOpenEditor: false,
-    setContext: (context) => set(state => {
-        const nextKind = state.editorKind && canOpenKind(context, state.editorKind)
-            ? state.editorKind
-            : null;
-
-        return {
-            ...context,
-            isOpen: state.isOpen && Boolean(nextKind),
-            editorKind: nextKind,
-            canOpenEditor: true,
-        };
-    }),
-    openEditor: (kind) => {
-        const state = get();
-        const nextKind = kind ?? resolveDefaultEditorKind(state);
-        if (!nextKind || !canOpenKind(state, nextKind)) {
-            return;
-        }
-        set({ isOpen: true, editorKind: nextKind });
+    setContext: (context) => set(state => ({
+        ...context,
+        isOpen: state.isOpen,
+        editorKind: state.editorKind,
+        canOpenEditor: true,
+    })),
+    openEditor: () => {
+        set({ isOpen: true, editorKind: 'ai' });
     },
     closeEditor: () => set({ isOpen: false, editorKind: null }),
 }));

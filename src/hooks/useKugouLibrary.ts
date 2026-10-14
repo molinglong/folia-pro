@@ -91,6 +91,14 @@ export const useKugouLibrary = () => {
         try {
             const user = await omni.getLoginStatus('kugou');
             if (!user) {
+                if (cachedAccount?.cloudOrigin) {
+                    // 云端投影数据在展示（本机从未扫码接管）：保留数据供首页展示，只降级登录态。
+                    updateAccount('kugou', { status: 'anonymous', hydration: 'ready', error: undefined });
+                    console.info('[KugouLibrary] login-status:cloud-snapshot-kept', {
+                        collectionCount: cachedAccount.collections.length,
+                    });
+                    return null;
+                }
                 await clearAuthState(cachedAccount?.user ? 'auth-required' : undefined);
                 console.info('[KugouLibrary] login-status:anonymous', {
                     previousAccountExpired: Boolean(cachedAccount?.user),
@@ -234,6 +242,8 @@ export const useKugouLibrary = () => {
                 hydration: 'ready',
                 freshness: 'fresh',
                 lastUpdatedAt: snapshot.savedAt,
+                // 本机真实登录数据落地，云端投影标记使命结束。
+                cloudOrigin: false,
             });
             console.info('[KugouLibrary] refresh:complete', {
                 collectionCount: collections.length,
@@ -274,7 +284,8 @@ export const useKugouLibrary = () => {
                         .map(collection => omni.normalizeCachedCollection('kugou', collection, collection.type))
                         .filter(Boolean) as ProviderCollection[];
                     updateAccount('kugou', {
-                        status: 'authenticated',
+                        // 云端投影快照不伪造登录态：数据照常展示，扫码接管后才升 authenticated。
+                        status: snapshot.cloudOrigin ? 'anonymous' : 'authenticated',
                         user,
                         collections,
                         likedSongIds: snapshot.likedSongIds,
@@ -283,6 +294,7 @@ export const useKugouLibrary = () => {
                         hydration: 'ready',
                         freshness: 'stale',
                         lastUpdatedAt: snapshot.savedAt,
+                        cloudOrigin: snapshot.cloudOrigin,
                     });
                 }
             }

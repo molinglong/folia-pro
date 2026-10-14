@@ -3,7 +3,6 @@ import {
     isThemeGenerationSource,
     readStoredThemeAutoGenerateEnabled,
     readStoredThemeGenerationSource,
-    resolveCustomThemePreferenceChange,
     resolveSongThemeAutoGenerateChange,
     resolveSongThemeAutoSwitchChange,
     saveStoredThemeAutoGenerateEnabled,
@@ -12,7 +11,7 @@ import {
 } from '@/services/themePreferences';
 
 // test/unit/theme/themePreferences.test.ts
-// Covers persisted theme preference toggles and their mutual-exclusion rules.
+// Covers persisted theme preference toggles and their mutual-constraint rules.
 
 const createLocalStorageMock = (): Storage => {
     const store = new Map<string, string>();
@@ -36,7 +35,6 @@ const createLocalStorageMock = (): Storage => {
 };
 
 const baseState: ThemePreferenceSwitchState = {
-    isCustomThemePreferred: false,
     songThemeAutoSwitchEnabled: true,
     songThemeAutoGenerateEnabled: true,
 };
@@ -48,7 +46,6 @@ const baseState: ThemePreferenceSwitchState = {
 // reading render-scoped state between the two calls.
 describe('song theme preference resolvers, applied back to back', () => {
     const off: ThemePreferenceSwitchState = {
-        isCustomThemePreferred: false,
         songThemeAutoSwitchEnabled: false,
         songThemeAutoGenerateEnabled: false,
     };
@@ -92,59 +89,37 @@ describe('themePreferences', () => {
         expect(readStoredThemeAutoGenerateEnabled()).toBe(false);
     });
 
-    it('turns off song automation when custom theme preference is enabled', () => {
-        expect(resolveCustomThemePreferenceChange(baseState, true)).toEqual({
-            isCustomThemePreferred: true,
-            songThemeAutoSwitchEnabled: false,
-            songThemeAutoGenerateEnabled: false,
-        });
-    });
-
-    it('turns off custom theme preference when song auto switch is enabled', () => {
-        expect(resolveSongThemeAutoSwitchChange({
-            isCustomThemePreferred: true,
-            songThemeAutoSwitchEnabled: false,
-            songThemeAutoGenerateEnabled: false,
-        }, true)).toEqual({
-            isCustomThemePreferred: false,
-            songThemeAutoSwitchEnabled: true,
-            songThemeAutoGenerateEnabled: false,
-        });
-    });
-
     it('turns off child auto generation when song auto switch is disabled', () => {
         expect(resolveSongThemeAutoSwitchChange(baseState, false)).toEqual({
-            isCustomThemePreferred: false,
             songThemeAutoSwitchEnabled: false,
             songThemeAutoGenerateEnabled: false,
         });
     });
 
-    it('enabling auto generation also enables song auto switch and disables custom preference', () => {
+    it('enabling auto generation also enables song auto switch', () => {
         expect(resolveSongThemeAutoGenerateChange({
-            isCustomThemePreferred: true,
             songThemeAutoSwitchEnabled: false,
             songThemeAutoGenerateEnabled: false,
         }, true)).toEqual({
-            isCustomThemePreferred: false,
             songThemeAutoSwitchEnabled: true,
             songThemeAutoGenerateEnabled: true,
         });
     });
 
-    it('defaults the theme generation source to AI and round-trips a stored choice', () => {
+    it('defaults the theme generation source to cover and round-trips a stored choice', () => {
         const localStorage = createLocalStorageMock();
         (globalThis as { window?: { localStorage: Storage; }; }).window = { localStorage };
 
-        expect(readStoredThemeGenerationSource()).toBe('ai');
-
-        saveStoredThemeGenerationSource('cover');
-        expect(localStorage.getItem('theme_generation_source')).toBe('cover');
+        // Product rule: song colors follow the cover artwork unless the listener opts into AI.
         expect(readStoredThemeGenerationSource()).toBe('cover');
+
+        saveStoredThemeGenerationSource('ai');
+        expect(localStorage.getItem('theme_generation_source')).toBe('ai');
+        expect(readStoredThemeGenerationSource()).toBe('ai');
 
         // A stale or hand-edited value falls back rather than propagating an unknown source.
         localStorage.setItem('theme_generation_source', 'palette');
-        expect(readStoredThemeGenerationSource()).toBe('ai');
+        expect(readStoredThemeGenerationSource()).toBe('cover');
     });
 
     it('guards the theme generation source values', () => {

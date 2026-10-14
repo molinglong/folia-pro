@@ -38,6 +38,7 @@ import {
 } from './providerRegistry';
 import { saveProviderAccountSnapshot } from './providerAccountCache';
 import { applyOmniAudioHook, applyOmniLyricsHook } from '../hostExtensionHooks';
+import { queueCollectionPush } from '../sync/collectionSync';
 
 // src/services/onlineMusic/omni.ts
 // Online Music Network Interface (Omni) - a unified interface for interacting with multiple online music providers.
@@ -78,6 +79,8 @@ const persistProviderLikedSongIds = async (providerId: OmniProviderId): Promise<
             collections: account.collections || [],
             likedSongIds: account.likedSongIds || [],
         });
+        // 已登录 Folia 账号时入队云同步（60s debounce）；未登录时是 no-op。
+        queueCollectionPush(providerId);
     } catch (error) {
         // 落盘失败不能把一次成功的 mutation 变成失败，下一次刷新会补上。
         console.warn('[Omni] Failed to persist liked songs after a like mutation', {
@@ -325,6 +328,8 @@ export const omni = {
                 freshness: 'fresh',
                 lastUpdatedAt: snapshot.savedAt,
             });
+            // 歌单目录变了也是一次本地变更，同样入队云同步。
+            queueCollectionPush(providerId);
             return playlists;
         } catch (error) {
             useOnlineProviderAccountStore.getState().updateAccount(providerId, {

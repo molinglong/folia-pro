@@ -6,8 +6,8 @@ import type { ProbeDefinition } from './definition';
 // dev/probes/themePark.probe.tsx
 
 /**
- * Theme Park 的坑都在浏览器里：右栏四个 tab 的挂载、编辑目标（AI / 自定义）切换时草稿是否互不污染、
- * 颜色拖拽的节流写回、以及 wordColors / lyricsIcons 这类新增编辑区的命中与滚动。
+ * Theme Park 的坑都在浏览器里：右栏四个 tab 的挂载、颜色拖拽的节流写回、以及 wordColors /
+ * lyricsIcons 这类新增编辑区的命中与滚动。
  * 探针不加载首页数据，只把编辑器需要的 store 上下文塞进去，再挂真实的可视化预览。
  */
 
@@ -40,38 +40,10 @@ const AI_THEME: DualTheme = {
     },
 };
 
-const CUSTOM_THEME: DualTheme = {
-    light: {
-        name: 'My Daylight',
-        backgroundColor: '#f5f5f4',
-        primaryColor: '#1c1917',
-        accentColor: '#ea580c',
-        secondaryColor: '#44403c',
-        fontStyle: 'sans',
-        animationIntensity: 'normal',
-        wordColors: [],
-        lyricsIcons: [],
-        provider: 'Custom',
-    },
-    dark: {
-        name: 'My Midnight',
-        backgroundColor: '#09090b',
-        primaryColor: '#f4f4f5',
-        accentColor: '#f4f4f5',
-        secondaryColor: '#71717a',
-        fontStyle: 'sans',
-        animationIntensity: 'normal',
-        wordColors: [],
-        lyricsIcons: [],
-        provider: 'Custom',
-    },
-};
-
 // The real app fills this context long before the editor can be opened, so the probe seeds it at
 // module scope rather than in an effect.
 useThemeQuickEditorStore.getState().setContext({
     aiTheme: AI_THEME,
-    customTheme: CUSTOM_THEME,
     bgMode: 'ai',
     coverUrl: null,
     song: null,
@@ -94,17 +66,13 @@ const ThemeParkProbe: React.FC = () => {
             data-probe-saved-name={savedName}
         >
             <ThemePark
-                initialTheme={CUSTOM_THEME}
+                initialTheme={AI_THEME}
                 isDaylight={false}
                 visualizerMode="classic"
                 staticMode
                 lyricsFontStyle="sans"
                 lyricsFontScale={1}
                 onClose={() => undefined}
-                onSaveCustomTheme={(dualTheme) => {
-                    setSavedTarget('custom');
-                    setSavedName(dualTheme.dark.name);
-                }}
                 onSaveAiTheme={(dualTheme) => {
                     setSavedTarget('ai');
                     setSavedName(dualTheme.dark.name);
@@ -117,7 +85,7 @@ const ThemeParkProbe: React.FC = () => {
 const definition: ProbeDefinition = {
     id: 'themePark',
     title: 'Theme Park · 完整主题编辑器',
-    description: '四个编辑 tab、AI / 自定义目标切换、词语配色与歌词图标编辑，以及实时可视化预览。',
+    description: '四个编辑 tab、词语配色与歌词图标编辑，以及实时可视化预览。',
     Component: ThemeParkProbe,
 };
 

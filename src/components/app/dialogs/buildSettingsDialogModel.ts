@@ -99,15 +99,10 @@ export const buildSettingsDialogModel = ({
         theme: themeController.theme,
         bgMode: themeController.bgMode,
         onApplyDefaultTheme: themeController.applyDefaultTheme,
-        hasCustomTheme: themeController.hasCustomTheme,
         themeParkInitialTheme,
-        isCustomThemePreferred: themeController.isCustomThemePreferred,
         songThemeAutoSwitchEnabled: themeController.songThemeAutoSwitchEnabled,
         songThemeAutoGenerateEnabled: themeController.songThemeAutoGenerateEnabled,
-        onSaveCustomTheme: themeController.saveCustomDualTheme,
         onSaveAiTheme: themeController.saveEditedAiDualTheme,
-        onApplyCustomTheme: themeController.applyCustomTheme,
-        onToggleCustomThemePreferred: themeController.handleCustomThemePreferenceChange,
         onToggleSongThemeAutoSwitch: themeController.handleSongThemeAutoSwitchChange,
         onToggleSongThemeAutoGenerate: themeController.handleSongThemeAutoGenerateChange,
         themeGenerationSource: themeController.themeGenerationSource,
@@ -196,6 +191,5 @@ export const buildSettingsDialogModel = ({
             }
         },
         aiTheme: themeController.aiTheme,
-        customTheme: themeController.customTheme,
     };
 };

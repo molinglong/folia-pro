@@ -13,6 +13,8 @@ export type ProviderAccountSnapshot = {
     user: ProviderUser;
     collections: ProviderCollection[];
     likedSongIds: MediaId[];
+    /** 快照来自云同步投影而非本机会话：hydration 恢复时不置 authenticated。 */
+    cloudOrigin?: boolean;
 };
 
 const isUsableMediaId = (value: unknown): value is MediaId => (

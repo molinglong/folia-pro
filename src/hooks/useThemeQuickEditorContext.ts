@@ -16,7 +16,6 @@ import { useThemeQuickEditorStore } from '../stores/useThemeQuickEditorStore';
 
 type ThemeQuickEditorContextParams = {
     aiTheme: DualTheme | null;
-    customTheme: DualTheme | null;
     bgMode: ThemeMode;
     coverUrl: string | null;
     restoreCachedThemeForSong: (
@@ -27,7 +26,6 @@ type ThemeQuickEditorContextParams = {
 
 export const useThemeQuickEditorContext = ({
     aiTheme,
-    customTheme,
     bgMode,
     coverUrl,
     restoreCachedThemeForSong,
@@ -56,7 +54,6 @@ export const useThemeQuickEditorContext = ({
 
         setThemeQuickEditorContext({
             aiTheme,
-            customTheme,
             bgMode,
             coverUrl,
             song: currentSong,
@@ -66,5 +63,5 @@ export const useThemeQuickEditorContext = ({
             isPureMusic,
             songTitle,
         });
-    }, [aiTheme, bgMode, coverUrl, currentSong, customTheme, isDaylight, lyrics, setThemeQuickEditorContext]);
+    }, [aiTheme, bgMode, coverUrl, currentSong, isDaylight, lyrics, setThemeQuickEditorContext]);
 };

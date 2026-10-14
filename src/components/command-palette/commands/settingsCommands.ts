@@ -184,8 +184,8 @@ export const settingsCommands: CommandPaletteCommand[] = [
         isAvailable: context => (context ? context.settings.canUseTransitionPerformance() : true),
         group: 'settings',
         title: 'Transition performance mode',
-        description: 'Toggle the more aggressive transition (needs the stem model)',
-        keywords: ['performance mode', 'transition performance', 'aggressive transition', '表现模式', '过渡表现', '性能模式'],
+        description: 'Toggle the more aggressive transition (needs the stem model); audio-only, unrelated to the graphics quality tier',
+        keywords: ['transition performance', 'aggressive transition', '表现模式', '过渡表现'],
         execute: (_input, context) => {
             context.settings.toggleTransitionPerformance();
             return true;
@@ -385,6 +385,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         },
     },
     createSettingsCommand('settings-graphics', 'Graphics settings', 'Open static mode, frame rate cap, Linux glow fix and reduced motion', ['graphics', 'performance', 'frame rate', 'fps', 'rendering', '图形', '图形设置', '性能', '帧率', '渲染'], 'options', 'graphics'),
+    createSettingsAnchorCommand('settings-graphics-preset', 'Graphics quality tier', 'Jump to the Smoothness first / Balanced / Quality first / Custom preset picker', ['quality tier', 'performance mode', 'low spec', 'low config', 'smooth', '画质档位', '性能模式', '低配', '低配置模式', '流畅优先'], 'graphicsPreset'),
     createSettingsCommand('settings-mods', 'Mod settings', 'Open the mod system switch and the installed mods', ['mod manager', 'mod system', 'plugins', '模组设置', '模组系统', '插件'], 'options', 'mods', { platform: ['electron'] }),
     createSettingsCommand('settings-lab', 'Lab settings', 'Open experimental settings', ['lab', 'experimental', '实验', '实验室'], 'options', 'lab'),
     // @fork 本地魔改版（用户：「把这个删了」→「彻底删掉胶囊 + 摘掉设置项」）：

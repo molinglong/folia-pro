@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { D1Emulator } from './d1-emulator.js';
 import app from './app.js';
+import { createAuthRouter } from './auth.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +31,7 @@ try {
 
 const SYNC_TOKEN = process.env.SYNC_TOKEN;
 const DASHBOARD_TOKEN = process.env.DASHBOARD_TOKEN;
+const ALLOW_REGISTER = process.env.ALLOW_REGISTER;
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const DB_PATH = process.env.DB_PATH || path.resolve(__dirname, '../folia-sync.db');
 
@@ -68,17 +70,22 @@ console.log(logo);
 console.log(`\x1b[32m[Folia Sync Server]\x1b[0m Starting Node.js standalone server (v${version})...`);
 console.log(`- Port: \x1b[33m${PORT}\x1b[0m`);
 console.log(`- Database: \x1b[33m${DB_PATH}\x1b[0m`);
+console.log(`- Register: \x1b[33m${ALLOW_REGISTER === 'false' ? 'disabled (use POST /admin/users)' : 'open'}\x1b[0m`);
 if (DASHBOARD_TOKEN) {
   console.log(`- Dashboard: \x1b[36mhttp://localhost:${PORT}/?token=${DASHBOARD_TOKEN}\x1b[0m`);
 } else {
   console.log(`- Dashboard: Disabled (DASHBOARD_TOKEN not set)`);
 }
 
+// 账号路由（Node/Docker 形态专属；Workers 形态没有 node:crypto，不挂载）。
+app.route('/', createAuthRouter());
+
 serve({
   fetch: (req) => app.fetch(req, {
     FOLIA_SYNC_DB: db,
     SYNC_TOKEN,
     DASHBOARD_TOKEN,
+    ALLOW_REGISTER,
   }),
   port: PORT,
 });

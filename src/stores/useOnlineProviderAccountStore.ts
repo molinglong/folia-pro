@@ -14,6 +14,8 @@ export interface OnlineProviderAccountState {
     hydration: 'loading' | 'ready';
     freshness: 'stale' | 'refreshing' | 'fresh' | 'error';
     lastUpdatedAt?: number;
+    /** 数据来自云同步投影（本机无平台会话）：登录态判定失败时保留展示数据，status 不代表平台登录态。 */
+    cloudOrigin?: boolean;
 }
 
 type OnlineProviderAccountStore = {

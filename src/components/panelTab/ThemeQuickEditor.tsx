@@ -6,10 +6,9 @@ import { useShallow } from 'zustand/react/shallow';
 import type { DualTheme, SongResult } from '../../types';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
 import { FALLBACK_AI_DUAL_THEME, sanitizeDualTheme } from '../../services/themeSanitizer';
-import { BASE_DUAL_THEME } from '../../services/baseThemes';
 import { extractColors } from '../../utils/colorExtractor';
 import { THEME_GENERATION_PROMPT_PREFIX, buildThemeSourcePrompt, parseAiThemeJsonInput } from '../../utils/aiThemePrompts';
-import { useThemeQuickEditorStore, type ThemeQuickEditorKind } from '../../stores/useThemeQuickEditorStore';
+import { useThemeQuickEditorStore } from '../../stores/useThemeQuickEditorStore';
 import { buildRecommendedColors } from '../../utils/themeEditorPalette';
 import FastColorPicker from '../shared/FastColorPicker';
 
@@ -33,7 +32,6 @@ const COLOR_FIELDS: ColorField[] = [
 ];
 
 type ThemeQuickEditorProps = {
-    kind: ThemeQuickEditorKind;
     initialTheme: DualTheme;
     coverUrl: string | null;
     isDaylight: boolean;
@@ -45,7 +43,6 @@ type ThemeQuickEditorProps = {
 };
 
 const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
-    kind,
     initialTheme,
     coverUrl,
     isDaylight,
@@ -232,26 +229,6 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
             clearTimeout(throttleTimeoutRef.current);
             throttleTimeoutRef.current = null;
         }
-        if (kind === 'custom') {
-            setDraftTheme(previous => ({
-                ...previous,
-                light: {
-                    ...previous.light,
-                    backgroundColor: BASE_DUAL_THEME.light.backgroundColor,
-                    primaryColor: BASE_DUAL_THEME.light.primaryColor,
-                    accentColor: BASE_DUAL_THEME.light.accentColor,
-                    secondaryColor: BASE_DUAL_THEME.light.secondaryColor,
-                },
-                dark: {
-                    ...previous.dark,
-                    backgroundColor: BASE_DUAL_THEME.dark.backgroundColor,
-                    primaryColor: BASE_DUAL_THEME.dark.primaryColor,
-                    accentColor: BASE_DUAL_THEME.dark.accentColor,
-                    secondaryColor: BASE_DUAL_THEME.dark.secondaryColor,
-                },
-            }));
-            return;
-        }
         setDraftTheme(normalizedInitialTheme);
         setThemeNames({
             light: normalizedInitialTheme.light.name || '',
@@ -276,15 +253,9 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
 
     const themeTransitionClass = isDragging ? '' : 'transition-colors duration-500';
     const allTransitionClass = isDragging ? '' : 'transition-all duration-300';
-    const title = kind === 'custom'
-        ? (t('options.customThemeQuickEditTitle') || 'Quick Edit Custom Theme')
-        : (t('options.aiThemeQuickEditTitle') || 'Quick Edit AI Theme');
-    const description = kind === 'custom'
-        ? (t('options.customThemeQuickEditDesc') || 'Tune your custom theme colors.')
-        : (t('options.aiThemeQuickEditDesc') || 'Tune the current song AI theme colors.');
-    const saveLabel = kind === 'custom'
-        ? (t('options.customThemeQuickEditSave') || 'Save Custom Theme')
-        : (t('options.aiThemeQuickEditSave') || 'Save AI Theme');
+    const title = t('options.aiThemeQuickEditTitle') || 'Quick Edit AI Theme';
+    const description = t('options.aiThemeQuickEditDesc') || 'Tune the current song AI theme colors.';
+    const saveLabel = t('options.aiThemeQuickEditSave') || 'Save AI Theme';
 
     return (
         <motion.div
@@ -587,8 +558,7 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
                                             {isJsonCopied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
                                             <span>{isJsonCopied ? (t('status.copied') || 'Copied!') : (t('options.copyThemeJson') || 'Copy JSON')}</span>
                                         </button>
-                                        {kind === 'ai' && (
-                                            <button
+                                        <button
                                             type="button"
                                             onClick={() => setIsImportPanelOpen(true)}
                                             className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl text-[11px] font-bold hover:brightness-110 active:scale-95 ${allTransitionClass}`}
@@ -598,8 +568,7 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
                                         >
                                             <Download size={13} />
                                             <span>{t('options.manualImportAiTheme') || 'Manual Import'}</span>
-                                            </button>
-                                        )}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -613,15 +582,13 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
 
 type ThemeQuickEditorHostProps = {
     onSaveAiTheme: (theme: DualTheme, song: SongResult | null, songKey: ThemeCacheSongKey | null) => void;
-    onSaveCustomTheme: (theme: DualTheme) => void;
 };
 
-const ThemeQuickEditorHost: React.FC<ThemeQuickEditorHostProps> = ({ onSaveAiTheme, onSaveCustomTheme }) => {
-    const { isOpen, editorKind, aiTheme, customTheme, coverUrl, isDaylight, song, songKey, closeEditor, promptSourceText, isPureMusic, songTitle } = useThemeQuickEditorStore(useShallow(state => ({
+const ThemeQuickEditorHost: React.FC<ThemeQuickEditorHostProps> = ({ onSaveAiTheme }) => {
+    const { isOpen, editorKind, aiTheme, coverUrl, isDaylight, song, songKey, closeEditor, promptSourceText, isPureMusic, songTitle } = useThemeQuickEditorStore(useShallow(state => ({
         isOpen: state.isOpen,
         editorKind: state.editorKind,
         aiTheme: state.aiTheme,
-        customTheme: state.customTheme,
         coverUrl: state.coverUrl,
         isDaylight: state.isDaylight,
         song: state.song,
@@ -631,13 +598,12 @@ const ThemeQuickEditorHost: React.FC<ThemeQuickEditorHostProps> = ({ onSaveAiThe
         songTitle: state.songTitle,
         closeEditor: state.closeEditor,
     })));
-    const initialTheme = editorKind === 'custom' ? customTheme : (aiTheme ?? FALLBACK_AI_DUAL_THEME);
+    const initialTheme = aiTheme ?? FALLBACK_AI_DUAL_THEME;
 
     return (
         <AnimatePresence>
             {isOpen && editorKind && initialTheme && (
                 <ThemeQuickEditor
-                    kind={editorKind}
                     initialTheme={initialTheme}
                     coverUrl={coverUrl}
                     isDaylight={isDaylight}
@@ -646,11 +612,7 @@ const ThemeQuickEditorHost: React.FC<ThemeQuickEditorHostProps> = ({ onSaveAiThe
                     songTitle={songTitle}
                     onClose={closeEditor}
                     onSave={(theme) => {
-                        if (editorKind === 'custom') {
-                            onSaveCustomTheme(theme);
-                        } else {
-                            onSaveAiTheme(theme, song, songKey);
-                        }
+                        onSaveAiTheme(theme, song, songKey);
                         closeEditor();
                     }}
                 />

@@ -1,5 +1,6 @@
 import React, { type MutableRefObject, type RefObject } from 'react';
 import type { WallSlot } from '../../../components/wall/wallSlots';
+import { computeLightsRippleDelay } from '../../../components/wall/lightsRipple';
 import { EMPTY_PLATE_BLOCKS, type PlateBlockSet } from './bravaisBlockPlate';
 import BravaisBlockPlates from './BravaisBlockPlates';
 import { resolveSlotFace, type BravaisDisplay } from './bravaisDisplay';
@@ -50,14 +51,27 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
     const left: React.ReactNode[] = [];
     const right: React.ReactNode[] = [];
     const nowPlayingKey = display?.layer.nowPlayingKey ?? null;
+    // 涟漪熄灯中心：正在播放那一项所在 slot 的矩形中心（世界坐标）。reflow 里拿得到就用让位后的矩形，与下面给
+    // 磁贴的 rect 一致；否则用 slot 自己。没在播 / 当前层里没现在播这一项时 origin 为 null，延迟固定 0。
+    let lightsRippleOrigin: { x: number; y: number } | null = null;
+    if (nowPlayingKey) {
+        for (const slot of slots) {
+            const { item } = resolveSlotFace(display, slot);
+            if (!item || item.key !== nowPlayingKey) continue;
+            const rect = reflow.get(slot.key) ?? slot;
+            lightsRippleOrigin = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+            break;
+        }
+    }
     for (const slot of slots) {
         const { item, kind } = resolveSlotFace(display, slot);
         const expanded = slot.key === expandedSlotKey;
+        const rect = reflow.get(slot.key) ?? slot;
         const tile = (
             <BravaisTile
                 key={slot.key}
                 slotKey={slot.key}
-                rect={reflow.get(slot.key) ?? slot}
+                rect={rect}
                 item={item}
                 kind={kind}
                 seeThrough={isSeeThroughFace(display?.look ?? 'solid', kind, expanded)}
@@ -72,6 +86,7 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
                 entrance={display?.entrance ?? null}
                 didDragRef={didDragRef}
                 handlers={handlers}
+                lightsRippleDelay={computeLightsRippleDelay(rect, lightsRippleOrigin)}
             />
         );
         (anchorX !== null && slot.x < anchorX ? left : right).push(tile);

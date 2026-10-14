@@ -5,9 +5,8 @@ import { DualTheme, Theme } from '../types';
 export type ThemeAnimationIntensity = Theme['animationIntensity'];
 // Where a song theme comes from: the AI model reading the lyrics, or the cover's own palette.
 export type ThemeGenerationSource = 'ai' | 'cover';
-export type LastAppliedThemePointer = 'default' | 'ai' | 'custom';
+export type LastAppliedThemePointer = 'default' | 'ai';
 export type ThemePreferenceSwitchState = {
-    isCustomThemePreferred: boolean;
     songThemeAutoSwitchEnabled: boolean;
     songThemeAutoGenerateEnabled: boolean;
 };
@@ -25,20 +24,24 @@ export const isThemeAnimationIntensity = (value: unknown): value is ThemeAnimati
 );
 
 const isLastAppliedThemePointer = (value: unknown): value is LastAppliedThemePointer => (
-    value === 'default' || value === 'ai' || value === 'custom'
+    value === 'default' || value === 'ai'
 );
 
 export const isThemeGenerationSource = (value: unknown): value is ThemeGenerationSource => (
     value === 'ai' || value === 'cover'
 );
 
+// Product rule: song colors follow the cover artwork by default. AI inference stays available as
+// an explicit opt-in for listeners who configure a key; it is never the unconfigured default.
+const DEFAULT_THEME_GENERATION_SOURCE: ThemeGenerationSource = 'cover';
+
 export const readStoredThemeGenerationSource = (): ThemeGenerationSource => {
     if (!isBrowser()) {
-        return 'ai';
+        return DEFAULT_THEME_GENERATION_SOURCE;
     }
 
     const storedValue = window.localStorage.getItem(THEME_GENERATION_SOURCE_KEY);
-    return isThemeGenerationSource(storedValue) ? storedValue : 'ai';
+    return isThemeGenerationSource(storedValue) ? storedValue : DEFAULT_THEME_GENERATION_SOURCE;
 };
 
 export const saveStoredThemeGenerationSource = (value: ThemeGenerationSource) => {
@@ -108,22 +111,6 @@ export const saveStoredThemeAutoGenerateEnabled = (enabled: boolean) => {
     window.localStorage.setItem(THEME_AUTO_GENERATE_KEY, String(enabled));
 };
 
-export const resolveCustomThemePreferenceChange = (
-    state: ThemePreferenceSwitchState,
-    enabled: boolean,
-): ThemePreferenceSwitchState => (
-    enabled
-        ? {
-            isCustomThemePreferred: true,
-            songThemeAutoSwitchEnabled: false,
-            songThemeAutoGenerateEnabled: false,
-        }
-        : {
-            ...state,
-            isCustomThemePreferred: false,
-        }
-);
-
 export const resolveSongThemeAutoSwitchChange = (
     state: ThemePreferenceSwitchState,
     enabled: boolean,
@@ -131,7 +118,6 @@ export const resolveSongThemeAutoSwitchChange = (
     enabled
         ? {
             ...state,
-            isCustomThemePreferred: false,
             songThemeAutoSwitchEnabled: true,
         }
         : {
@@ -148,7 +134,6 @@ export const resolveSongThemeAutoGenerateChange = (
     enabled
         ? {
             ...state,
-            isCustomThemePreferred: false,
             songThemeAutoSwitchEnabled: true,
             songThemeAutoGenerateEnabled: true,
         }

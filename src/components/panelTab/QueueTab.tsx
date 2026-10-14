@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { List, useListRef, type RowComponentProps } from 'react-window';
-import { ListEnd, ListPlus, PanelsTopLeft, Shuffle, Trash2 } from 'lucide-react';
+import { ListEnd, ListPlus, PanelsTopLeft, Play, Shuffle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
@@ -15,6 +15,13 @@ interface QueueTabProps {
     playQueue: SongResult[];
     currentSong: SongResult | null;
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
+    /**
+     * 点一行不再直接切歌，而是把这一首交给面板预览（上方封面换成它、这一行浮出播放键）。
+     * 不给就退回老行为：点行即播。
+     */
+    onPreviewSong?: (song: SongResult) => void;
+    /** 正在预览的那首的 key；那一行会一直亮着播放键，不必等指针悬上去。 */
+    previewSongKey?: string | null;
     queueScrollRef: React.RefObject<HTMLDivElement | null>;
     shouldScrollToCurrent?: boolean;
     onShuffle?: () => void;
@@ -32,12 +39,15 @@ type QueueRowProps = {
     playQueue: SongResult[];
     currentSongKey: string | null;
     onPlaySong: QueueTabProps['onPlaySong'];
+    onPreviewSong?: QueueTabProps['onPreviewSong'];
+    previewSongKey?: string | null;
     onMoveSongToNext: QueueTabProps['onMoveSongToNext'];
     onMoveSongToEnd: QueueTabProps['onMoveSongToEnd'];
     onRemoveSong: QueueTabProps['onRemoveSong'];
     isDaylight: boolean;
     labels: {
         unavailable: string;
+        play: string;
         playNext: string;
         moveToEnd: string;
         remove: string;
@@ -52,6 +62,8 @@ const QueueRow = ({
     playQueue,
     currentSongKey,
     onPlaySong,
+    onPreviewSong,
+    previewSongKey,
     onMoveSongToNext,
     onMoveSongToEnd,
     onRemoveSong,
@@ -59,23 +71,33 @@ const QueueRow = ({
     labels,
 }: RowComponentProps<QueueRowProps>): React.ReactElement => {
     const song = playQueue[index];
-    const isActive = currentSongKey === getPlaybackSongKey(song);
+    const songKey = getPlaybackSongKey(song);
+    const isActive = currentSongKey === songKey;
+    const isPreviewed = !isActive && !!previewSongKey && songKey === previewSongKey;
     const isUnavailable = isSongUnavailable(song);
     const unavailableTagText = getSongUnavailableLabel(song, labels.unavailable);
     const activeRowClass = isDaylight ? 'bg-black/[0.08]' : 'bg-white/20';
     const activeMarkerClass = isDaylight ? 'bg-zinc-700' : 'bg-white';
     const hoverRowClass = isDaylight ? 'hover:bg-black/[0.04]' : 'hover:bg-white/5';
+    // 预览中的那一行：淡淡的底色 + 半亮的标记条，和正在播放的那首区分开。
+    const previewRowClass = isDaylight ? 'bg-black/[0.05]' : 'bg-white/10';
+    const previewMarkerClass = isDaylight ? 'bg-zinc-400' : 'bg-white/50';
+    // 动作键：预览中那行一直露出来（播放键要点得到），其余还是悬停 / 聚焦才浮出。
+    const actionsClass = isPreviewed
+        ? 'opacity-100 pointer-events-auto'
+        : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto';
 
     return (
         <div
             style={style}
-            onClick={() => onPlaySong(song, playQueue)}
+            onClick={isUnavailable ? undefined : (onPreviewSong ? () => onPreviewSong(song) : () => onPlaySong(song, playQueue))}
             data-active={isActive}
+            data-previewed={isPreviewed}
             {...ariaAttributes}
             className={`group flex items-center gap-3 px-2 py-1 rounded-lg cursor-pointer transition-colors
-                ${isActive ? activeRowClass : hoverRowClass} ${isUnavailable ? 'opacity-55' : ''}`}
+                ${isActive ? activeRowClass : isPreviewed ? previewRowClass : hoverRowClass} ${isUnavailable ? 'opacity-55' : ''}`}
         >
-            <div className={`w-1 h-6 rounded-full ${isActive ? activeMarkerClass : 'bg-transparent'}`} />
+            <div className={`w-1 h-6 rounded-full ${isActive ? activeMarkerClass : isPreviewed ? previewMarkerClass : 'bg-transparent'}`} />
             <div className="min-w-0 flex-1">
                 <div className="text-xs font-medium truncate">
                     {song.name}
@@ -87,8 +109,9 @@ const QueueRow = ({
                 </div>
                 <div className="text-[10px] opacity-40 truncate">{getSongArtistLabel(song)}</div>
             </div>
-            <div className="flex shrink-0 items-center gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
+            <div className={`flex shrink-0 items-center gap-0.5 transition-opacity ${actionsClass} focus-within:opacity-100 focus-within:pointer-events-auto`}>
                 {[
+                    { label: labels.play, icon: Play, action: (_index: number) => onPlaySong(song, playQueue) },
                     { label: labels.playNext, icon: ListPlus, action: onMoveSongToNext },
                     { label: labels.moveToEnd, icon: ListEnd, action: onMoveSongToEnd },
                     { label: labels.remove, icon: Trash2, action: onRemoveSong },
@@ -119,6 +142,8 @@ const QueueTab: React.FC<QueueTabProps> = ({
     playQueue,
     currentSong,
     onPlaySong,
+    onPreviewSong,
+    previewSongKey = null,
     queueScrollRef,
     shouldScrollToCurrent = false,
     onShuffle,
@@ -156,12 +181,15 @@ const QueueTab: React.FC<QueueTabProps> = ({
         playQueue,
         currentSongKey,
         onPlaySong,
+        onPreviewSong,
+        previewSongKey,
         onMoveSongToNext,
         onMoveSongToEnd,
         onRemoveSong,
         isDaylight,
         labels: {
             unavailable: t('status.songUnavailableTag'),
+            play: t('queue.play'),
             playNext: t('queue.playNext'),
             moveToEnd: t('queue.moveToEnd'),
             remove: t('queue.remove'),
@@ -172,6 +200,8 @@ const QueueTab: React.FC<QueueTabProps> = ({
         onMoveSongToEnd,
         onMoveSongToNext,
         onPlaySong,
+        onPreviewSong,
+        previewSongKey,
         onRemoveSong,
         playQueue,
         t,

@@ -2,11 +2,17 @@ import { sanitizeDualTheme } from '../themeSanitizer';
 // 背景模式没有 mod 投稿通道，静态清单与活注册表在任何时刻都等价。
 import { isBuiltinVisualizerBackgroundMode } from '../../types/visualizerModes';
 import {
+    SYNC_LEGACY_SCHEMA_VERSION,
     SYNC_SCHEMA_VERSION,
     type SyncLibraryExportBundle,
     type SyncRemoteState,
     type SyncThemeBucketSummary,
     type SyncThemeManifest,
+    type SyncedCloudCollection,
+    type SyncedCloudSnapshot,
+    type SyncedCloudUser,
+    type SyncedCollectionRecord,
+    type SyncedPlatformSessionRecord,
     type SyncedSettingsRecord,
     type SyncedVisualSettings,
     type SyncedThemeRecord,
@@ -23,7 +29,8 @@ const isIsoDateString = (value: unknown): value is string => (
     typeof value === 'string' && !Number.isNaN(Date.parse(value))
 );
 
-const isSchemaCompatible = (value: unknown) => value === SYNC_SCHEMA_VERSION;
+// schema 2 服务端对账号会话应答 2，兼容模式与旧服务端应答 1，两侧都接受。
+const isSchemaCompatible = (value: unknown) => value === SYNC_SCHEMA_VERSION || value === SYNC_LEGACY_SCHEMA_VERSION;
 
 const isFiniteNumber = (value: unknown): value is number => (
     typeof value === 'number' && Number.isFinite(value)
@@ -186,6 +193,7 @@ export const parseSyncRemoteState = (value: unknown): SyncRemoteState | null => 
 
     return {
         schemaVersion: SYNC_SCHEMA_VERSION,
+        scoped: value.scoped === true,
         settingsUpdatedAt,
         themesUpdatedAt,
         themeCount: Math.max(0, Math.trunc(value.themeCount)),
@@ -215,6 +223,95 @@ const parseThemeBucketSummary = (value: unknown): SyncThemeBucketSummary | null 
         hash: value.hash,
         updatedAt,
     };
+};
+
+// --- 收藏/歌单快照（/collections/*，schemaVersion 独立从 1 起计）---
+
+const parseSyncedCloudUser = (value: unknown): SyncedCloudUser | null => {
+    if (!isRecord(value) || typeof value.id !== 'string' || !value.id || typeof value.nickname !== 'string') {
+        return null;
+    }
+
+    const user: SyncedCloudUser = { id: value.id, nickname: value.nickname };
+    if (typeof value.avatarUrl === 'string' && value.avatarUrl) {
+        user.avatarUrl = value.avatarUrl;
+    }
+    return user;
+};
+
+const parseSyncedCloudCollection = (value: unknown): SyncedCloudCollection | null => {
+    if (!isRecord(value)
+        || typeof value.providerId !== 'string'
+        || !value.providerId
+        || typeof value.id !== 'string'
+        || !value.id
+        || typeof value.name !== 'string'
+        || typeof value.type !== 'string'
+    ) {
+        return null;
+    }
+
+    const collection: SyncedCloudCollection = {
+        providerId: value.providerId,
+        id: value.id,
+        name: value.name,
+        type: value.type,
+    };
+    if (typeof value.coverUrl === 'string' && value.coverUrl) collection.coverUrl = value.coverUrl;
+    if (typeof value.description === 'string' && value.description) collection.description = value.description;
+    if (isFiniteNumber(value.trackCount)) collection.trackCount = Math.trunc(value.trackCount);
+    if (typeof value.isLiked === 'boolean') collection.isLiked = value.isLiked;
+    if (typeof value.isOwned === 'boolean') collection.isOwned = value.isOwned;
+    if (isFiniteNumber(value.playCount)) collection.playCount = Math.trunc(value.playCount);
+    return collection;
+};
+
+export const parseSyncedCloudSnapshot = (value: unknown): SyncedCloudSnapshot | null => {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    const user = parseSyncedCloudUser(value.user);
+    if (!user || !Array.isArray(value.collections) || !Array.isArray(value.likedSongIds)) {
+        return null;
+    }
+
+    const collections = value.collections.map(parseSyncedCloudCollection);
+    if (collections.some(collection => !collection)) {
+        return null;
+    }
+    if (!value.likedSongIds.every(id => typeof id === 'string')) {
+        return null;
+    }
+
+    return {
+        user,
+        collections: collections as SyncedCloudCollection[],
+        likedSongIds: value.likedSongIds,
+    };
+};
+
+export const parseSyncCollectionRecord = (value: unknown): SyncedCollectionRecord | null => {
+    if (!isRecord(value) || value.schemaVersion !== 1 || !isIsoDateString(value.updatedAt) || !isRecord(value.data)) {
+        return null;
+    }
+
+    const data = parseSyncedCloudSnapshot(value.data);
+    return data ? { schemaVersion: 1, updatedAt: value.updatedAt, data } : null;
+};
+
+/** 严格三键校验：token 域是唯一允许含凭证引用的同步域，
+ *  解析时拒绝任何夹带字段，防止它变成第二个凭证存放处。 */
+export const parseSyncPlatformSessionRecord = (value: unknown): SyncedPlatformSessionRecord | null => {
+    if (!isRecord(value)
+        || value.schemaVersion !== 1
+        || !isIsoDateString(value.updatedAt)
+        || typeof value.token !== 'string'
+        || value.token.length === 0
+        || Object.keys(value).some((key) => key !== 'schemaVersion' && key !== 'updatedAt' && key !== 'token')) {
+        return null;
+    }
+    return { schemaVersion: 1, updatedAt: value.updatedAt, token: value.token };
 };
 
 export const parseSyncThemeManifest = (value: unknown): SyncThemeManifest | null => {

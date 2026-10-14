@@ -101,11 +101,13 @@ export const SETTINGS_NAV_GROUP_SPECS: GroupSpec[] = [
  * Resolves the grouping into translated nav items, dropping desktop-only sections (and groups left empty) on web.
  * An anchor that marks itself `requiresLibrarySuiteChoice` is listed only when `hasLibrarySuiteChoice` is set,
  * because its section renders nothing while a single library suite is available. Likewise `requiresBravaisSuite`
- * is listed only while the active library suite is bravais (`isBravaisSuiteActive`).
+ * is listed only while the active library suite is bravais (`isBravaisSuiteActive`), and `requiresCustomPreset`
+ * only while the graphics quality tier is set to custom (`isCustomPresetActive`) — the two detailed graphics
+ * switches collapse out of the DOM whenever a preset tier is chosen instead.
  */
 export const buildSettingsNavGroups = (
     t: Translate,
-    options: { isElectron: boolean; hasLibrarySuiteChoice?: boolean; isBravaisSuiteActive?: boolean },
+    options: { isElectron: boolean; hasLibrarySuiteChoice?: boolean; isBravaisSuiteActive?: boolean; isCustomPresetActive?: boolean },
 ): SettingsNavGroup[] => (
     SETTINGS_NAV_GROUP_SPECS
         .map(group => ({
@@ -124,6 +126,7 @@ export const buildSettingsNavGroups = (
                             && (!('electronOnly' in definition) || !definition.electronOnly || options.isElectron)
                             && (!('requiresLibrarySuiteChoice' in definition) || !definition.requiresLibrarySuiteChoice || Boolean(options.hasLibrarySuiteChoice))
                             && (!('requiresBravaisSuite' in definition) || !definition.requiresBravaisSuite || Boolean(options.isBravaisSuiteActive))
+                            && (!('requiresCustomPreset' in definition) || !definition.requiresCustomPreset || Boolean(options.isCustomPresetActive))
                         ))
                         .map(([id, definition]) => ({ id, label: t(definition.labelKey) })),
                 })),

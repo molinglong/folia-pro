@@ -45,6 +45,19 @@ openssl rand -hex 16
 > 为防止被扫描器字典爆破，服务端**强制要求 `SYNC_TOKEN` 的长度必须大于等于 8 位**，否则服务将拒绝启动（或持续报错）。
 > 对于暴露在公网的服务，强烈建议在边缘层（如 Cloudflare WAF 或 Nginx）配置 **Rate Limiting (频率限制)** 防范高频猜测攻击。
 
+## 👤 账号功能（邮箱 + 密码）
+
+除了全局 `SYNC_TOKEN` 单用户模式，Docker 与 Node.js 部署还提供多用户账号体系：客户端登录邮箱账号后，设置、AI 主题与在线音乐收藏/歌单/喜欢记录都同步到**该账号自己的数据域**，多设备互不干扰。
+
+- **两种模式并存**：只有全局 Token 的请求落在"兼容域"（行为与旧版完全一致）；登录会话的请求落在"用户域"。客户端两者可共存（登录后 Token 可留空）。
+- **仅 Docker / Node.js 形态支持**：Cloudflare Workers 运行时没有 `crypto.scrypt`，账号接口在 Workers 部署上不可用（Workers 只提供兼容模式）。
+- **注册开关**：环境变量 `ALLOW_REGISTER=false` 关闭开放注册；此时可通过 `POST /admin/users`（携带 `DASHBOARD_TOKEN`）手动建号。
+- **安全机制**：密码 scrypt 哈希；access/refresh 双 token，refresh 旋转式（用一次即作废）；登录/注册接口内置限速（内存滑动窗口，重启即清零，公网建议反代层再加一道）。
+- **平台凭证不上云**：同步的只是收藏/歌单/喜欢等数据；QQ/网易云等平台登录凭证（cookie/ptkey）永远只留在本机。
+
+> [!IMPORTANT]
+> 账号密码走 HTTPS 才安全。公网部署请务必配好反向代理 + TLS（Caddy / Nginx + Certbot）后再开放注册。
+
 ---
 
 ## 方案一：Cloudflare Workers 部署 (推荐)
@@ -234,6 +247,9 @@ SYNC_TOKEN="你的_SYNC_TOKEN"
 
 # 选填：网页看板访问 Token (至少 16 位)
 DASHBOARD_TOKEN="你的_DASHBOARD_TOKEN"
+
+# 选填：账号开放注册（默认 true；公网建议 false + /admin/users 手动建号）
+ALLOW_REGISTER="true"
 ```
 
 ### 2. 从仓库根目录启动服务
@@ -270,6 +286,9 @@ PORT=3000
 
 # 选填：SQLite 数据库保存路径（默认在当前目录生成 folia-sync.db）
 DB_PATH="./folia-sync.db"
+
+# 选填：账号开放注册（默认 true；公网建议 false + /admin/users 手动建号）
+ALLOW_REGISTER="true"
 ```
 
 ### 2. 安装并启动
@@ -307,6 +326,11 @@ http://127.0.0.1:13000
 | `POST` | `/themes/put` | 批量写入主题，旧时间戳不会覆盖新记录 |
 | `POST` | `/themes/bucket` | 按 bucket 拉取主题，用于增量同步 |
 | `POST` | `/themes/list` | 分页读取完整主题库，用于导出 |
+| `POST` | `/auth/register` `/auth/login` | 账号注册/登录（仅 Docker / Node 形态） |
+| `POST` | `/auth/refresh` `/auth/logout` | 刷新（旋转式）与注销会话 |
+| `GET` | `/auth/me` | 校验当前会话 |
+| `POST` | `/admin/users` | `DASHBOARD_TOKEN` 鉴权，关闭注册时手动建号 |
+| `GET` / `PUT` | `/collections/:providerId` | 收藏/歌单快照同步（账号会话专属，LWW：旧时间戳返回 409） |
 
 客户端是本地优先的：AI 主题和主题同步 registry 保存在本机 IndexedDB，启动时会自动做主题同步；视觉设置的拉取/推送、完整 sync library 的 zip 导入导出由存储设置页面或命令面板触发。主题 registry 从旧 localStorage 迁移到 IndexedDB 时会执行一次性兼容迁移。
 
@@ -320,7 +344,7 @@ http://127.0.0.1:13000
 - `src/d1-emulator.ts`：本地 Node 对 D1 风格存储的兼容层。
 - `install.sh` / `install.ps1`：Node、Docker、Cloudflare 三种部署菜单。
 
-当前协议约束：schema version 为 `1`，主题 manifest 固定为 `256` 个 bucket；主题批量写入上限为 `500`，bucket 请求最多 `32` 个，完整主题 list 最多 `1000` 条。修改这些限制或路由时必须同步客户端 `src/services/sync/*` 和本 README。
+当前协议约束：服务端 schema version 为 `2`（兼容模式请求/旧客户端继续按 `1` 应答，客户端两种都接受）；主题 manifest 固定为 `256` 个 bucket；主题批量写入上限为 `500`，bucket 请求最多 `32` 个，完整主题 list 最多 `1000` 条；收藏快照记录上限 `4MB`，providerId 白名单为 `netease` / `qq` / `kugou`。修改这些限制或路由时必须同步客户端 `src/services/sync/*` 和本 README。
 
 ---
 

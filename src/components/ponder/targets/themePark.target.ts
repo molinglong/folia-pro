@@ -6,10 +6,8 @@ import type { PonderAnchorSource, PonderRelativeRect, PonderSceneScript, PonderT
 // Theme Park：配色主题那一组标题行右端那颗圆按钮打开的整屏配色编辑器。
 //
 // 它此前只在 theme-settings 里当一个一闪而过的结果层出现过，而它本身是一整屏、
-// 四页标签、两套明暗配色的编辑器，藏着三件说不清就走不通的事：
+// 四页标签、两套明暗配色的编辑器，藏着两件说不清就走不通的事：
 //
-// - 顶上那对切的是「在编辑哪一份主题」（这首歌的 AI 主题 / 你保存的自定义主题），
-//   两份草稿同时活着，保存按钮的字跟着它变，存的也只是选中的那一份；
 // - 亮和暗是两份独立配色，右栏那对切的是「现在编辑哪一面」，不是预览开关；
 // - 保存会因为名字没填而灰着 —— 而名字的输入框在「信息」那一页，不在你正看着的
 //   「颜色」这一页上。按不动的原因在另一页，这是最典型的「屏幕上没写」。
@@ -25,7 +23,6 @@ const panelPart = (rect: PonderRelativeRect, labelKey: string): PonderAnchorSour
 const anchors = {
     panel: settingsPanel('theme-park', 'ponder.anchors.themePark.panel', { top: 0.5, width: 0.92, height: 0.9 }),
     header: settingsRegion(G.header, 'ponder.anchors.themePark.header'),
-    targetToggle: headerPart(G.targetToggle, 'ponder.anchors.themePark.targetToggle'),
     reset: headerPart(G.reset, 'ponder.anchors.themePark.reset'),
     save: headerPart(G.save, 'ponder.anchors.themePark.save'),
     preview: settingsRegion(G.preview, 'ponder.anchors.themePark.preview'),
@@ -39,37 +36,7 @@ const anchors = {
     recommended: panelPart(G.recommended, 'ponder.anchors.themePark.recommended'),
 } satisfies Record<string, PonderAnchorSource>;
 
-/** 第一章：你正在编辑哪一份主题。 */
-const target: PonderSceneScript = {
-    id: 'theme-park-target',
-    titleKey: 'ponder.scenes.themeParkTarget',
-    action: {
-        kind: 'openSettings',
-        anchorId: 'themePresets',
-        labelKey: 'ponder.actions.openThemePresets',
-    },
-    anchors,
-    steps: [
-        { kind: 'highlight', id: 'markToggle', anchor: 'targetToggle', intensity: [0, 0.95], durationMs: 460, keyframe: true },
-        {
-            kind: 'caption', id: 'which', at: 'bottom',
-            textKey: 'ponder.captions.themePark.which',
-            pointTo: { anchor: 'targetToggle' }, durationMs: 7400, withPrevious: true,
-        },
-        { kind: 'pause', id: 'readWhich' },
-
-        { kind: 'highlight', id: 'dimToggle', anchor: 'targetToggle', intensity: [0.95, 0], durationMs: 380, keyframe: true },
-        { kind: 'highlight', id: 'markReset', anchor: 'reset', intensity: [0, 0.9], durationMs: 440, withPrevious: true },
-        {
-            kind: 'caption', id: 'reset', at: 'bottom',
-            textKey: 'ponder.captions.themePark.reset',
-            pointTo: { anchor: 'reset' }, durationMs: 6000, withPrevious: true,
-        },
-        { kind: 'pause', id: 'readReset' },
-    ],
-};
-
-/** 第二章：亮和暗是两份配色，以及改颜色的那几样工具。 */
+/** 第一章：亮和暗是两份配色，以及改颜色的那几样工具。 */
 const colors: PonderSceneScript = {
     id: 'theme-park-colors',
     titleKey: 'ponder.scenes.themeParkColors',
@@ -103,7 +70,7 @@ const colors: PonderSceneScript = {
     ],
 };
 
-/** 第三章：保存为什么按不动 —— 原因在另一页上。 */
+/** 第二章：保存为什么按不动 —— 原因在另一页上。 */
 const saving: PonderSceneScript = {
     id: 'theme-park-saving',
     titleKey: 'ponder.scenes.themeParkSaving',
@@ -141,5 +108,5 @@ export default {
     summaryKey: 'ponder.summaries.theme_park',
     hoverSelector: '[data-ponder="theme-park"]',
     relatedTargetIds: ['theme-settings', 'vis-playground', 'import-export-settings'],
-    scenes: [target, colors, saving],
+    scenes: [colors, saving],
 } satisfies PonderTargetDefinition;

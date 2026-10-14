@@ -50,7 +50,7 @@ describe('settingsNavModel', () => {
     });
 
     it('expands every declared anchor under its owning section', () => {
-        const items = flattenSettingsNavItems(buildSettingsNavGroups(echo, { isElectron: true, hasLibrarySuiteChoice: true, isBravaisSuiteActive: true }));
+        const items = flattenSettingsNavItems(buildSettingsNavGroups(echo, { isElectron: true, hasLibrarySuiteChoice: true, isBravaisSuiteActive: true, isCustomPresetActive: true }));
         const rendered = items.flatMap(item => item.anchors.map(anchor => [anchor.id, item.id]));
         const declared = Object.entries(SETTINGS_ANCHOR_DEFINITIONS).map(([id, definition]) => [id, definition.section]);
 
@@ -79,6 +79,17 @@ describe('settingsNavModel', () => {
         expect(anchorsOf(true)!.indexOf('bravaisSettings')).toBe(anchorsOf(true)!.indexOf('librarySuite') + 1);
         expect(anchorsOf(false)).toContain('librarySuite');
         expect(anchorsOf(false)).not.toContain('bravaisSettings');
+    });
+
+    it('lists the detailed graphics anchors only while the quality tier is set to custom (they collapse otherwise)', () => {
+        const anchorsOf = (isCustomPresetActive: boolean) => findSettingsNavItem(
+            buildSettingsNavGroups(echo, { isElectron: true, isCustomPresetActive }),
+            'graphics',
+        )?.anchors.map(anchor => anchor.id);
+
+        // 档位选择器和常驻的静态模式/原生模糊/光晕量化不受这个标记管；只有被档位接管的两栏跟着走。
+        expect(anchorsOf(false)).toEqual(['graphicsPreset', 'graphicsPerformance']);
+        expect(anchorsOf(true)).toEqual(['graphicsPreset', 'graphicsQualitySwitches', 'graphicsMotion', 'graphicsPerformance']);
     });
 
     it.each([['en', en], ['zh-CN', zhCN], ['in', id]] as const)('has every label and description key in %s', (_name, bundle) => {

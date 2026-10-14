@@ -6,16 +6,21 @@
    而窗与全透明档的透着的磁贴根本不画叠色层（BravaisTile），所以叠色从不压在窗上。 */
 
 /* 熄灯时仍然亮着的：聚焦卡（要读、要点按钮）、键盘焦点与悬停的那张（看得见自己在哪）、列表联动与批量选中的那张。
-   正在播放的那张由 wall.css 的 :not(.is-current) 豁免。 */
+   正在播放的那张由 wall.css 的 :not(.is-current) 豁免。
+   2026-10-14 涟漪熄灯：wall.css 会在每张卡的熄灯层上写一个基于与当前播放距离的 transitionDelay（inline，无 important）；
+   悬停/聚焦/展开/联动/选中这些需要“立刻亮”的卡得把延迟强制归零，否则 hover 上去也要等一波。hover 离开后规则不再命中，
+   inline 的延迟会重新生效（重新暗下去仍跟波）。 */
 .bravais-root.is-lights-out .bravais-tile:hover > .lattice-poster .lattice-poster-lights-out,
 .bravais-root.is-lights-out .lattice-poster.bravais-tile-face:is(.is-expanded, .is-focused, .is-linked, .is-selected) .lattice-poster-lights-out {
     opacity: 0;
+    transition-delay: 0ms !important;
 }
 
 /* 全透明档：墙上的内容磁贴本身就是窗（透出下面的 visualizer），熄灯不往窗上涂黑，只把标题与徽标压暗。
-   部分透明档的窗、实色空画框没有内容，也就没有熄灯层。 */
+   部分透明档的窗、实色空画框没有内容，也就没有熄灯层。窗上的熄灯层本身也需立即到位。 */
 .bravais-root.is-lights-out .lattice-poster.bravais-tile-face.is-see-through .lattice-poster-lights-out {
     opacity: 0;
+    transition-delay: 0ms !important;
 }
 
 .bravais-tile-face.is-see-through > :is(.lattice-poster-copy, .lattice-poster-badge) {

@@ -17,6 +17,7 @@ import { fetchQQLyrics, searchQQLyrics } from '../../utils/lyrics/providers/qqLy
 import { writeProviderSessionValue } from './providerStorage';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from './qqNormalize';
 import { clearQqSession, getQqRemoteApiBase, getQqTransportAvailability, hasQqSession, requestQq } from './qqTransport';
+import { clearRemotePlatformSession, queuePlatformSessionPush } from '../sync/platformSessionSync';
 import { collectLoginBackendDiagnostics } from './loginBackendDiagnostics';
 import { canRunLoginSelfCheck, runLoginSelfCheck } from './loginSelfCheck';
 import { formatDiagnosticClock } from '../../utils/qrLoginDiagnosticReport';
@@ -392,6 +393,9 @@ const logout = async (): Promise<void> => {
             console.warn('[QQProvider] logout:error', errorFields(error));
         });
     }
+    // 共享会话语义（docs/qq-shared-session-design.md）：登出 = 全员下线。云端 token 与后端会话一起删；
+    // 本机 token 由 clearQqSession 清理，其他设备靠各自的 checkLoginStatus 发现失效。
+    await clearRemotePlatformSession('qq');
     clearQqSession();
 };
 
@@ -515,6 +519,9 @@ const checkQr = async (key: string): Promise<QrLoginState> => {
         // Idempotent with the transport, which already stored the opaque session string on this response.
         if (typeof response?.cookie === 'string' && response.cookie) {
             writeProviderSessionValue('qq', 'cookie', response.cookie);
+            // 共享会话（docs/qq-shared-session-design.md）：本机扫码成功后把后端会话键推上云，
+            // 其他设备免扫码直接登录。异步执行，不阻塞扫码确认流程。
+            void queuePlatformSessionPush('qq');
         }
         return { state: 'confirmed' };
     }

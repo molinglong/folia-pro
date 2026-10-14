@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/utils/appearanceCodec', () => ({
     compressConfig: vi.fn(() => 'folia-theme://x'),
-    readSavedCustomTheme: vi.fn(),
 }));
 vi.mock('@/services/themePreferences', () => ({
     readStoredLastAppliedThemePointer: vi.fn(),
@@ -21,7 +20,7 @@ vi.mock('@/services/themeCache', () => ({ getLastDualTheme: vi.fn() }));
 vi.mock('@/services/obs/visualSettingsConfig', () => ({ buildVisualSettingsConfig: () => ({ visualizerMode: 'monet' }) }));
 
 import { buildCurrentObsUrl } from '@/services/obs/currentObsUrl';
-import { compressConfig, readSavedCustomTheme } from '@/utils/appearanceCodec';
+import { compressConfig } from '@/utils/appearanceCodec';
 import { readStoredLastAppliedThemePointer } from '@/services/themePreferences';
 import { getLastDualTheme } from '@/services/themeCache';
 import { usePlayerChromeSettingsStore } from '@/stores/usePlayerChromeSettingsStore';
@@ -30,10 +29,9 @@ import { useStageSettingsStore } from '@/stores/useStageSettingsStore';
 
 const compressMock = vi.mocked(compressConfig);
 const pointerMock = vi.mocked(readStoredLastAppliedThemePointer);
-const customMock = vi.mocked(readSavedCustomTheme);
 const aiMock = vi.mocked(getLastDualTheme);
 
-const CUSTOM = { light: { name: 'custom-l' }, dark: { name: 'custom-d' } } as never;
+const AI = { light: { name: 'ai-l' }, dark: { name: 'ai-d' } } as never;
 
 // The config handed to compressConfig is the cfg payload, so its theme is what the link burns in.
 const bakedTheme = () => (compressMock.mock.calls.at(-1)?.[0] as any).theme;
@@ -42,18 +40,17 @@ describe('buildCurrentObsUrl', () => {
     beforeEach(() => {
         compressMock.mockClear();
         pointerMock.mockReset().mockReturnValue('default');
-        customMock.mockReset().mockReturnValue(undefined);
         aiMock.mockReset().mockResolvedValue(null);
         useStageSettingsStore.setState({ webObsThemeMode: 'static' });
         useThemeSettingsStore.setState({ isDaylight: false });
         usePlayerChromeSettingsStore.setState({ transparentPlayerBackground: false });
     });
 
-    it('bakes the applied custom theme in static mode', async () => {
-        pointerMock.mockReturnValue('custom');
-        customMock.mockReturnValue(CUSTOM);
+    it('bakes the cached AI theme in static mode when AI is active', async () => {
+        pointerMock.mockReturnValue('ai');
+        aiMock.mockResolvedValue(AI);
         await buildCurrentObsUrl('now-playing');
-        expect(bakedTheme()).toBe(CUSTOM);
+        expect(bakedTheme()).toBe(AI);
     });
 
     // Names, not identity: if the base preset ever moves or is renamed, this fails loudly.
@@ -63,8 +60,8 @@ describe('buildCurrentObsUrl', () => {
         expect(bakedTheme().light.name).toBe('Daylight Default');
     });
 
-    // The constant hardcodes 'normal'; the saved custom and cached AI themes already carry the
-    // user's stored intensity, so the fallback has to pick it up too.
+    // The constant hardcodes 'normal'; the cached AI theme already carries the user's stored
+    // intensity, so the fallback has to pick it up too.
     it('applies the stored animation intensity to the base preset fallback', async () => {
         await buildCurrentObsUrl('now-playing');
         expect(bakedTheme().dark.animationIntensity).toBe('calm');
@@ -72,8 +69,8 @@ describe('buildCurrentObsUrl', () => {
     });
 
     it('bakes no theme in the dynamic modes, even with one applied', async () => {
-        pointerMock.mockReturnValue('custom');
-        customMock.mockReturnValue(CUSTOM);
+        pointerMock.mockReturnValue('ai');
+        aiMock.mockResolvedValue(AI);
         for (const mode of ['builtin', 'ai'] as const) {
             useStageSettingsStore.setState({ webObsThemeMode: mode });
             await buildCurrentObsUrl('now-playing');

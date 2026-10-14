@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ReplayGainInfo, ReplayGainMode } from '../../types';
+import CollapsibleCard from './CollapsibleCard';
 
 // Shared control keeps local and Navidrome ReplayGain presentation and mode selection in sync.
 type ReplayGainValues = Pick<ReplayGainInfo, 'trackGain' | 'albumGain'>;
@@ -38,15 +39,19 @@ const ReplayGainControl: React.FC<ReplayGainControlProps> = ({
     const inactiveBackground = isDaylight ? 'bg-black/5 text-zinc-500 hover:bg-black/10' : 'bg-white/5 text-zinc-400 hover:bg-white/10';
 
     return (
-        <div className="space-y-2">
-            <div className="flex items-center justify-between">
+        <CollapsibleCard
+            bodyClassName="pt-2"
+            title={
                 <h3 className="text-[12px] font-bold opacity-40 uppercase tracking-widest">
                     {t('localMusic.replayGainTitle')}
                 </h3>
+            }
+            right={
                 <span className="text-[11px] opacity-60 text-right">
                     {summary}
                 </span>
-            </div>
+            }
+        >
             <div className="flex gap-1">
                 {modes.map(({ key, label }) => (
                     <button
@@ -60,7 +65,7 @@ const ReplayGainControl: React.FC<ReplayGainControlProps> = ({
                     </button>
                 ))}
             </div>
-        </div>
+        </CollapsibleCard>
     );
 };
 

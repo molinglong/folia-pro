@@ -117,7 +117,7 @@ export interface DualTheme {
   dark: Theme;
 }
 
-export type ThemeMode = 'default' | 'ai' | 'custom';
+export type ThemeMode = 'default' | 'ai';
 
 export type BuiltinVisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume' | 'monet';
 export type VisualizerMode = BuiltinVisualizerMode | (string & {});

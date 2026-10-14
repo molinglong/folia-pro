@@ -240,10 +240,10 @@ describe('PonderSurfaceContents', () => {
         expect(markup).toContain('data-ponder-playground-subtitle-font');
     });
 
-    it('Theme Park 顶栏三件齐全，保存灰掉那层同时亮出「信息」那一格', () => {
+    it('Theme Park 顶栏两件齐全，保存灰掉那层同时亮出「信息」那一格', () => {
         const markup = renderSurface('theme-park');
         expect(markup).toContain('data-ponder-theme-park-structure');
-        ['target', 'reset', 'save'].forEach(part => {
+        ['reset', 'save'].forEach(part => {
             expect(markup).toContain(`data-ponder-park-${part}`);
         });
         expect(markup).toContain('data-ponder-park-mode');

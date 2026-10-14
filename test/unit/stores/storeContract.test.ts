@@ -99,6 +99,12 @@ describe('store contract', () => {
             // so the settings store drives the position store. Same shape as the edge above, and
             // the reverse edge is likewise absent: the position store imports no store at all.
             useHomeLayoutSettingsStore: ['useHomeCardPositionStore'],
+            // The graphics quality tier is a deliberate cross-store orchestrator: choosing a tier
+            // has to write the frame-rate cap, the home dynamic background toggle and the six motion
+            // surfaces in one shot, so the preset store drives those three domain stores. Nothing
+            // drives the preset store back - the reverse subscriptions below are read-only refreshes
+            // of its own display state, not writes (see useGraphicsPresetStore.ts).
+            useGraphicsPresetStore: ['useVisualizerSettingsStore', 'useThemeSettingsStore', 'useMotionSettingsStore'],
         };
         const INFRASTRUCTURE = new Set([
             'storagePrimitives', 'useStatusMessageStore', 'visualizerSettingsPersistence', 'motionSignals',

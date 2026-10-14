@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildThemeSourceModel,
-    buildDefaultCustomDualTheme,
     buildBuiltinDualTheme,
     getBaseThemeForMode,
     resolveBgModeTheme
@@ -76,40 +75,11 @@ describe('themeControllerState', () => {
         expect(nextTheme).toBe(daylightTheme);
     });
 
-    it('builds an initial custom theme from the default light and dark themes', () => {
-        const initialCustomTheme = buildDefaultCustomDualTheme({
-            defaultTheme,
-            daylightTheme
-        });
-
-        expect(initialCustomTheme.light).toMatchObject({
-            name: daylightTheme.name,
-            backgroundColor: daylightTheme.backgroundColor,
-            primaryColor: daylightTheme.primaryColor,
-            accentColor: daylightTheme.accentColor,
-            secondaryColor: daylightTheme.secondaryColor,
-            provider: 'Custom'
-        });
-        expect(initialCustomTheme.dark).toMatchObject({
-            name: defaultTheme.name,
-            backgroundColor: defaultTheme.backgroundColor,
-            primaryColor: defaultTheme.primaryColor,
-            accentColor: defaultTheme.accentColor,
-            secondaryColor: defaultTheme.secondaryColor,
-            provider: 'Custom'
-        });
-        expect(initialCustomTheme.light.wordColors).toEqual([]);
-        expect(initialCustomTheme.dark.wordColors).toEqual([]);
-        expect(initialCustomTheme.light.lyricsIcons).toEqual([]);
-        expect(initialCustomTheme.dark.lyricsIcons).toEqual([]);
-    });
-
     it('uses the default AI dual theme when no generated AI theme exists', () => {
         const model = buildThemeSourceModel({
             bgMode: 'ai',
             aiTheme: null,
             legacyTheme: null,
-            customTheme: null,
             isDaylight: false,
             defaultTheme,
             daylightTheme,
@@ -121,6 +91,8 @@ describe('themeControllerState', () => {
         expect(model.options.ai.available).toBe(true);
         expect(model.options.ai.editable).toBe(true);
         expect(model.canOpenQuickEditor).toBe(true);
+        // The slot shows the sanitizer placeholder, not a palette of this song -- rows gray it out.
+        expect(model.hasSavedAiTheme).toBe(false);
     });
 
     it('treats built-in fallback dual themes as editable AI themes', () => {
@@ -131,7 +103,6 @@ describe('themeControllerState', () => {
             bgMode: 'ai',
             aiTheme: fallbackTheme,
             legacyTheme: null,
-            customTheme: null,
             isDaylight: true,
             defaultTheme,
             daylightTheme,
@@ -143,6 +114,7 @@ describe('themeControllerState', () => {
         expect(model.options.ai.available).toBe(true);
         expect(model.options.ai.editable).toBe(true);
         expect(model.editableSource).toBe('ai');
+        expect(model.hasSavedAiTheme).toBe(true);
     });
 
     it('shows legacy AI themes as available but not quick editable', () => {
@@ -154,7 +126,6 @@ describe('themeControllerState', () => {
             bgMode: 'ai',
             aiTheme: null,
             legacyTheme,
-            customTheme: null,
             isDaylight: false,
             defaultTheme,
             daylightTheme,
@@ -166,29 +137,7 @@ describe('themeControllerState', () => {
         expect(model.options.ai.available).toBe(true);
         expect(model.options.ai.editable).toBe(false);
         expect(model.editableSource).toBeNull();
-    });
-
-    it('marks the active custom source as quick editable', () => {
-        const customTheme = buildDefaultCustomDualTheme({
-            defaultTheme,
-            daylightTheme,
-        });
-        const model = buildThemeSourceModel({
-            bgMode: 'custom',
-            aiTheme: dualTheme,
-            legacyTheme: null,
-            customTheme,
-            isDaylight: true,
-            defaultTheme,
-            daylightTheme,
-            currentSongHasLocalAiTheme: false,
-        });
-
-        expect(model.activeSource).toBe('custom');
-        expect(model.current.label).toBe(customTheme.light.name);
-        expect(model.options.custom.available).toBe(true);
-        expect(model.options.custom.editable).toBe(true);
-        expect(model.editableSource).toBe('custom');
+        expect(model.hasSavedAiTheme).toBe(true);
     });
 
     it('preserves visual tokens while using AI foreground in daylight default background mode', () => {

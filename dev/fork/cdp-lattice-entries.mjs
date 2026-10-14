@@ -1,11 +1,12 @@
 // dev/fork/cdp-lattice-entries.mjs
-// @fork 本地魔改版专用（2026-10-13 第八刀）：连到自打包 Folia 的 CDP（9222），在真窗口里验两颗新的「进入 Lattice」入口，并截图留证。
+// @fork 本地魔改版专用（2026-10-13 第八刀，2026-10-14 companion 改「主页样式」）：连到自打包 Folia 的 CDP（9222），
+// 在真窗口里验右下角那颗常驻 companion 与聚焦卡上的 Lattice 入口，并截图留证。
 // 用法: node dev/fork/cdp-lattice-entries.mjs
 // 前提: C:\folia-build\win-unpacked\Folia.exe --remote-debugging-port=9222 已起（见 skills/fork-build-package）。
 // 判据与 test/component/bravaisChrome.spec.ts、bravaisPlayingCard.spec.ts 同一条路，只是换成真桌面壳 + 用户真实档案：
-//   ① 右下角工具按钮正上方那颗常驻「前往 Lattice」在、48×48、右缘对齐、容器盒子没被它撑高、面板开着不盖住它；
+//   ① 右下角工具按钮正上方那颗常驻 companion 在、48×48、右缘对齐、容器盒子没被它撑高、面板开着不盖住它；
 //   ② 展开一张「不是正在播放」的聚焦卡，卡上仍有 open-lattice 那颗（2026-10-13 放开门控的证据）；
-//   ③ 点常驻那颗 → 视图变 #lattice，且这颗消失（dock 换成 Lattice 认领）；回来它又出现。
+//   ③ 点常驻那颗 → 打开主页样式内联浮层（[data-home-style-panel]），Esc 关掉后回墙、companion 仍在。
 // 两个实测踩过的坑（别再去掉）：
 //   应用会开在用户上次停的视图上——可能就是 #lattice，那一面本来就没有这颗，先回墙再量（ensureOnWall）；
 //   从 Lattice 回墙时正在播放那张会被强制展开，所以「非正在播放的卡」这一条必须在进 Lattice 之前测。
@@ -51,6 +52,7 @@ const view = () => page.evaluate(() => ({
     companion: document.querySelectorAll('[data-wall-tools-companion]').length,
     stage: document.querySelector('[data-library-stage]')?.getAttribute('data-library-stage') ?? null,
     expanded: document.querySelectorAll('[data-bravais-expanded]').length,
+    stylePanel: document.querySelectorAll('[data-home-style-panel]').length,
 }));
 
 /** 离开海报墙，直到停在资料库墙上（工具按钮与 companion 都在）。 */
@@ -104,8 +106,7 @@ check('排在按钮正上方 10px', Boolean(geometry.companion && geometry.tools
     && Math.abs(geometry.tools.y - (geometry.companion.y + geometry.companion.h) - 10) < 1),
 { gap: geometry.companion && geometry.tools ? geometry.tools.y - (geometry.companion.y + geometry.companion.h) : null });
 check('容器盒子仍是 48×48（这颗出文档流）', geometry.stack?.w === 48 && geometry.stack?.h === 48, geometry.stack);
-check('可访问名与 tooltip', geometry.label === '前往 Lattice' && /Ctrl \+ B/.test(geometry.title ?? ''),
-{ label: geometry.label, title: geometry.title });
+check('可访问名是「主页样式」', geometry.label === '主页样式', { label: geometry.label, title: geometry.title });
 
 await page.screenshot({ path: `${OUT}/lattice-entries-corner.png`, clip: {
     x: Math.max(0, geometry.stack.x - 340), y: Math.max(0, geometry.stack.y - 340), width: 360, height: 360,
@@ -167,27 +168,17 @@ await page.screenshot({ path: `${OUT}/lattice-entries-focus-card.png` }).catch((
 await page.keyboard.press('Escape');
 await page.waitForTimeout(800);
 
-// 点常驻那颗 → 进 Lattice，且这颗消失（dock 换成 Lattice 认领）。
+// 点常驻那颗 → 打开主页样式内联浮层（不再进 Lattice；进 Lattice 改走面板内 open-lattice / Ctrl+B / 聚焦卡那颗）。
 await page.evaluate(() => document.querySelector('[data-wall-tools-companion]')?.click());
-await page.waitForTimeout(2500);
-const inLattice = await view();
-check('点了进 Lattice', inLattice.hash === '#lattice' || /#lattice/.test(inLattice.hash), inLattice);
-check('进了 Lattice 这颗不再画', inLattice.companion === 0 && inLattice.tools === 1, inLattice);
-await page.screenshot({ path: `${OUT}/lattice-entries-in-lattice.png` }).catch(() => null);
-
-// 回资料库墙：先按 Esc（Lattice 自己的阶梯），没退就走它左上角那颗返回按钮；两种都试到离开为止。
-for (let step = 0; step < 4; step++) {
-    if ((await view()).hash !== '#lattice') break;
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(1600);
-    if ((await view()).hash === '#lattice') {
-        await page.evaluate(() => document.querySelector('.lattice-back')?.click());
-        await page.waitForTimeout(1600);
-    }
-}
-await page.waitForTimeout(1200);
-const backOnWall = await view();
-check('回到资料库墙它又出现', backOnWall.companion === 1 && backOnWall.tools === 1, backOnWall);
+await page.waitForTimeout(800);
+const panelOpen = await view();
+check('点了打开主页样式浮层', panelOpen.stylePanel === 1, panelOpen);
+await page.screenshot({ path: `${OUT}/home-style-panel.png` }).catch(() => null);
+// Esc 关掉浮层：回到墙、companion 仍在。
+await page.keyboard.press('Escape');
+await page.waitForTimeout(700);
+const afterClose = await view();
+check('关掉浮层后回到墙、companion 仍在', afterClose.stylePanel === 0 && afterClose.companion === 1 && afterClose.tools === 1, afterClose);
 
 console.log(problems.length ? `RESULT FAIL ${problems.join(' | ')}` : 'RESULT PASS 全部通过');
 await browser.close().catch(() => {});

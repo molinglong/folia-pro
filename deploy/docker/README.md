@@ -80,6 +80,7 @@ docker compose ps
 | `FOLIA_SYNC_DATA_DIR` | `./data/sync` | SQLite 持久化目录 |
 | `SYNC_TOKEN` | 无 | Sync 客户端 Bearer Token，至少八位，必填 |
 | `DASHBOARD_TOKEN` | 空 | Sync Server 隐藏看板 Token |
+| `ALLOW_REGISTER` | `true` | 账号开放注册开关（账号功能仅 Docker / Node 形态支持）；公网建议 `false` 并用 `POST /admin/users`（带 `DASHBOARD_TOKEN`）手动建号 |
 
 AI 密钥只传给 backend 容器，不会写入前端静态文件。`FOLIA_AI_PROVIDER` 同时被 gateway（注入前端运行时配置）和 backend（歌词分词选 provider）读取，修改后重建这两个容器即可，不需要重新构建镜像：
 

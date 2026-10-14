@@ -1,7 +1,8 @@
-import { ChartBar, Heart, ListMusic, PanelsTopLeft, Repeat, Repeat1, RepeatOff, Shuffle, SkipBack, SkipForward, Timer, Volume2 } from 'lucide-react';
+import { ChartBar, Heart, ListMusic, PanelsTopLeft, Repeat, Repeat1, RepeatOff, Shuffle, SkipBack, SkipForward, Timer, Volume2, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlayerControlSlotActionId } from '../../types/playerControlSlots';
 import { noteLoopButtonPress } from '../../services/ponder/loopShuffleHint';
+import { togglePlaybackQuickPanel } from '../../stores/usePlaybackQuickPanelStore';
 
 // src/components/floating-player/playerControlSlotActions.ts
 // 进度条胶囊右侧两个可自定义槽位的动作清单。
@@ -38,6 +39,11 @@ export type PlayerControlSlotContext = {
      * 面板已经把队列命令藏起来了，槽位却还能点开它。
      */
     canInvokeCommandById: (commandId: string) => boolean;
+    /**
+     * @fork 播放快捷二级浮层此刻开不开（只给按钮高亮用）。可选：
+     * Lattice 等其它组装方不传也不影响开关本身（开关在纯 UI store 里）。
+     */
+    isPlaybackQuickOpen?: boolean;
 };
 
 /** 单个槽位算出来的渲染结果。 */
@@ -61,6 +67,7 @@ export const PLAYER_CONTROL_SLOT_OPTIONS: readonly { id: PlayerControlSlotAction
     { id: 'like', icon: Heart, labelKey: 'options.playerControlSlotAction_like' },
     { id: 'lyrics-timeline', icon: ChartBar, labelKey: 'options.playerControlSlotAction_lyricsTimeline' },
     { id: 'volume', icon: Volume2, labelKey: 'options.playerControlSlotAction_volume' },
+    { id: 'playback-quick', icon: Zap, labelKey: 'options.playerControlSlotAction_playbackQuick' },
     { id: 'queue', icon: ListMusic, labelKey: 'options.playerControlSlotAction_queue' },
     { id: 'song-wall', icon: PanelsTopLeft, labelKey: 'options.playerControlSlotAction_songWall' },
     { id: 'sleep-timer', icon: Timer, labelKey: 'options.playerControlSlotAction_sleepTimer' },
@@ -146,6 +153,17 @@ export const resolvePlayerControlSlot = (
                 disabled: !context.canInvokeCommandById('playback-volume'),
                 onActivate: () => context.invokeCommandById('playback-volume'),
                 labelKey: 'options.playerControlSlotAction_volume',
+            };
+        case 'playback-quick':
+            // @fork 本地魔改版（2026-10-14）：点开/收起胶囊上方的「播放快捷」二级浮层（音量 + 静音 + 洗牌）。
+            // 开关住在纯 UI store，这里直接读写（同 loop 案直接 noteLoopButtonPress 的路数），不劳组装方传 handler。
+            return {
+                icon: Zap,
+                filled: false,
+                active: context.isPlaybackQuickOpen ?? false,
+                disabled: false,
+                onActivate: () => togglePlaybackQuickPanel(),
+                labelKey: 'options.playerControlSlotAction_playbackQuick',
             };
         case 'queue':
             return {

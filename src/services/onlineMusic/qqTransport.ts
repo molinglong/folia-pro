@@ -1,5 +1,7 @@
 import { OnlineProviderError } from '../../types/onlineMusic';
 import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from './providerStorage';
+import { getQqApiBaseUrlOverride } from './qqApiConfig';
+import { registerRemoteQqBackendProbe } from '../sync/platformSessionSync';
 
 // src/services/onlineMusic/qqTransport.ts
 
@@ -54,6 +56,10 @@ const getWebApiBase = (): string => {
     return value.trim().replace(/\/$/, '');
 };
 
+// 平台会话键云同步（platformSessionSync）需要知道本机 token 是否发给"远程共享后端"：
+// 只有 web 形态配了 VITE_QQ_API_BASE（或未来的设置项）才算数，Electron 内嵌后端模式 token 出不去。这里注册探测函数，
+// 避免 sync 层反向依赖 onlineMusic 的配置实现（HMR 重复注册是覆盖式，无害）。
+
 // Electron embeds qq-music-api and starts it on a free port, so the base is only known at runtime.
 const getElectronQqPortReader = (): (() => Promise<number | null>) | null => {
     if (typeof window === 'undefined') return null;
@@ -67,6 +73,9 @@ export const resetQqTransportRuntimeCache = (): void => {
     electronApiBase = null;
 };
 
+registerRemoteQqBackendProbe(() => Boolean(getQqApiBaseUrlOverride())
+    || (!getElectronQqPortReader() && Boolean(getWebApiBase())));
+
 // 内嵌后端没在监听时，把主进程报的状态与故障原因带进错误：时间线里直接能看到它为什么没起来。
 const describeEmbeddedStatus = async (): Promise<string> => {
     try {
@@ -78,6 +87,10 @@ const describeEmbeddedStatus = async (): Promise<string> => {
 };
 
 const resolveApiBase = async (): Promise<string> => {
+    // 设置项最高优先：填了就放弃内嵌/构建期变量，直接用用户指定的远程后端。
+    const override = getQqApiBaseUrlOverride();
+    if (override) return override;
+
     const readPort = getElectronQqPortReader();
     if (readPort) {
         if (electronApiBase) return electronApiBase;

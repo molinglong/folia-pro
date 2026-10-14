@@ -1,4 +1,5 @@
 import type { LyricData, SongResult } from '../types';
+import type { ThemeGenerationSource } from '../services/themePreferences';
 import { getPlaybackSongKey } from './appPlaybackGuards';
 
 // src/utils/songThemeAutoGeneration.ts
@@ -32,6 +33,26 @@ export const isSongThemeGenerationStillCurrent = ({
     targetSongKey: string;
     enabled: boolean;
 }) => latestSongKey === targetSongKey && enabled;
+
+// Product rule: per-song colors follow the cover by default. The free cover path therefore only
+// needs the auto-switch put -- it is not gated behind the metered auto-generate switch, which
+// exists to guard AI token spend. An explicit AI source keeps both switches, and the auto-switch
+// off-put means "stop moving my colors".
+export const resolveSongThemeAutoGenerationEnabled = ({
+    themeGenerationSource,
+    songThemeAutoSwitchEnabled,
+    songThemeAutoGenerateEnabled,
+}: {
+    themeGenerationSource: ThemeGenerationSource;
+    songThemeAutoSwitchEnabled: boolean;
+    songThemeAutoGenerateEnabled: boolean;
+}) => {
+    if (!songThemeAutoSwitchEnabled) {
+        return false;
+    }
+
+    return themeGenerationSource === 'cover' || songThemeAutoGenerateEnabled;
+};
 
 export const shouldRequestSongThemeAutoGeneration = ({
     enabled,

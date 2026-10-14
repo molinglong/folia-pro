@@ -11,6 +11,7 @@ import {
     type WallMetrics,
 } from '../../wall/layout';
 import { useWallCameraPan, type LatticeCamera } from '../../wall/useWallCameraPan';
+import { computeLightsRippleDelay } from '../../wall/lightsRipple';
 import { useLatticePosterSelection } from './useLatticePosterSelection';
 import { useWallKeyboardFocus } from './useWallKeyboardFocus';
 import { useWallPointerPan } from '../../wall/useWallPointerPan';
@@ -57,6 +58,8 @@ const ENTRANCE_WINDOW = 1100;
 const METRICS: WallMetrics = { cellSize: CELL_SIZE, gap: GAP };
 // Longest edge a card can reach, which is the gear expansion hands it.
 const EXPANDED_SIZE = EXPANSION_SPAN.cols * (CELL_SIZE + GAP) - GAP;
+// 涟漪熄灯：关灯/开灯时以正在播放那张为中心，每张卡的熄灯层按与中心的欧氏距离延后启动。具体延迟公式抽到
+// components/wall/lightsRipple.ts，bravais 那边同一份。
 
 
 const getScale = (width: number) => width < 640 ? 0.52 : width < 1100 ? 0.64 : 0.76;
@@ -320,6 +323,21 @@ export default function PosterWall({
         waitingForFocus: autoFocusOnSongChange && !activePoster && currentSongKey !== null
             && tiles.some(tile => tile.id === currentSongKey),
     });
+    // 涟漪熄灯的中心：当前播放那张卡的世界坐标中心。没在播/不在队列里时为 null，延迟固定 0（不做涟漪）。
+    // instances 变化（重新剔归/culling）与 layout 变化（展开或收起）都会重新算；song 切换时 tiles 已换新引用，
+    // 本来就会引发 LatticePoster 重渲染，不担心额外的开销。
+    const lightsRippleOrigin = useMemo(() => {
+        for (const instance of instances) {
+            const tile = tiles[instance.queueIndex];
+            if (!tile || tile.section !== 'now') continue;
+            const rect = layout.get(instance.instanceId) ?? instance;
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+        }
+        return null;
+    }, [instances, layout, tiles]);
+    const getLightsRippleDelay = useCallback((rect: { x: number; y: number; width: number; height: number }) => {
+        return computeLightsRippleDelay(rect, lightsRippleOrigin);
+    }, [lightsRippleOrigin]);
     return (
         <div
             ref={containerRef}
@@ -357,6 +375,7 @@ export default function PosterWall({
                             entranceDelay={getEntranceDelay(rect)}
                             getExitDelay={getExitDelay}
                             handoff={handoff.getPosterHandoff(instance.instanceId, rect)}
+                            lightsRippleDelay={getLightsRippleDelay(rect)}
                             expanded={expanded}
                             reducedMotion={reducedMotion}
                             didDragRef={didDragRef}

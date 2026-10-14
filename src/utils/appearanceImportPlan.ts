@@ -1,8 +1,3 @@
-import {
-    resolveSongThemeAutoGenerateChange,
-    resolveSongThemeAutoSwitchChange,
-    type ThemePreferenceSwitchState,
-} from '../services/themePreferences';
 import { mergeUrlBackgroundList } from './urlBackground';
 import { normalizeFontWeight } from './fontStacks';
 import type { UrlBackgroundItem } from '../types';
@@ -12,10 +7,9 @@ import type { UrlBackgroundItem } from '../types';
 // caller passes the incoming config and a snapshot of the current one, both in the shape
 // decompressConfig/buildVisualSettingsConfig already speak, so the diff is a field-by-field compare.
 //
-// The point of doing this up front is the derived changes. The three song-theme switches are
-// mutually exclusive by construction (see themePreferences resolvers), so accepting an incoming
-// auto-switch value can also flip "prefer custom theme" — a setting that is not in the config at
-// all and would otherwise change with no warning.
+// The point of doing this up front is the derived changes. The two song-theme switches are
+// mutually constrained by construction (see themePreferences resolvers), so accepting an incoming
+// value for one can also flip the other — a change the config itself never asks for.
 
 export type ImportGroup = 'theme' | 'visualizer' | 'fonts' | 'background' | 'songTheme' | 'trackCard' | 'libraryWall';
 
@@ -52,17 +46,6 @@ export interface ImportPlan {
     // Groups with at least one change, in display order.
     groups: ImportGroup[];
 }
-
-// The theme is offered per side. Wanting someone's night colours while keeping your own day ones is
-// the common case, and a single theme row cannot express it.
-export const THEME_LIGHT_KEY = 'themeLight';
-export const THEME_DARK_KEY = 'themeDark';
-
-// Switching to the custom theme is its own change: a config carries a theme, but taking it says
-// nothing about whether the app should stop showing the default or AI theme and display it. Offered
-// whenever the config has a theme and custom is not already the active mode, so importing a theme
-// that happens to match the saved one still has a way to activate it.
-export const ACTIVATE_CUSTOM_THEME_KEY = 'activateCustomTheme';
 
 // Every config field the import path actually applies, mapped to the group it is presented under.
 // Fields the codec round-trips but the import path does not apply are deliberately absent, so the
@@ -216,38 +199,6 @@ const isSameValue = (a: unknown, b: unknown): boolean => {
     }
 };
 
-// A theme side is compared on what it renders as. name/provider/description are labels, and an empty
-// list is the same as an absent one — comparing those too would report a change the user cannot see.
-//
-// animationIntensity is deliberately absent: saveCustomDualTheme runs the saved theme through
-// applyStoredAnimationIntensityToDualTheme, which overwrites both sides with this machine's stored
-// intensity. Comparing it would report a difference that the save discards, and re-importing the
-// same config would report it again forever.
-const THEME_SIDE_FIELDS = [
-    'backgroundColor',
-    'primaryColor',
-    'accentColor',
-    'secondaryColor',
-    'fontStyle',
-    'fontFamily',
-    'wordColors',
-    'lyricsIcons',
-] as const;
-
-const isEmptyish = (value: unknown) =>
-    value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
-
-const isSameThemeSide = (a: unknown, b: unknown): boolean => {
-    if (a === b) return true;
-    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
-    return THEME_SIDE_FIELDS.every((field) => {
-        const left = (a as Record<string, unknown>)[field];
-        const right = (b as Record<string, unknown>)[field];
-        if (isEmptyish(left) && isEmptyish(right)) return true;
-        return isSameValue(left, right);
-    });
-};
-
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
     Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
@@ -327,10 +278,8 @@ const diffLeaves = (from: unknown, to: unknown, group: ImportGroup, prefix = '')
 export interface ImportPlanInput {
     // decompressConfig output.
     incoming: Record<string, unknown>;
-    // Same field names, read from the live settings (buildVisualSettingsConfig plus the theme).
+    // Same field names, read from the live settings (buildVisualSettingsConfig).
     current: Record<string, unknown>;
-    // Drives the derived song-theme changes; isCustomThemePreferred is not a config field.
-    switches: ThemePreferenceSwitchState;
     // Only a system font family is portable, so an uploaded font is never in the config — but
     // accepting a family replaces it and deletes the stored file. Pass the current source so that
     // loss can be shown rather than discovered afterwards.
@@ -340,8 +289,6 @@ export interface ImportPlanInput {
     customFontLabel?: string | null;
     // From isFontFamilyAvailable. Undefined means it was not measured, which stays quiet.
     incomingFontAvailable?: boolean;
-    // Whether the custom theme is the mode on screen right now. Drives the activate row.
-    isCustomThemeActive?: boolean;
     // Which browser-local assets exist here. A source that names one this machine does not have is
     // reverted, so offering it would promise a change that cannot land.
     assets?: LocalAssetAvailability;
@@ -350,42 +297,14 @@ export interface ImportPlanInput {
 export function buildImportPlan({
     incoming,
     current,
-    switches,
     customFontSource,
     customFontLabel,
     incomingFontAvailable,
-    isCustomThemeActive,
     assets = {},
 }: ImportPlanInput): ImportPlan {
     const changes: ImportChange[] = [];
     const unchanged: ImportChange[] = [];
     const record = (change: ImportChange, same: boolean) => (same ? unchanged : changes).push(change);
-
-    if (incoming.theme) {
-        const incomingTheme = incoming.theme as { light?: unknown; dark?: unknown; };
-        const currentTheme = (current.theme ?? null) as { light?: unknown; dark?: unknown; } | null;
-        for (const [key, side] of [[THEME_LIGHT_KEY, 'light'], [THEME_DARK_KEY, 'dark']] as const) {
-            const from = currentTheme?.[side] ?? null;
-            const to = incomingTheme[side];
-            if (to === undefined) continue;
-            record({ group: 'theme', key, from, to }, isSameThemeSide(from, to));
-        }
-
-        // Switching to the custom theme is its own row, because a config whose theme already matches
-        // the saved one has no side to pick and would otherwise offer no way to switch to it.
-        //
-        // It is not a free choice alongside a side, though: saveCustomDualTheme sets the mode to
-        // custom as part of saving, so taking someone's colours necessarily shows them. The rows are
-        // linked rather than left to promise a combination the setter cannot produce.
-        if (!isCustomThemeActive) {
-            changes.push({ group: 'theme', key: ACTIVATE_CUSTOM_THEME_KEY, from: false, to: true });
-            for (const change of changes) {
-                if (change.key === THEME_LIGHT_KEY || change.key === THEME_DARK_KEY) {
-                    change.forces = [ACTIVATE_CUSTOM_THEME_KEY];
-                }
-            }
-        }
-    }
 
     // The import applies the per-renderer tunings only when the bundle is absent, so listing them
     // alongside a bundle would promise changes that never happen.
@@ -477,29 +396,6 @@ export function buildImportPlan({
             derived: true,
             causedBy: ['lyricsCustomFontFamily'],
         });
-    }
-
-    // Derived: replay the resolvers in the order the import applies them, threading the state so the
-    // second resolver sees the first one's result — the same composition the theme controller uses.
-    const wantsSwitch = incoming.songThemeAutoSwitchEnabled;
-    const wantsGenerate = incoming.songThemeAutoGenerateEnabled;
-    if (wantsSwitch !== undefined || wantsGenerate !== undefined) {
-        let next = switches;
-        if (wantsSwitch !== undefined) next = resolveSongThemeAutoSwitchChange(next, Boolean(wantsSwitch));
-        if (wantsGenerate !== undefined) next = resolveSongThemeAutoGenerateChange(next, Boolean(wantsGenerate));
-        if (next.isCustomThemePreferred !== switches.isCustomThemePreferred) {
-            changes.push({
-                group: 'songTheme',
-                key: 'isCustomThemePreferred',
-                from: switches.isCustomThemePreferred,
-                to: next.isCustomThemePreferred,
-                derived: true,
-                causedBy: [
-                    ...(wantsSwitch !== undefined ? ['songThemeAutoSwitchEnabled'] : []),
-                    ...(wantsGenerate !== undefined ? ['songThemeAutoGenerateEnabled'] : []),
-                ],
-            });
-        }
     }
 
     // The two song-theme switches are not independent. resolveSongThemeAutoGenerateChange(_, true)

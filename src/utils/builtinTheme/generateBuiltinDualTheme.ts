@@ -24,10 +24,11 @@ import {
 } from './themeColorRanges';
 
 // src/utils/builtinTheme/generateBuiltinDualTheme.ts
-// Generates the light/dark theme pair used when no AI API key is configured. Colors are computed
-// from the cover's own hues plus a harmony scheme instead of snapping onto a fixed preset, and
-// every text color is pushed along its lightness axis until it clears the contrast floor, so it
-// keeps its hue rather than collapsing into a hard-coded near-white / near-black.
+// Generates the light/dark theme pair used when no AI API key is configured. Every hue comes from
+// the cover itself — the leading hue for ground and text, the cover's own second hue for the
+// accent — instead of a random harmony scheme flinging colors across the wheel, and every text
+// color is pushed along its lightness axis until it clears the contrast floor, so it keeps its
+// hue rather than collapsing into a hard-coded near-white / near-black.
 
 const between = (random: () => number, [min, max]: Range) => min + random() * (max - min);
 
@@ -67,7 +68,7 @@ const buildAccentColor = (
         ACCENT_MIN_CONTRAST,
     );
 
-    // A monochrome/analogous accent can land on top of the primary text color; rotate it away.
+    // A single-hue accent can land on top of the primary text color; rotate it away.
     const collidesWithPrimary = getHueDistance(palette.accentHue, palette.baseHue) < 15
         && getContrastRatio(accent, primaryColor) < 1.3;
 

@@ -339,32 +339,15 @@ export const PonderVisPlaygroundSurface: React.FC<SurfaceProps> = ({ accent, lin
 /**
  * Theme Park。
  *
- * 顶栏右端三件是这一屏的关键：在编辑哪一份主题、重置、保存。保存会因为名字没填而
- * 灰着，而名字在右栏「信息」那一页上 —— 所以 `save-blocked` 那一层要同时把灰掉的
- * 保存和那一格标签亮出来，两样分开画就讲不成一句话。
+ * 顶栏右端两件是这一屏的关键：重置、保存。保存会因为名字没填而灰着，而名字在右栏
+ * 「信息」那一页上 —— 所以 `save-blocked` 那一层要同时把灰掉的保存和那一格标签
+ * 亮出来，两样分开画就讲不成一句话。
  */
 export const PonderThemeParkSurface: React.FC<SurfaceProps> = ({ accent, line, outline, registerStateNode }) => (
     <div className="absolute inset-0 overflow-hidden" data-ponder-theme-park-structure>
         <PonderSurfaceBase registerStateNode={registerStateNode}>
-            {/* 顶栏右端三件的几何是相对顶栏的，所以它们作为 children 长在顶栏里面。 */}
+            {/* 顶栏右端两件的几何是相对顶栏的，所以它们作为 children 长在顶栏里面。 */}
             <EditorHeader rect={P.header} line={line} outline={outline} marker="data-ponder-park-header">
-                <div
-                    data-ponder-park-target
-                    className="flex items-stretch gap-[2%] rounded-full p-[1%]"
-                    style={{ ...relativeRectStyle(P.targetToggle), backgroundColor: 'rgba(255,255,255,0.05)' }}
-                >
-                    {[0, 1].map(index => (
-                        <span
-                            key={index}
-                            data-ponder-park-target-option
-                            data-ponder-park-target-active={index === 1 || undefined}
-                            className="flex flex-1 items-center justify-center rounded-full"
-                            style={{ backgroundColor: index === 1 ? `${accent}26` : undefined }}
-                        >
-                            <span className="h-1 w-[58%] rounded-full" style={{ backgroundColor: index === 1 ? accent : line, opacity: index === 1 ? 1 : 0.5 }} />
-                        </span>
-                    ))}
-                </div>
                 <span
                     data-ponder-park-reset
                     className="flex items-center justify-center gap-[10%] rounded-full border"

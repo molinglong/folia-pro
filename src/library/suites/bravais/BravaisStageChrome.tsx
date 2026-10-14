@@ -1,10 +1,10 @@
 import React, { useCallback, useSyncExternalStore } from 'react';
-import { Blinds, Crosshair, PanelsTopLeft, Shuffle, Sparkles, Volume1, Volume2, VolumeX } from 'lucide-react';
+import { Blinds, Crosshair, PanelsTopLeft, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import WallBackButton from '../../../components/wall/WallBackButton';
 import WallToolsButton, { type WallToolsEntry, type WallToolsQuickAction } from '../../../components/wall/WallToolsButton';
-import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
+import { openHomeStylePanel } from '../../../stores/useHomeStylePanelStore';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import type { LibraryWallLook } from '../../../utils/libraryWallLook';
 import type { LibraryStageToolsPort, LibraryStageToolsSnapshot } from '../../core/contracts/ports';
@@ -17,13 +17,17 @@ import type { BravaisBackStep } from './bravaisBack';
 // - 左上角隐藏式返回（WallBackButton concealed）：做什么由 stage 按 bravaisBack 定——不在首页根层时与缝里的 ‹ 同一个返回
 //   （先关面板 / 表单，再退层），可访问名「返回」；首页根层有歌时回到播放页（「回到播放页」），没有歌时不画。
 //   z-index 在缝之下：缝正好开在左上角时让缝的按钮在上面。
-// - 右下角工具按钮（WallToolsButton）：面板按功能分三组——
-//   1. 顶部一排图标快捷动作（一次性动作）：定位正在播放（外观动作 locate-playing）、队列洗牌、为当前歌曲生成主题（宿主经
+// - 右下角工具按钮（WallToolsButton）：面板按功能分组——
+//   1. 顶部一排图标快捷动作（一次性动作）：定位正在播放（外观动作 locate-playing）、为当前歌曲生成主题（宿主经
 //      stage 契约的 tools 端口，命令面板的同一条命令）、前往 Lattice（宿主的 onOpenLattice，首页工具格「队列拼贴」同一个入口）；
-//   2. 音量滑条（连续量：读写应用的音量 store，与播放条 / 播放页面板同一份；拖动时经端口预览、松手才写；左侧图标静音切换）；
-//   3. 「墙面外观」：透光（循环三档，面板不收起）、共享的叠色开关、开灯 / 关灯；帮助在右下角（行在 bravaisHelp）。
+//   2. 「墙面外观」：透光（循环三档，面板不收起）、共享的叠色开关、开灯 / 关灯；帮助在右下角（行在 bravaisHelp）。
 //   滑动打开命令面板。不碰相机与显示：定位走外观动作的同一个实现，透光写 app 层偏好（与命令面板的 wall-look 同一条路）。
-// @fork 本地魔改版（2026-10-13）：这颗工具按钮还带一个 companion——正上方常驻的「前往 Lattice」直达格，不展开面板就能进。
+// @fork 本地魔改版（2026-10-13）：这颗工具按钮还带一个 companion——正上方常驻的一颗直达图标，不展开面板就能触发。
+// @fork 本地魔改版（2026-10-14）：companion 从「前往 Lattice」换成「主页样式」——用户有更方便的进 Lattice 路子
+//   （面板内 open-lattice 快捷格、Ctrl + B、聚焦卡那颗都还在），把这颗常驻位让给主页样式内联浮层（openHomeStylePanel）。
+// @fork 本地魔改版（2026-10-14）：面板原本的音量滑条与洗牌快捷格搬进播放胶囊的「播放快捷」二级浮层（PlaybackQuickPanel）
+//   ——用户吐槽播放项和墙面外观混在一锅，墙面面板自此只管墙；tools 端口的 previewVolume / canShuffleQueue 留在契约里，
+//   只是这里不再消费。
 
 const LOOK_LABEL_KEYS: Record<LibraryWallLook, string> = {
     solid: 'options.libraryWallLookSolid',
@@ -34,15 +38,6 @@ const LOOK_LABEL_KEYS: Record<LibraryWallLook, string> = {
 const NO_TOOLS_SNAPSHOT: LibraryStageToolsSnapshot = { themeGeneration: 'unavailable', canShuffleQueue: false };
 const noopSubscribe = () => () => {};
 const readNoToolsSnapshot = () => NO_TOOLS_SNAPSHOT;
-
-/** 音量图标随显示的值变（与播放页面板的音量行同一套：0 / 静音、小于一半、其余）。 */
-const volumeIcon = (value: number) => (value === 0 ? VolumeX : value < 0.5 ? Volume1 : Volume2);
-
-/** 拖动或按键改音量时先解除静音（拖到一个音量就是想听见它）。 */
-const unmuteForVolumeChange = () => {
-    const audio = useAudioSettingsStore.getState();
-    if (audio.isMuted) audio.handleToggleMute();
-};
 
 type BravaisStageChromeProps = {
     isDaylight: boolean;
@@ -72,8 +67,6 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({
     const { t } = useTranslation();
     const look = useLibraryWallLookStore(state => state.look);
     const setLook = useLibraryWallLookStore(state => state.setLook);
-    const volume = useAudioSettingsStore(state => state.volume);
-    const isMuted = useAudioSettingsStore(state => state.isMuted);
     const toolsSnapshot = useSyncExternalStore(tools?.subscribe ?? noopSubscribe, tools?.getSnapshot ?? readNoToolsSnapshot);
 
     // 面板打开着渲染时才求值：正在播放的那首此刻在不在墙上（与命令面板里同一个判定）。
@@ -89,18 +82,8 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({
         }];
         if (tools) {
             const themeBusy = toolsSnapshot.themeGeneration === 'busy';
+            // @fork 洗牌格已搬进胶囊的播放快捷浮层（见文件头），这里只剩主题一格。
             actions.push({
-                id: 'shuffle-queue',
-                icon: Shuffle,
-                label: t('libraryBravais.toolsShuffle'),
-                shortLabel: t('libraryBravais.toolsShuffleShort'),
-                kbd: ': + R',
-                disabled: !toolsSnapshot.canShuffleQueue,
-                status: toolsSnapshot.canShuffleQueue ? undefined : t('libraryBravais.toolsShuffleUnavailable'),
-                // 不收起：洗完还能再洗一次，提示条报「播放队列已打乱」。
-                keepOpen: true,
-                onSelect: tools.shuffleQueue,
-            }, {
                 id: 'generate-theme',
                 icon: Sparkles,
                 label: t('libraryBravais.toolsTheme'),
@@ -131,28 +114,7 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({
     }, [locatePlaying, onOpenLattice, t, tools, toolsSnapshot]);
 
     const entries = useCallback((): WallToolsEntry[] => [
-        {
-            kind: 'slider',
-            id: 'volume',
-            label: t('ui.volume'),
-            value: isMuted ? 0 : volume,
-            icon: Volume2,
-            iconFor: volumeIcon,
-            iconAction: {
-                label: isMuted ? t('libraryBravais.toolsUnmute') : t('libraryBravais.toolsMute'),
-                pressed: isMuted,
-                onPress: () => useAudioSettingsStore.getState().handleToggleMute(),
-            },
-            formatValue: value => (isMuted ? t('libraryBravais.toolsMuted') : `${Math.round(value * 100)}%`),
-            onPreview: value => {
-                unmuteForVolumeChange();
-                tools?.previewVolume(value);
-            },
-            onCommit: value => {
-                unmuteForVolumeChange();
-                useAudioSettingsStore.getState().handleSetVolume(value);
-            },
-        },
+        // @fork 音量滑条已搬进胶囊的播放快捷浮层（见文件头），面板从「墙面外观」分组直接开始。
         { kind: 'heading', id: 'appearance', label: t('libraryBravais.toolsAppearance') },
         {
             kind: 'action',
@@ -163,7 +125,7 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({
             keepOpen: true,
             onSelect: () => setLook(nextWallLook(look)),
         },
-    ], [isMuted, look, setLook, t, tools, volume]);
+    ], [look, setLook, t]);
 
     return (
         <>
@@ -181,16 +143,15 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({
                 isDaylight={isDaylight}
                 quickActions={quickActions}
                 entries={entries}
-                // @fork 本地魔改版（2026-10-13）：用户「进入 Lattice 好麻烦」——把面板里那一格「前往 Lattice」同时提到
-                // 按钮正上方常驻，省掉「先展开面板」这一趟。同一个 onOpenLattice 端口、同一个图标，两处并存不冲突；
-                // Lattice 那一面不给 companion，所以进了海报墙它自己消失（走 dock 的认领，见 WallToolsButton.tsx）。
-                companion={onOpenLattice ? {
-                    id: 'open-lattice',
-                    icon: PanelsTopLeft,
-                    label: t('libraryBravais.toolsLattice'),
-                    kbd: `${PRIMARY_MODIFIER_LABEL} + B`,
-                    onSelect: onOpenLattice,
-                } : undefined}
+                // @fork 本地魔改版（2026-10-14）：常驻那颗从「前往 Lattice」换成「主页样式」——点开主页样式内联浮层，
+                // 现场调卡片样式 / 顶部入口 / 视频层 / Bravais 墙面。不再依赖 onOpenLattice 端口，所以在 bravais 墙上恒画；
+                // Lattice 那一面不给 companion，进了海报墙它自然消失（走 dock 的认领，见 WallToolsButton.tsx）。
+                companion={{
+                    id: 'home-style',
+                    icon: SlidersHorizontal,
+                    label: t('homeStyle.entry'),
+                    onSelect: openHomeStylePanel,
+                }}
                 help={BRAVAIS_HELP_ROWS.map(row => (
                     <li key={row.id} data-bravais-help={row.id}>
                         <span>{t(row.labelKey)}</span>

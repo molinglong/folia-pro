@@ -729,14 +729,3 @@ export const decompressConfig = (str: string): any => {
         return parsed;
     }
 };
-
-export const readSavedCustomTheme = (): DualTheme | undefined => {
-    if (typeof window === 'undefined') return undefined;
-    const saved = localStorage.getItem('custom_dual_theme');
-    if (!saved) return undefined;
-    try {
-        return JSON.parse(saved) as DualTheme;
-    } catch {
-        return undefined;
-    }
-};

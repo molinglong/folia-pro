@@ -174,7 +174,7 @@ Folium 是 Folia 的模组平台。模组可以添加新的歌词动画模式和
 
 ## Sync Server
 
-Folia 提供了可选的官方同步服务端 `sync-server`，用于在多个设备之间同步外观设置与 AI 主题库。服务端由用户自行托管，适合希望跨设备同步配色主题的用户。
+Folia 提供了可选的官方同步服务端 `sync-server`，用于在多个设备之间同步外观设置、AI 主题库与在线音乐收藏（歌单、喜欢的歌）。支持全局 Token 单用户模式；Docker / Node 部署还提供邮箱账号多用户模式，登录后按账号隔离数据（平台登录凭证永不上云）。服务端由用户自行托管。
 
 支持以下部署方式：
 
@@ -183,7 +183,7 @@ Folia 提供了可选的官方同步服务端 `sync-server`，用于在多个设
 - **Docker**：镜像与 Compose 入口见 [Docker 部署目录](deploy/docker/README.md)。
 - **Node.js 自托管**：使用 SQLite，适合本地或不方便使用 Docker 的环境。
 
-详细的环境变量、Token 配置与部署步骤请参阅 [Sync-Server 部署指南](https://folia-site.cielaniska.top/guide/deploy-sync)。部署完成后，在 Folia 的“存储设置”中填写服务端地址和 `SYNC_TOKEN` 即可启用同步。
+详细的环境变量、Token 配置与部署步骤请参阅 [Sync-Server 部署指南](https://folia-site.cielaniska.top/guide/deploy-sync)。部署完成后，在 Folia 的“存储设置”中填写服务端地址和 `SYNC_TOKEN` 即可启用同步；也可直接在“存储设置 → Folia 账号”注册/登录（账号功能仅 Docker / Node 部署支持）。
 
 ## 本地音乐与匹配说明
 

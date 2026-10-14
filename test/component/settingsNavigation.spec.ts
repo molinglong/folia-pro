@@ -2,24 +2,12 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 // test/component/settingsNavigation.spec.ts
-// 设置侧栏的分组结构、二级锚点目录和 scrollspy 只在真实浏览器里成立：IntersectionObserver、
-// 平滑滚动的中间态、以及 Tailwind v4 `space-x` 对隐藏兄弟节点的处理都不是单测能覆盖的。
+// 设置侧栏的分组结构、搜索过滤和锚点注册只在真实浏览器里成立：IntersectionObserver、
+// 延迟挂载的异步区块、以及 Tailwind v4 `space-x` 对隐藏兄弟节点的处理都不是单测能覆盖的。
+// 侧栏曾常驻分区下的二级锚点目录，现已删除，故这里也断言目录不再出现。
 // 探针见 dev/probes/settingsNavigation.probe.tsx。
 
-const content = (page: Page) => page.locator('[data-probe-content]');
-const tocItem = (page: Page, label: string) => page.getByRole('button', { name: label, exact: true });
-
-const scrollTop = (page: Page) => content(page).evaluate(node => node.scrollTop);
-
-/** The highlighted table-of-contents entry, identified by the accent bar this component renders. */
-const activeTocLabel = async (page: Page): Promise<string | null> => content(page).evaluate(() => {
-    const buttons = [...document.querySelectorAll<HTMLElement>('button')];
-    const active = buttons.find(button => {
-        const bar = button.querySelector<HTMLElement>('span[style*="opacity: 1"]');
-        return Boolean(bar) && button.textContent !== null;
-    });
-    return active?.textContent?.trim() ?? null;
-});
+const sidebarItem = (page: Page, label: string) => page.getByRole('button', { name: label, exact: true });
 
 test.describe('settings navigation - wide layout', () => {
     test.use({ viewport: { width: 1280, height: 800 } });
@@ -32,53 +20,48 @@ test.describe('settings navigation - wide layout', () => {
         }
     });
 
-    test('keeps every section table of contents expanded', async ({ mount, page }) => {
+    test('lists sections only, with no anchor table of contents', async ({ mount, page }) => {
         await mount('settingsNavigation');
 
-        await expect(tocItem(page, 'Alpha Section')).toBeVisible();
-        await expect(tocItem(page, 'Echo Section')).toBeVisible();
-        await expect(tocItem(page, 'queueSettings')).toBeVisible();
-        await expect(tocItem(page, 'electronSettings')).toBeVisible();
+        // The sidebar lists sections only: anchor labels never render as buttons, and the active
+        // section is told out loud through aria-current instead of a highlighted anchor row.
+        await expect(sidebarItem(page, 'Alpha Section')).toHaveCount(0);
+        await expect(sidebarItem(page, 'visualSettings')).toHaveAttribute('aria-current', 'true');
+        await expect(sidebarItem(page, 'desktopSettings')).toHaveCount(1);
+    });
+
+    test('moves the active card to the clicked section', async ({ mount, page }) => {
+        await mount('settingsNavigation');
+
+        await sidebarItem(page, 'generalSettings').click();
+
+        await expect(sidebarItem(page, 'generalSettings')).toHaveAttribute('aria-current', 'true');
+        await expect(sidebarItem(page, 'visualSettings')).not.toHaveAttribute('aria-current');
+        await expect(sidebarItem(page, 'Alpha Section')).toHaveCount(0);
+    });
+
+    test('filters the section list while searching', async ({ mount, page }) => {
+        await mount('settingsNavigation');
+
+        // A query keeps only the matching section card; its anchors stay out of the sidebar.
+        await page.locator('input[type="search"]').fill('desktopSettings');
+
+        await expect(sidebarItem(page, 'desktopSettings')).toBeVisible();
+        await expect(sidebarItem(page, 'visualSettings')).toHaveCount(0);
     });
 
     test('slots a late-arriving section into its document position', async ({ mount, page }) => {
         await mount('settingsNavigation');
 
-        await expect(tocItem(page, 'Bravo Late Section')).toBeVisible();
+        // The late block lives in the content column; the sidebar never listed it as an anchor row.
+        await expect(page.getByText('Bravo Late Section', { exact: true })).toBeVisible();
         await expect(page.locator('[data-settings-anchor="importExportTitle"]')).toBeVisible();
+        await expect(sidebarItem(page, 'Bravo Late Section')).toHaveCount(0);
 
         const labels = await page.evaluate(() => (
             [...document.querySelectorAll('[data-settings-anchor]')].map(node => node.getAttribute('data-settings-anchor'))
         ));
         expect(labels).toEqual(['lyricsRenderer', 'themePresets', 'importExportTitle', 'stageTrackPill', 'grid3dCardStyle', 'latticeSettings']);
-    });
-
-    test('scrolls to a section when its table of contents entry is clicked', async ({ mount, page }) => {
-        await mount('settingsNavigation');
-
-        expect(await scrollTop(page)).toBe(0);
-        await tocItem(page, 'Delta Section').click();
-
-        await expect.poll(() => scrollTop(page)).toBeGreaterThan(1000);
-        // The destination stays highlighted; a smooth scroll must not light up what it passes through.
-        expect(await activeTocLabel(page)).toBe('Delta Section');
-    });
-
-    test('follows the scroll position back to the first section', async ({ mount, page }) => {
-        await mount('settingsNavigation');
-
-        await tocItem(page, 'Echo Section').click();
-        await expect.poll(() => scrollTop(page)).toBeGreaterThan(1000);
-
-        await content(page).evaluate(node => node.scrollTo({ top: 0 }));
-        await expect.poll(() => activeTocLabel(page)).toBe('Alpha Section');
-    });
-
-    test('selects the final section once the column bottoms out', async ({ mount, page }) => {
-        await mount('settingsNavigation');
-
-        await content(page).evaluate(node => node.scrollTo({ top: node.scrollHeight }));
-        await expect.poll(() => activeTocLabel(page)).toBe('Echo Section');
     });
 });
 
@@ -89,7 +72,7 @@ test.describe('settings navigation - narrow layout', () => {
         await mount('settingsNavigation');
 
         await expect(page.getByText('Appearance', { exact: true })).toHaveCount(0);
-        await expect(tocItem(page, 'Alpha Section')).toHaveCount(0);
+        await expect(sidebarItem(page, 'Alpha Section')).toHaveCount(0);
     });
 
     test('spaces adjacent chips exactly 8px apart', async ({ mount, page }) => {

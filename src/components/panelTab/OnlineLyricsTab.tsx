@@ -6,6 +6,7 @@ import type { OnlineLyricsState, ReplayGainMode, SongResult } from '../../types'
 import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
 import LyricFileButton from './LyricFileButton';
 import ReplayGainControl from './ReplayGainControl';
+import CollapsibleCard from './CollapsibleCard';
 import { getLyricProviderLabel, getSongNativeLyricProviderSource } from '../../utils/lyrics/lyricSourceLabels';
 import { readLyricFile } from '../../utils/lyrics/lyricFileDecoding';
 
@@ -96,8 +97,8 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
                 isDaylight={isDaylight}
             />
 
-            <div className="space-y-2">
-                <div className="flex items-center justify-between">
+            <CollapsibleCard
+                title={
                     <div className="flex items-center gap-1.5">
                         <label className="text-[12px] font-bold opacity-40 uppercase tracking-widest flex items-center gap-1.5">
                             {t('localMusic.lyrics')}
@@ -112,6 +113,8 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
                             </button>
                         )}
                     </div>
+                }
+                right={
                     <div className="flex items-center gap-1">
                         <LyricFileButton
                             isDaylight={isDaylight}
@@ -126,49 +129,51 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
                             <Search size={14} />
                         </button>
                     </div>
+                }
+            >
+                <div className="space-y-2 pt-2">
+                    {availableSources.length === 1 ? (
+                        <div className={`flex items-center justify-between ${isDaylight ? 'bg-black/5' : 'bg-white/5'} rounded-lg p-2 pl-3`}>
+                            <span className="text-[11px] opacity-60">
+                                {t('localMusic.lyricsSource')}
+                            </span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${activeTabBg}`}>
+                                {availableSources[0].label}
+                            </span>
+                        </div>
+                    ) : (
+                        <div className={`relative flex p-0.5 ${tabContainerBg} rounded-lg`}>
+                            {availableSources.map(source => {
+                                const isActive = activeSource === source.key;
+                                return (
+                                    <button
+                                        key={source.key}
+                                        onClick={() => onChangeLyricsSource(source.key)}
+                                        className={`flex-1 relative text-[10px] py-1 px-1.5 rounded-md font-medium transition-colors duration-200 focus:outline-none ${
+                                            isActive ? activeTextColor : inactiveTextColor
+                                        }`}
+                                    >
+                                        {isActive && (
+                                            <motion.span
+                                                layoutId="online-lyrics-active-pill"
+                                                className={`absolute inset-0 rounded-md ${activePillBg}`}
+                                                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                                            />
+                                        )}
+                                        <span className="relative z-10">{source.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    <LyricTimelineOffsetControl
+                        offsetMs={lyricTimelineOffsetMs}
+                        onOffsetChange={onLyricTimelineOffsetChange}
+                        isDaylight={isDaylight}
+                    />
                 </div>
-
-                {availableSources.length === 1 ? (
-                    <div className={`flex items-center justify-between ${isDaylight ? 'bg-black/5' : 'bg-white/5'} rounded-lg p-2 pl-3`}>
-                        <span className="text-[11px] opacity-60">
-                            {t('localMusic.lyricsSource')}
-                        </span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${activeTabBg}`}>
-                            {availableSources[0].label}
-                        </span>
-                    </div>
-                ) : (
-                    <div className={`relative flex p-0.5 ${tabContainerBg} rounded-lg`}>
-                        {availableSources.map(source => {
-                            const isActive = activeSource === source.key;
-                            return (
-                                <button
-                                    key={source.key}
-                                    onClick={() => onChangeLyricsSource(source.key)}
-                                    className={`flex-1 relative text-[10px] py-1 px-1.5 rounded-md font-medium transition-colors duration-200 focus:outline-none ${
-                                        isActive ? activeTextColor : inactiveTextColor
-                                    }`}
-                                >
-                                    {isActive && (
-                                        <motion.span
-                                            layoutId="online-lyrics-active-pill"
-                                            className={`absolute inset-0 rounded-md ${activePillBg}`}
-                                            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                                        />
-                                    )}
-                                    <span className="relative z-10">{source.label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                <LyricTimelineOffsetControl
-                    offsetMs={lyricTimelineOffsetMs}
-                    onOffsetChange={onLyricTimelineOffsetChange}
-                    isDaylight={isDaylight}
-                />
-            </div>
+            </CollapsibleCard>
         </motion.div>
     );
 };

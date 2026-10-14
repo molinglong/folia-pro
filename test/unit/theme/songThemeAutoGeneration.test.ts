@@ -3,6 +3,7 @@ import {
     getSongThemeAutoGenerationKey,
     hasSongThemePromptSource,
     isSongThemeGenerationStillCurrent,
+    resolveSongThemeAutoGenerationEnabled,
     shouldRequestSongThemeAutoGeneration,
 } from '@/utils/songThemeAutoGeneration';
 import type { LyricData, SongResult } from '@/types';
@@ -138,5 +139,33 @@ describe('songThemeAutoGeneration', () => {
         expect(shouldRequestSongThemeAutoGeneration({ ...base, enabled: true, hasCachedTheme: true })).toBe(false);
         expect(shouldRequestSongThemeAutoGeneration({ ...base, enabled: true, hasAttempted: true })).toBe(false);
         expect(shouldRequestSongThemeAutoGeneration({ ...base, enabled: true, isLyricsLoading: true })).toBe(false);
+    });
+
+    describe('resolveSongThemeAutoGenerationEnabled', () => {
+        const switches = {
+            songThemeAutoSwitchEnabled: true,
+            songThemeAutoGenerateEnabled: false,
+        };
+
+        it('follows the free cover source without the auto-generate switch', () => {
+            expect(resolveSongThemeAutoGenerationEnabled({ ...switches, themeGenerationSource: 'cover' })).toBe(true);
+        });
+
+        it('keeps gating the metered AI source behind the auto-generate switch', () => {
+            expect(resolveSongThemeAutoGenerationEnabled({ ...switches, themeGenerationSource: 'ai' })).toBe(false);
+            expect(resolveSongThemeAutoGenerationEnabled({
+                ...switches,
+                themeGenerationSource: 'ai',
+                songThemeAutoGenerateEnabled: true,
+            })).toBe(true);
+        });
+
+        it('stays silent once per-song theme switching is off', () => {
+            expect(resolveSongThemeAutoGenerationEnabled({
+                ...switches,
+                themeGenerationSource: 'cover',
+                songThemeAutoSwitchEnabled: false,
+            })).toBe(false);
+        });
     });
 });

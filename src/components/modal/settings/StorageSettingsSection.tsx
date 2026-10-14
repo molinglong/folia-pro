@@ -1,5 +1,5 @@
 import React from 'react';
-import { AudioWaveform, Check, Cloud, Command, Database, Disc3, Download, FolderOpen, HardDrive, Layers, Loader2, Pencil, PlayCircle, RefreshCw, Trash2, Upload, X } from 'lucide-react';
+import { AudioWaveform, Check, Cloud, Command, Database, Disc3, Download, FolderOpen, HardDrive, Layers, Loader2, LogIn, LogOut, Pencil, PlayCircle, RefreshCw, Trash2, Upload, UserRound, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
 import { getSyncConfig, getSyncStatus, saveSyncConfig, setSyncStatus, subscribeSyncConfig, subscribeSyncStatus } from '../../../services/sync/syncConfig';
@@ -7,6 +7,7 @@ import { exportSyncLibraryBundle, importSyncLibraryBundle, isSyncLibraryExportBu
 import { createSyncLibraryZipBlob, readSyncLibraryZipFile } from '../../../services/sync/syncArchive';
 import { SYNC_PROVIDER, type SyncProviderConfig, type SyncRuntimeStatus } from '../../../services/sync/syncTypes';
 import { createSafeObjectUrl } from '../../../utils/blobGuards';
+import { getQqApiBaseUrlOverride, setQqApiBaseUrlOverride } from '../../../services/onlineMusic/qqApiConfig';
 import { formatLocalDateTimeStamp } from '../../../utils/downloadFileName';
 import { CustomSelect } from '../../shared/CustomSelect';
 import LocalLibraryWatchSection from './LocalLibraryWatchSection';
@@ -14,6 +15,7 @@ import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import { openCommandPaletteCommand } from '../../../stores/useAppViewStore';
 import { closeSettings } from '../../../stores/useSettingsModalStore';
+import { useAccountSessionStore } from '../../../stores/useAccountSessionStore';
 import { LYRIC_EXPORT_COMMAND_ID } from '../../command-palette/commands/lyricExportCommands';
 
 // src/components/modal/settings/StorageSettingsSection.tsx
@@ -71,12 +73,18 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
     useInsetCacheRows = false,
 }) => {
     const { t } = useTranslation();
+    const accountSession = useAccountSessionStore();
+    const [authMode, setAuthMode] = React.useState<'sign-in' | 'sign-up'>('sign-in');
+    const [authEmail, setAuthEmail] = React.useState('');
+    const [authPassword, setAuthPassword] = React.useState('');
     const [syncConfig, setSyncConfig] = React.useState<SyncProviderConfig>(() => getSyncConfig());
     const [draftSyncConfig, setDraftSyncConfig] = React.useState<SyncProviderConfig>(() => getSyncConfig());
     const [syncStatus, setSyncStatusState] = React.useState<SyncRuntimeStatus>(() => getSyncStatus());
     const [syncAction, setSyncAction] = React.useState<'idle' | 'testing' | 'syncing' | 'syncingSettings' | 'exporting' | 'importing'>('idle');
     const [testResult, setTestResult] = React.useState<'idle' | 'success' | 'error'>('idle');
     const [syncSummaryMsg, setSyncSummaryMsg] = React.useState<string | null>(null);
+    // QQ 音乐 API 地址：多设备共享 QQ 登录态的前提，Electron 由此指向远程后端（默认留空 = 内嵌/构建期变量）。
+    const [qqApiUrlDraft, setQqApiUrlDraft] = React.useState<string>(() => getQqApiBaseUrlOverride());
     const syncImportInputRef = React.useRef<HTMLInputElement | null>(null);
     const cacheRowClass = useInsetCacheRows
         ? `flex items-center justify-between p-3 rounded-xl border ${settingsCardClass}`
@@ -98,7 +106,9 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
         { id: 'analysis' as const, label: t('options.analysisData') || 'Analysis Data', size: cacheSizes.analysis, icon: AudioWaveform },
     ];
     const syncConfigDirty = JSON.stringify(syncConfig) !== JSON.stringify(draftSyncConfig);
-    const syncConfigured = Boolean(draftSyncConfig.workerBaseUrl.trim() && draftSyncConfig.authToken.trim());
+    // 登录 Folia 账号后兼容模式 token 非必填（鉴权走会话，见 syncClient.resolveBearerToken）。
+    const syncConfigured = Boolean(draftSyncConfig.workerBaseUrl.trim())
+        && (Boolean(draftSyncConfig.authToken.trim()) || accountSession.status === 'signed-in');
     const syncStatusLabel = syncStatus.state === 'error'
         ? (syncStatus.lastError || t('options.r2SyncStatusError') || 'Sync failed')
         : syncStatus.lastSyncAt
@@ -106,6 +116,7 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
             : (t('options.r2SyncStatusIdle') || 'Not synced yet');
 
     React.useEffect(() => {
+        void useAccountSessionStore.getState().initialize();
         const unsubscribeConfig = subscribeSyncConfig(() => {
             const nextConfig = getSyncConfig();
             setSyncConfig(nextConfig);
@@ -195,6 +206,42 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
         } finally {
             setSyncAction('idle');
         }
+    };
+
+    const authErrorCodeText = (code: string): string => {
+        switch (code) {
+            case 'invalid_credentials':
+                return t('ui.storage.accountErrorInvalidCredentials') || 'Email or password is incorrect';
+            case 'email_taken':
+                return t('ui.storage.accountErrorEmailTaken') || 'This email is already registered';
+            case 'rate_limited':
+                return t('ui.storage.accountErrorRateLimited') || 'Too many attempts, try again later';
+            case 'registration_disabled':
+                return t('ui.storage.accountErrorRegistrationDisabled') || 'Registration is disabled on this server';
+            case 'network_error':
+                return t('ui.storage.accountErrorNetwork') || 'Cannot reach the sync server';
+            default:
+                return t('ui.storage.accountErrorGeneric') || 'Sign in failed';
+        }
+    };
+
+    const handleAuthSubmit = async () => {
+        if (accountSession.busy || !authEmail.trim() || !authPassword) return;
+        const succeeded = authMode === 'sign-in'
+            ? await accountSession.signIn(authEmail, authPassword)
+            : await accountSession.signUp(authEmail, authPassword);
+        if (succeeded) {
+            setAuthPassword('');
+        }
+    };
+
+    const handleSwitchAuthMode = () => {
+        setAuthMode(prev => (prev === 'sign-in' ? 'sign-up' : 'sign-in'));
+        accountSession.clearError();
+    };
+
+    const handleSignOut = () => {
+        void accountSession.signOut();
     };
 
     const handleExportSyncLibrary = async () => {
@@ -345,19 +392,146 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                                 style={{ color: 'var(--text-primary)' }}
                             />
                         </label>
+                        {/* QQ 音乐 API 地址：指向你自己部署的 qq-api，多设备共享同一登录态（docs/qq-shared-session-design.md §5.2） */}
                         <label className="block space-y-1">
                             <span className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.r2SyncToken') || 'Bearer Token'}
+                                {t('options.qqApiUrl') || 'QQ Music API URL'}
                             </span>
                             <input
-                                type="password"
-                                value={draftSyncConfig.authToken}
-                                onChange={(event) => updateDraftSyncConfig({ authToken: event.target.value })}
-                                placeholder={t('options.r2SyncTokenPlaceholder') || 'Worker SYNC_TOKEN'}
+                                type="url"
+                                value={qqApiUrlDraft}
+                                onChange={(event) => setQqApiUrlDraft(event.target.value)}
+                                onBlur={() => setQqApiBaseUrlOverride(qqApiUrlDraft)}
+                                placeholder="https://qq-api.example.com"
                                 className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
                                 style={{ color: 'var(--text-primary)' }}
                             />
+                            <span className="block text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.qqApiUrlHint') || 'Point every device at the same self-hosted qq-api to share the QQ login. Leave empty for the default. Restart the app to apply.'}
+                            </span>
                         </label>
+                        {/* Folia 账号：登录后收藏/歌单/喜欢走账号数据域，兼容模式 token 可留空 */}
+                        <div className="pt-3 border-t border-white/10 space-y-3">
+                            <div className="space-y-1">
+                                <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                    <UserRound size={14} />
+                                    {t('ui.storage.accountTitle') || 'Folia Account'}
+                                </div>
+                                <div className="text-xs opacity-50 max-w-[400px]" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('ui.storage.accountDesc') || 'Sign in to sync playlists and likes across devices through your own sync server. Platform credentials never leave this device.'}
+                                </div>
+                            </div>
+
+                            {accountSession.status === 'hydrating' ? (
+                                <div className="flex items-center gap-2 text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    {t('ui.storage.accountHydrating') || 'Checking session...'}
+                                </div>
+                            ) : accountSession.status === 'signed-in' ? (
+                                <div className="flex items-center justify-between gap-3 bg-black/10 rounded-lg border border-white/5 px-3 py-2">
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{accountSession.email}</div>
+                                        <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('ui.storage.accountSignedIn') || 'Signed in — playlists and likes sync to this account.'}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleSignOut}
+                                        disabled={accountSession.busy}
+                                        className={`shrink-0 px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-1.5 disabled:opacity-40 ${errorTextColor}`}
+                                    >
+                                        {accountSession.busy ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
+                                        {t('ui.storage.accountSignOut') || 'Sign out'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <input
+                                            type="email"
+                                            autoComplete="email"
+                                            value={authEmail}
+                                            onChange={(event) => setAuthEmail(event.target.value)}
+                                            placeholder={t('ui.storage.accountEmail') || 'Email'}
+                                            className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
+                                            style={{ color: 'var(--text-primary)' }}
+                                        />
+                                        <input
+                                            type="password"
+                                            autoComplete={authMode === 'sign-in' ? 'current-password' : 'new-password'}
+                                            value={authPassword}
+                                            onChange={(event) => setAuthPassword(event.target.value)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') void handleAuthSubmit();
+                                            }}
+                                            placeholder={t('ui.storage.accountPassword') || 'Password'}
+                                            className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
+                                            style={{ color: 'var(--text-primary)' }}
+                                        />
+                                    </div>
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleAuthSubmit()}
+                                            disabled={accountSession.busy || !authEmail.trim() || !authPassword || !draftSyncConfig.workerBaseUrl.trim()}
+                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            {accountSession.busy ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
+                                            {authMode === 'sign-in'
+                                                ? (t('ui.storage.accountSignIn') || 'Sign in')
+                                                : (t('ui.storage.accountSignUp') || 'Sign up')}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleSwitchAuthMode}
+                                            className="text-xs opacity-60 hover:opacity-90 underline underline-offset-2 transition-opacity"
+                                            style={{ color: 'var(--text-secondary)' }}
+                                        >
+                                            {authMode === 'sign-in'
+                                                ? (t('ui.storage.accountSwitchToSignUp') || 'No account? Sign up')
+                                                : (t('ui.storage.accountSwitchToSignIn') || 'Have an account? Sign in')}
+                                        </button>
+                                    </div>
+                                    {!draftSyncConfig.workerBaseUrl.trim() && (
+                                        <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('ui.storage.accountNeedsServerUrl') || 'Set the sync server URL above first.'}
+                                        </div>
+                                    )}
+                                    {accountSession.errorCode && (
+                                        <div className="text-xs rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2" style={{ color: 'var(--text-secondary)' }}>
+                                            <span className={errorTextColor}>{authErrorCodeText(accountSession.errorCode)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <details>
+                            <summary
+                                className="text-xs opacity-60 cursor-pointer select-none hover:opacity-90 transition-opacity"
+                                style={{ color: 'var(--text-secondary)' }}
+                            >
+                                {t('options.r2SyncAdvanced') || 'Advanced / compatibility mode'}
+                            </summary>
+                            <label className="block space-y-1 mt-3">
+                                <span className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('options.r2SyncToken') || 'Bearer Token'}
+                                </span>
+                                <input
+                                    type="password"
+                                    value={draftSyncConfig.authToken}
+                                    onChange={(event) => updateDraftSyncConfig({ authToken: event.target.value })}
+                                    placeholder={t('options.r2SyncTokenPlaceholder') || 'Worker SYNC_TOKEN'}
+                                    className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
+                                    style={{ color: 'var(--text-primary)' }}
+                                />
+                                <span className="block text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('options.r2SyncTokenAccountHint') || 'Leave empty after signing in; only needed for legacy single-user deployments.'}
+                                </span>
+                            </label>
+                        </details>
                     </div>
 
                     <div className="flex flex-col gap-3">

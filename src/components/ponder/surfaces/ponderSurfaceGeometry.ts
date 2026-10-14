@@ -624,8 +624,8 @@ export const LYRICS_ANIMATION_SETTINGS_GEOMETRY = {
  * 设置里「配色主题预设」那一组，坐标系是那块面板。
  *
  * 整组装在一张卡里：标题行右端一颗圆形的 Theme Park 按钮（36px 图标按钮，不是带文字的
- * 大胶囊），两张并排的预设按钮，一块「主题生成来源」子卡，再下面三个开关行。
- * 那三个开关占了这一组一半的高度，漏掉它们的骨架和真实界面对不上。
+ * 大胶囊），一张全宽的预设卡，一块「主题生成来源」子卡，再下面两个开关行。
+ * 那两个开关占了这一组一半的高度，漏掉它们的骨架和真实界面对不上。
  */
 export const THEME_SETTINGS_GEOMETRY = {
     heading: { left: 0.04, top: 0.01, width: 0.30, height: 0.07 },
@@ -633,18 +633,15 @@ export const THEME_SETTINGS_GEOMETRY = {
     titleRow: { left: 0.06, right: 0.06, top: 0.13, height: 0.08 },
     /** 标题行右端那颗圆按钮。 */
     themePark: { right: 0.06, top: 0.125, width: 0.062, square: true },
-    presetDefault: { left: 0.06, top: 0.24, width: 0.43, height: 0.16 },
-    presetCustom: { right: 0.06, top: 0.24, width: 0.43, height: 0.16 },
+    presetDefault: { left: 0.06, right: 0.06, top: 0.24, height: 0.16 },
     source: { left: 0.06, right: 0.06, top: 0.43, height: 0.23 },
     followSystem: { left: 0.06, right: 0.06, top: 0.69, height: 0.085 },
-    preferCustom: { left: 0.06, right: 0.06, top: 0.79, height: 0.085 },
-    autoSwitch: { left: 0.06, right: 0.06, top: 0.89, height: 0.085 },
+    autoSwitch: { left: 0.06, right: 0.06, top: 0.79, height: 0.085 },
 } satisfies Record<string, PonderRelativeRect>;
 
-/** 上面那三个开关在骨架里从上到下的顺序，以及各自的标记属性。surface 和 target 共用。 */
+/** 上面那两个开关在骨架里从上到下的顺序，以及各自的标记属性。surface 和 target 共用。 */
 export const THEME_SETTINGS_TOGGLES = [
     { name: 'followSystem', marker: 'data-ponder-theme-follow-system' },
-    { name: 'preferCustom', marker: 'data-ponder-theme-prefer-custom' },
     { name: 'autoSwitch', marker: 'data-ponder-theme-auto-switch' },
 ] as const;
 
@@ -815,12 +812,11 @@ export const LYRIC_STYLE_GEOMETRY = {
  * Theme Park，坐标系是整屏。
  *
  * 和调参台同一个布局（左预览右设置栏），但要讲的东西全在顶栏和右栏上：
- * 在编辑哪一份主题、亮暗是两份独立配色、以及保存为什么灰着 —— 名字在另一页上。
+ * 亮暗是两份独立配色、以及保存为什么灰着 —— 名字在另一页上。
  */
 export const THEME_PARK_GEOMETRY = {
     header: { left: 0.03, right: 0.03, top: 0.03, height: 0.11 },
-    /** 以下三块相对 header：编辑目标、重置、保存。 */
-    targetToggle: { left: 0.52, top: 0.22, width: 0.20, height: 0.56 },
+    /** 以下两块相对 header：重置、保存。 */
     reset: { left: 0.74, top: 0.22, width: 0.11, height: 0.56 },
     save: { left: 0.865, top: 0.22, width: 0.125, height: 0.56 },
     preview: { left: 0.03, right: 0.30, top: 0.17, bottom: 0.04 },

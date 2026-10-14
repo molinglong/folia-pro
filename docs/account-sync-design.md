@@ -1,7 +1,9 @@
 # 账号系统与在线音乐同步 · 技术设计文档
 
-> 状态：设计稿（未实施）。目标读者：本项目开发者自己。
+> 状态：**M1–M4 已实施**（2026-10-13，偏差见各节 "实施偏差" 补记）。目标读者：本项目开发者自己。
 > 选型前提：部署形态为 **Docker / 自有 VPS**；范围为"登录即同步设置 + 主题 + 在线音乐收藏元数据"，**不同步平台登录凭证**。
+>
+> 落地文件：服务端 `sync-server/src/{auth,identity,rateLimit}.ts` + `app.ts`（schema 2）；客户端 `src/services/sync/{authClient,collectionSync}.ts`、`src/stores/useAccountSessionStore.ts`、存储设置 UI。服务端验证：`npm run test:node`（8 组探针）+ 真实服务冒烟；客户端验证：tsc + `test/unit/sync/`（含白名单投影安全测试）。
 
 ---
 
@@ -76,11 +78,13 @@
 
 ### 3.2 会话与设备
 
-- `POST /auth/login` 成功 → 返回 `{ userId, email, accessToken, refreshToken, expiresIn }`
-- `accessToken`：随机 32B hex，有效期 **24h**，客户端内存 + sessionStorage 持有
-- `refreshToken`：随机 64B hex，有效期 **180 天**，每次使用后**旋转**（旧的作废、发新的）——被盗刷新令牌窗口只有一次
-- 每个 `sessions` 行带 `device_label`（客户端传 `navigator.userAgent` 截断）与 `last_seen_at`，为未来"设备管理/踢下线"留口
+- `POST /auth/login` 成功 → 返回 `{ userId, email, accessToken, refreshToken, accessExpiresAt, refreshExpiresAt }`
+- `accessToken`：随机 32B hex，有效期 **24h**
+- `refreshToken`：随机 64B hex，有效期 **180 天**，每次使用后**旋转**（旧的作废、发新的）——被盗刷新令牌窗口只有一次；客户端刷新**单飞**（并发 401 共享同一次刷新，`authClient.refreshSession`）
+- 每个 `sessions` 行带 `device_label` 与 `last_seen_at`，为未来"设备管理/踢下线"留口
 - 登出 = 删 sessions 行；改密码 = 删除该用户所有非当前 session
+
+> **实施偏差（客户端存储）**：token 本体存 **IndexedDB**（`folia_sync_session_v1`，`syncConfig.storeSession`），不是 sessionStorage；localStorage 只存非敏感的 `userId/email`（`SyncProviderConfig.account`）。刷新触发点在 `syncClient.resolveBearerToken`（请求前检查 60s 提前量）+ 401 自动重试，而非启动时静默 refresh。
 
 ### 3.3 防爆破（公网 VPS 必备）
 
@@ -125,14 +129,9 @@ CREATE TABLE IF NOT EXISTS collections (
 );
 ```
 
-既有表加用户维度（迁移见 §8）：
+既有表的用户维度（迁移见 §8）：
 
-```sql
-ALTER TABLE settings ADD COLUMN user_id TEXT;   -- NULL = 兼容模式全局行
-ALTER TABLE themes   ADD COLUMN owner TEXT;     -- NULL = 迁移前的全局池行
-```
-
-> D1/SQLite 兼容注意：D1 支持 `ADD COLUMN`，但**不支持**除 PK 外的 ALTER；以上两条都在支持范围内。所有表都要能被现有 `d1-emulator.ts` 的兼容层跑通（本地 Node + better-sqlite3），改动后三种部署形态都要验证。
+> **实施偏差（v2 新表而非加列）**：实际实现是新建 `settings_v2` / `themes_v2` / `theme_buckets_v2`，每张带 `scope TEXT NOT NULL` 列（`''` = 兼容模式全局域哨兵），v1 表保留不动。原因：① SQLite 无法改主键，且 `NULL` 在唯一索引里互不相等，会破坏 `INSERT OR IGNORE` 的幂等迁移；② v1 表原样保留让回滚零风险（换回旧镜像即可）。迁移用 `meta` 表的 `migration_v2_done` 行做幂等防重放——否则每次冷启动都会把旧表数据复活（用户删过的数据被 `INSERT OR IGNORE` 重新插回）。`collections` 的 `delta_since_json` 列 Phase 1 未建，Phase 2 需要时 `ADD COLUMN` 即可。
 
 ---
 
@@ -157,6 +156,8 @@ type ProviderAccountCloudSnapshot = {
 };
 ```
 
+> **实施偏差（快照结构收敛）**：实际记录为 `{ schemaVersion: 1, updatedAt, data: { user: { id, nickname, avatarUrl? }, collections: SyncedCloudCollection[], likedSongIds: string[] } }`（`syncTypes.ts`）。Phase 1 **不含 `tracks` 数组**——所有歌单只同步元数据，展开走平台实时接口（§5.3 的"超限只同步元数据"成了全集）；`likedSongIds` 投影为 string 并去重；单条记录上限 4MB（服务端 413 拒绝），无逐字段截断。
+
 **字段白名单是硬约束**：落云前必须经过一层显式投影（`toCloudSnapshot()`），杜绝把 `ProviderUser` 里可能混入的认证相关字段整体 `JSON.stringify` 上传。这是本设计最容易出安全事故的点，代码评审时重点看。
 
 API（全部要求 user session，下同）：
@@ -166,19 +167,22 @@ API（全部要求 user session，下同）：
 | `GET` | `/collections/:providerId` | 拉取快照（无则 404→null） |
 | `PUT` | `/collections/:providerId` | 推送快照，body 带 `updatedAt`；**服务端 LWW**：旧时间戳拒绝覆盖（返回 409 + 当前远端 updatedAt） |
 
-客户端策略：
+客户端策略（实施版）：
 
-- 登录后与 `syncNow` 启动流程中，对每个 `status === 'authenticated'` 的 provider 做双向对账：
-  - 本地无数据 / 远端更新 → 拉远端，写入本地 snapshot 缓存并刷新 `useOnlineProviderAccountStore`（**只填 user/collections/likedSongIds，不伪造登录态**：`status` 仍是 `logged-out`，首页显示"数据已同步，扫码即可接管"）
-  - 本地更新 → 推本地
-  - 409 → 以远端为准拉回，本地未合并的 likes 由 §5.3 的补救路径处理
-- 触发点：启动、like/unlike mutation 后 debounce 60s（挂在现有 `omni.ts` 的 `persistLikedSongs` 之后）、手动"立即同步"
+- 对账状态机（`collectionSync.syncProviderCollection`）由三个时间量驱动：**watermark**（本地与云端最后一次一致的时刻，pull/push 成功后写入 localStorage）、**dirtyAt**（本地最后一次用户产生的变更时刻，`queueCollectionPush` 写入）、**remote.updatedAt**。刻意不用快照 `savedAt` 做脏标记——pull 写缓存会刷新 savedAt，会把回声当成变更造成两台设备互相打乒乓。
+- 首次对账（无 watermark）：两边都有数据时按快照时间 newer 赢；本地无数据 → 拉远端；远端无数据 → 推本地。
+- 常规对账：dirty 且不早于远端 → push（409 则拉回合并）；远端 timestamp ≠ watermark（别的设备写过）→ pull 合并；否则 idle。
+- pull 应用（`applyRemoteCollection`）**只填 user/collections/likedSongIds，不伪造登录态**（`status` 不动，首页显示"数据已同步，扫码即可接管"）；本地平台登录中（`status === 'authenticated'`）则保留本地 user、歌单按 key 去重合并（本地优先）、**点赞集合以云端为准**——只有 replace 能让"取消喜欢"跨设备传播（§5.3 的并发窗口不变）。netease 整体例外：点赞/歌单由 `useNeteaseLibrary` 本地 state 当家，云端数据只写快照缓存，等下次 hydration 生效。
+- 登出时清 watermark/dirty（`clearCollectionSyncState`）：watermark 属于上一个账号的数据域，带进新账号会把旧位置误当成"远端没变"。
+- 触发点：启动（`initializeSyncCoordinator` 等会话从 IndexedDB 水合后 `syncNow`）、like/unlike 与歌单变更后 debounce 60s（挂在 `omni.ts` 的 `persistProviderLikedSongIds` / `refreshProviderPlaylists` 之后）、手动"立即同步"。
 
 ### 5.2 设置与主题的用户隔离
 
-- `settings`：带 session 时读写 `(user_id)` 行；只有全局 token 时保持旧行为（`user_id NULL` 行）
-- `themes`：写入时打 `owner = user_id`；读取时**合并两池**——自己的 + `owner IS NULL` 的公共池（迁移存量），保证旧数据不丢；bucket/manifest 计算改为"per-user manifest"（`theme_buckets` 加 `user_id` 列，NULL 桶继续服务兼容模式）
-- `/state` 返回值加 `scoped: true` 字段，客户端据此判断服务端是否已升级 schema 2
+- `settings`：带 session 时读写 `(scope = userId)` 行；只有全局 token 时保持旧行为（`scope = ''` 行）
+- `themes`：按 scope 完全隔离，manifest/bucket 均为 per-scope 计算
+- `/state` 返回值加 `scoped: true` 字段，客户端据此判断请求落在账号数据域
+
+> **实施偏差（放弃公共池合并读取）**：设计原案是"读取时合并自己的 + `owner IS NULL` 公共池"，实施时放弃——同一主题会同时存在于公共池和用户池，合并读取使 bucket 的 count/hash 双重计入，客户端 Merkle watermark 的 diff 永远无法收敛（算出的桶摘要与服务端不一致，每次都当"远端有变化"拉全量）。改为完全按 scope 隔离：兼容域的存量数据不进入用户域，用户首次登录后客户端会把本地主题自然重传上去（本地优先上传），旧数据不丢只是不自动继承。
 
 ### 5.3 已知的协议局限（刻意留到 Phase 2，先写清楚）
 
@@ -223,22 +227,22 @@ Electron 侧**零改动**——所有账号交互走 renderer → sync-server HT
 
 ## 8. 迁移与兼容
 
-1. 服务端启动时 `ensureSchema` 幂等建表；`settings`/`themes` 加列后旧行自动为 NULL（兼容模式数据），无需数据搬运
-2. 旧客户端（schema 1 客户端 ↔ schema 2 服务端）：不带 session 的请求行为与今天完全一致 → **不破坏任何现有部署**
-3. 新客户端 ↔ 旧服务端：`/health` 返回 `schemaVersion: 1` → 账号 UI 显示"服务端未升级，仅本地模式"，同步功能整体降级为现状，不报错刷屏
-4. 回滚：新表独立、加列可留，回滚镜像即可，无破坏性 DDL
+1. 服务端启动时 `ensureSchema` 幂等建表（WeakSet 按 DB 实例去重）；首次启动把 v1 全局表数据 `INSERT OR IGNORE` 搬进兼容域（`scope = ''`），`meta.migration_v2_done` 幂等防重放
+2. 旧客户端（schema 1 客户端 ↔ schema 2 服务端）：不带 session 的请求行为与今天完全一致（服务端按身份回 schema 1）→ **不破坏任何现有部署**；`isSchemaCompatible` 同时接受 1 和 2
+3. 新客户端 ↔ 旧服务端：`/auth/*` 404 → 登录表单报通用失败文案，同步功能整体降级为兼容模式现状，不报错刷屏
+4. 回滚：v2 表独立、v1 表原样保留，回滚镜像即可，无破坏性 DDL；已注册用户的 v2 数据留在原地不丢
 
 ---
 
 ## 9. 安全清单（公网 VPS 上线前逐条打钩）
 
-- [ ] 全站 HTTPS（账号密码永不走明文 HTTP —— 这是自托管最容易翻车的点，README 首页加粗写）
-- [ ] 密码 scrypt 哈希，永不明文/日志落盘
-- [ ] access/refresh token 只存 sha256 hash 于 sessions 表
-- [ ] `toCloudSnapshot()` 投影字段有单元测试（`syncSchema` 已有 parse 风格可复用），断言输出不含 `token/cookie/key` 子样
-- [ ] 登录限速 + 反代层 rate limit 说明
-- [ ] `ALLOW_REGISTER=false` 时注册口关闭
-- [ ] DASHBOARD_TOKEN 看板不泄露任何 user 行（现有 dashboard 查 count 的 SQL 加 `WHERE user_id IS NULL` 保持原语义）
+- [ ] 全站 HTTPS（账号密码永不走明文 HTTP —— 这是自托管最容易翻车的点，README 首页加粗写）※部署侧动作
+- [x] 密码 scrypt 哈希（N=2^15, r=8, p=1 + per-user salt），永不明文/日志落盘
+- [x] access/refresh token 只存 sha256 hash 于 sessions 表（`identity.sha256Hex` + 常量时间 `digestEquals` 比对）
+- [x] `toCloudSnapshot()` 投影字段有单元测试（`test/unit/sync/collectionSync.test.ts`），断言输出不含 cookie/ptkey/token 子样
+- [x] 登录/注册限速（内存滑动窗口：登录 5 次/15min 按 IP+email，注册 5 次/1h 按 IP）；反代层 rate limit 说明待部署时补
+- [x] `ALLOW_REGISTER=false` 时注册口关闭 + `POST /admin/users`（DASHBOARD_TOKEN）手动建号（探针覆盖）
+- [x] dashboard 统计改读 v2 表按 scope 分组，不泄露 user 行内容
 
 **Cloudflare Workers 形态的限制**：Worker 运行时没有 `crypto.scrypt`（WebCrypto PBKDF2 可用但弱于 scrypt 且需改哈希格式）。本期明确：**账号功能仅 Node/Docker 形态支持**，CF 形态继续只提供兼容模式；若未来要上 CF，方案是 PBKDF2-SHA256 100k 迭代 + 强制邮箱验证的组合，另行设计。
 
@@ -246,12 +250,12 @@ Electron 侧**零改动**——所有账号交互走 renderer → sync-server HT
 
 ## 10. 实施里程碑
 
-| 里程碑 | 内容 | 验收 | 粗估 |
+| 里程碑 | 内容 | 验收 | 状态 |
 | --- | --- | --- | --- |
-| M1 服务端账号 | auth.ts + schema 2 + 限速 + Docker README | 新增 `auth.probe.test.ts` 注册/登录/旋转/限速用例全绿；curl 手工链路通 | 1 个周末 |
-| M2 数据隔离 | settings/themes 按 user 读写 + 公共池合并 | 双用户 curl 互不可见；旧全局 token 客户端回归通过 | 1 个周末 |
-| M3 客户端账号 | authClient + session store + 存储设置 UI | 登录/登出/断网降级三态手测 | 1~2 个周末 |
-| M4 收藏同步 | collectionSync + omni 挂钩 + 白名单投影测试 | 设备 A 喜欢一首 → 设备 B 登录后 60s 内可见（不登录平台账号） | 1 个周末 |
+| M1 服务端账号 | auth.ts + schema 2 + 限速 | `sync-server/test/auth.probe.ts` 8 组探针全绿 + 真实服务冒烟（health/register/me/state） | **完成 2026-10-13** |
+| M2 数据隔离 | settings/themes 按 scope 隔离 + collections API | 双账号互不可见；旧全局 token 客户端回归通过（探针含兼容模式回归组） | **完成 2026-10-13** |
+| M3 客户端账号 | authClient + session 存取 + 存储设置 UI + i18n×3 | tsc 0 错误；登录/登出/断网降级三态待真机手测 | **完成 2026-10-13** |
+| M4 收藏同步 | collectionSync + omni 挂钩 + 白名单投影测试 | 投影安全测试 5 组全过；双设备 60s 内可见待真机验收 | **完成 2026-10-13** |
 | （Phase 2） | likes 增量事件流、并发合并、设备管理页 | — | 以后再说 |
 
 M1+M2 纯服务端、不动客户端一行代码，可以先做完部署好，M3+M4 再跟进 —— 符合"课余时间可持续推进"的节奏。

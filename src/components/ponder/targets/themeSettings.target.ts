@@ -4,8 +4,8 @@ import type { PonderAnchorSource, PonderRelativeRect, PonderSceneScript, PonderT
 // src/components/ponder/targets/themeSettings.target.ts
 // 设置 · 外观里的「配色主题预设」那一组。
 //
-// 这一组容易被当成「只有两个预设可选」就翻过去了，其实它有四层：预设、自定义、
-// 决定自定义配色从哪来的生成来源，再加下半截那三个决定「什么时候自动换配色」的开关。
+// 这一组容易被当成「只有一个预设可选」就翻过去了，其实它有三层：预设、
+// 决定配色从哪来的生成来源，再加下半截那两个决定「什么时候自动换配色」的开关。
 // Theme Park 又是另一件事 —— 它不是配色库，是整屏的配色编辑器。
 //
 // 几何来自 ponderSurfaceGeometry，和 PonderThemeSettingsSurface 画的是同一组数。
@@ -26,10 +26,8 @@ const anchors = {
     panel,
     themePark: region(G.themePark, 'ponder.anchors.themeSettings.themePark'),
     presetDefault: region(G.presetDefault, 'ponder.anchors.themeSettings.presetDefault'),
-    presetCustom: region(G.presetCustom, 'ponder.anchors.themeSettings.presetCustom'),
     source: region(G.source, 'ponder.anchors.themeSettings.source'),
     followSystem: region(G.followSystem, 'ponder.anchors.themeSettings.followSystem'),
-    preferCustom: region(G.preferCustom, 'ponder.anchors.themeSettings.preferCustom'),
     autoSwitch: region(G.autoSwitch, 'ponder.anchors.themeSettings.autoSwitch'),
 } satisfies Record<string, PonderAnchorSource>;
 
@@ -51,14 +49,6 @@ const presets: PonderSceneScript = {
             pointTo: { anchor: 'presetDefault' }, durationMs: 5000, withPrevious: true,
         },
         { kind: 'pause', id: 'readDefault' },
-
-        { kind: 'highlight', id: 'markCustom', anchor: 'presetCustom', intensity: [0, 0.8], durationMs: 440, keyframe: true },
-        {
-            kind: 'caption', id: 'custom', at: 'bottom',
-            textKey: 'ponder.captions.themeSettings.presetCustom',
-            pointTo: { anchor: 'presetCustom' }, durationMs: 5400, withPrevious: true,
-        },
-        { kind: 'pause', id: 'readCustom' },
     ],
 };
 
@@ -97,7 +87,7 @@ const sourceAndPark: PonderSceneScript = {
 };
 
 /**
- * 第三章：这一组下半截的三个开关。
+ * 第三章：这一组下半截的两个开关。
  *
  * 它们是「配色什么时候自己变」的全部答案，却最容易被漏掉 —— 前两章讲完预设和来源，
  * 屏幕已经翻过去了，而真正让人困惑的「为什么换首歌颜色就变了」在这里。
@@ -116,15 +106,6 @@ const autoSwitching: PonderSceneScript = {
         { kind: 'pause', id: 'readFollow' },
 
         { kind: 'highlight', id: 'dimFollow', anchor: 'followSystem', intensity: [0.85, 0], durationMs: 400, keyframe: true },
-        { kind: 'highlight', id: 'markPrefer', anchor: 'preferCustom', intensity: [0, 0.85], durationMs: 420, withPrevious: true },
-        {
-            kind: 'caption', id: 'prefer', at: 'bottom',
-            textKey: 'ponder.captions.themeSettings.preferCustom',
-            pointTo: { anchor: 'preferCustom' }, durationMs: 5400, withPrevious: true,
-        },
-        { kind: 'pause', id: 'readPrefer' },
-
-        { kind: 'highlight', id: 'dimPrefer', anchor: 'preferCustom', intensity: [0.85, 0], durationMs: 400, keyframe: true },
         { kind: 'highlight', id: 'markAuto', anchor: 'autoSwitch', intensity: [0, 0.85], durationMs: 420, withPrevious: true },
         {
             kind: 'caption', id: 'auto', at: 'bottom',

@@ -8,7 +8,7 @@
     "strict": true,
     "skipLibCheck": true,
     "lib": ["ESNext", "DOM"],
-    "types": ["@cloudflare/workers-types", "node"]
+    "types": ["node"]
   },
   "include": ["src/**/*"]
 }

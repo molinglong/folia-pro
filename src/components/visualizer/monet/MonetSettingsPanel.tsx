@@ -156,10 +156,8 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         { value: true, label: t('options.monetKeywordColoringOn') },
         { value: false, label: t('options.monetKeywordColoringOff') },
     ]), [t]);
-    const showDescriptionOptions = useMemo<PresetOption<boolean>[]>(() => ([
-        { value: true, label: t('options.partitaGuideLinesOn') },
-        { value: false, label: t('options.partitaGuideLinesOff') },
-    ]), [t]);
+    // @fork 本地魔改版（2026-10-14）：「显示歌曲描述」开关跟那一枚描述胶囊一起从面板上抹掉，
+    // 所以 resolvedTuning.showDescription 留着也不会有使用点（字段本体仍在 types / 持久化 / 短码里）。
     const portraitSourceOptions = useMemo<PresetOption<MonetPortraitSource>[]>(() => ([
         { value: 'cover', label: t('options.monetPortraitSourceCover') },
         {
@@ -244,14 +242,9 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     theme={theme}
                 />
 
-                <PresetGroup
-                    label={t('options.monetShowDescription')}
-                    value={resolvedTuning.showDescription}
-                    options={showDescriptionOptions}
-                    onChange={(value) => onMonetTuningChange?.({ showDescription: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
-                />
+                {/* @fork 本地魔改版（2026-10-14）：这里原本是 options.monetShowDescription（显示歌曲描述）
+                    的开关组，因渲染处已删而一并去掉。回滚：补回一个 boolean 的 PresetGroup 与
+                    它的 showDescriptionOptions。 */}
             </div>
 
             {/* Section 2: Portrait Character */}

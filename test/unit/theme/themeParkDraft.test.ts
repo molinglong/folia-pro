@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
     isDualThemeNameValid,
     isThemeNameValid,
-    getTargetProvider,
     normalizeThemeParkDualTheme,
     patchDualThemeMode,
     patchDualThemeShared,
@@ -35,16 +34,10 @@ const buildDualTheme = (overrides: Partial<DualTheme> = {}): DualTheme => ({
 });
 
 describe('themeParkDraft', () => {
-    it('stamps the provider of the edit target', () => {
-        expect(getTargetProvider('custom')).toBe('Custom');
-        expect(getTargetProvider('ai')).toBe('AI');
-
-        const custom = normalizeThemeParkDualTheme(buildDualTheme(), 'custom');
-        expect(custom.light.provider).toBe('Custom');
-        expect(custom.dark.provider).toBe('Custom');
-
-        const ai = normalizeThemeParkDualTheme(buildDualTheme(), 'ai');
-        expect(ai.light.provider).toBe('AI');
+    it('stamps the AI provider on a fresh draft', () => {
+        const normalized = normalizeThemeParkDualTheme(buildDualTheme());
+        expect(normalized.light.provider).toBe('AI');
+        expect(normalized.dark.provider).toBe('AI');
     });
 
     it('keeps an existing provider rather than overwriting it', () => {
@@ -52,14 +45,14 @@ describe('themeParkDraft', () => {
         seeded.light.provider = 'Google Gemini';
         seeded.dark.provider = 'Google Gemini';
 
-        expect(normalizeThemeParkDualTheme(seeded, 'custom').light.provider).toBe('Google Gemini');
+        expect(normalizeThemeParkDualTheme(seeded).light.provider).toBe('Google Gemini');
     });
 
     it('fills the metadata a half-typed draft is missing', () => {
         const draft = buildDualTheme();
         draft.light.name = '   ';
 
-        const normalized = normalizeThemeParkDualTheme(draft, 'custom');
+        const normalized = normalizeThemeParkDualTheme(draft);
         expect(normalized.light.name).toBe('Theme Park Light');
         expect(normalized.light.wordColors).toEqual([]);
         expect(normalized.light.lyricsIcons).toEqual([]);
@@ -71,7 +64,7 @@ describe('themeParkDraft', () => {
         const draft = buildDualTheme();
         draft.dark.accentColor = '#f9';
 
-        const normalized = normalizeThemeParkDualTheme(draft, 'ai', baseline);
+        const normalized = normalizeThemeParkDualTheme(draft, baseline);
         expect(normalized.dark.accentColor).toBe(baseline.dark.accentColor);
     });
 

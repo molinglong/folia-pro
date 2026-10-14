@@ -239,28 +239,22 @@ export const PonderThemeSettingsSurface: React.FC<SurfaceProps> = ({
                 <Palette className="h-[42%] w-auto" />
             </span>
 
-            {/* 两张预设：一枚渐变小圆加一行标签，不是三条色带。 */}
-            {([
-                ['data-ponder-theme-default', T.presetDefault, true],
-                ['data-ponder-theme-custom', T.presetCustom, false],
-            ] as const).map(([marker, rect, isDefault]) => (
-                <div
-                    key={marker}
-                    {...{ [marker]: true }}
-                    className="flex flex-col items-center justify-center gap-[12%] rounded-lg border"
-                    style={{
-                        ...relativeRectStyle(rect),
-                        borderColor: isDefault ? accent : outline,
-                        backgroundColor: isDefault ? `${accent}14` : undefined,
-                    }}
-                >
-                    <span
-                        className="aspect-square h-[34%] rounded-full"
-                        style={{ background: isDefault ? `linear-gradient(135deg, ${accent}, ${line})` : line, opacity: isDefault ? 0.9 : 0.5 }}
-                    />
-                    <span className="h-1.5 w-[42%] rounded-full" style={{ backgroundColor: line }} />
-                </div>
-            ))}
+            {/* 预设卡：一枚渐变小圆加一行标签，不是三条色带。 */}
+            <div
+                data-ponder-theme-default
+                className="flex flex-col items-center justify-center gap-[12%] rounded-lg border"
+                style={{
+                    ...relativeRectStyle(T.presetDefault),
+                    borderColor: accent,
+                    backgroundColor: `${accent}14`,
+                }}
+            >
+                <span
+                    className="aspect-square h-[34%] rounded-full"
+                    style={{ background: `linear-gradient(135deg, ${accent}, ${line})`, opacity: 0.9 }}
+                />
+                <span className="h-1.5 w-[42%] rounded-full" style={{ backgroundColor: line }} />
+            </div>
 
             {/* 主题生成来源：说明加**两个**按钮 —— AI 推断和封面取色，没有第三个。 */}
             <div
@@ -288,7 +282,7 @@ export const PonderThemeSettingsSurface: React.FC<SurfaceProps> = ({
                 </span>
             </div>
 
-            {/* 这一组下半截是三个开关行，它们占了整组一半的高度。 */}
+            {/* 这一组下半截是两个开关行，它们占了整组一半的高度。 */}
             {THEME_SETTINGS_TOGGLES.map(({ name, marker }, index) => (
                 <ToggleRow
                     key={name}

@@ -99,6 +99,16 @@ export function useNeteaseLibrary({
         }
     }, [clearProviderAccount]);
 
+    // 云端投影数据在展示时（本机未扫码接管），登录过期不清数据——否则一次刷新就把同步拉下来的收藏清光。
+    // 用户主动登出仍走 clearAuthState 无条件清。
+    const clearAuthStateKeepingCloudSnapshot = useCallback(async () => {
+        if (useOnlineProviderAccountStore.getState().accounts.netease?.cloudOrigin) {
+            console.info('[NeteaseLibrary] auth-clear:cloud-snapshot-kept');
+            return;
+        }
+        await clearAuthState();
+    }, [clearAuthState]);
+
     useEffect(() => {
         updateProviderAccount('netease', {
             status: isUserDataReady ? (user ? 'authenticated' : 'anonymous') : 'unknown',
@@ -172,12 +182,12 @@ export function useNeteaseLibrary({
             }
 
             lastRefreshAuthExpiredRef.current = true;
-            await clearAuthState();
+            await clearAuthStateKeepingCloudSnapshot();
         } catch (error) {
             console.log('Not logged in, session expired, or offline');
             if (error instanceof Error && error.message === 'NETEASE_AUTH_EXPIRED') {
                 lastRefreshAuthExpiredRef.current = true;
-                await clearAuthState();
+                await clearAuthStateKeepingCloudSnapshot();
             } else {
                 const cachedAccount = useOnlineProviderAccountStore.getState().accounts.netease;
                 updateProviderAccount('netease', {
@@ -189,7 +199,7 @@ export function useNeteaseLibrary({
             }
         }
         return false;
-    }, [clearAuthState, t, updateProviderAccount]);
+    }, [clearAuthStateKeepingCloudSnapshot, t, updateProviderAccount]);
 
     const loadUserData = useCallback(async () => {
         try {
@@ -230,13 +240,15 @@ export function useNeteaseLibrary({
                     likedSongIds: normalizedLikedSongIds,
                 });
                 updateProviderAccount('netease', {
-                    status: 'authenticated',
+                    // 云端投影快照不伪造登录态：数据照常恢复，扫码接管后才升 authenticated。
+                    status: snapshot?.cloudOrigin ? 'anonymous' : 'authenticated',
                     user: cachedUser,
                     collections,
                     likedSongIds: normalizedLikedSongIds,
                     hydration: 'ready',
                     freshness: 'stale',
                     lastUpdatedAt: cachedSnapshot.savedAt,
+                    cloudOrigin: snapshot?.cloudOrigin,
                 });
                 return;
             }

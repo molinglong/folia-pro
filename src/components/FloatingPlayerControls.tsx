@@ -31,12 +31,15 @@ export interface TrackNavigation {
 
 const CONTROL_LAYOUT_SPRING = {
     type: 'spring' as const,
-    stiffness: 280,
-    damping: 24,
+    // @fork 本地魔改版：原 stiffness 280 / damping 24 到位拖、带尾。调硬调阻后明显变快且几乎不回弹。
+    stiffness: 500,
+    damping: 40,
 };
 
 const HOVER_EXPAND_DELAY_MS = 20;
-const HOVER_COLLAPSE_DELAY_MS = 100;
+// @fork 本地魔改版：原 100ms 收起太快，展开态里于头一动出边界就收回。
+// 调到 1200ms：移开后停留 1.2s 再收，给操作/查看留够余量又不至于挂太久发黏。
+const HOVER_COLLAPSE_DELAY_MS = 1200;
 const HOVER_HITBOX_BOTTOM_BUFFER_PX = 32;
 /*
  * 模组可以通过公开变量 --folium-player-bar-extra 加宽胶囊，补回进度条两侧按钮占掉的长度。
@@ -381,7 +384,22 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                             // 定位模式下 seek 和所有按钮一起失效：这时胶囊是个被拖的物体，不是控件。
                             className={`w-full ${isPositioning ? 'pointer-events-none select-none' : ''}`}
                         >
+                            {/* @fork 本地魔改版：悬浮展开/收起时，进度条、播放键、两侧时间戳不再整块换 DOM 而瞬移。
+                                改成 AnimatePresence 交叉淡入淡出（约 150ms，只动透明度）。
+                                @fork 补注：进/退场视图都标 layout，让它们以外壳真实的未缩放尺寸自己做投影淡入，
+                                不再被外层那颗 motion.div layout 的 FLIP 缩放拉伸（图标/歌名“闪一下”就是这个拉伸+位移叠加造成的）。
+                                mode="popLayout" 让离场视图脱离布局流、不撑大胶囊；initial={false} 避免首挂载就播一次入场。 */}
+                            <AnimatePresence mode="popLayout" initial={false}>
                             {showExpanded ? (
+                                <motion.div
+                                    key="expanded"
+                                    layout
+                                    className="w-full"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15, ease: 'easeOut' }}
+                                >
                                 <ExpandedView
                                     currentSong={currentSong}
                                     playerState={playerState}
@@ -402,7 +420,17 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     slotSecondary={slotSecondary}
                                     slotContext={resolvedSlotContext}
                                 />
+                                </motion.div>
                             ) : (
+                                <motion.div
+                                    key="collapsed"
+                                    layout
+                                    className="w-full"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15, ease: 'easeOut' }}
+                                >
                                 <CollapsedView
                                     currentTime={currentTime}
                                     duration={duration}
@@ -412,7 +440,9 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     trackColor={trackColor}
                                     controlsDisabled={controlsDisabled}
                                 />
+                                </motion.div>
                             )}
+                            </AnimatePresence>
                         </motion.div>
                     </motion.div>
                 </div>
@@ -566,7 +596,13 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
             </div>
 
             {/* Row 2: Current Time, Progress Bar, Duration */}
-            <div className="col-span-3 row-start-3 w-full px-2 sm:col-start-2 sm:col-span-1 sm:row-start-2">
+            {/* @fork 本地魔改版：进度条与收起态共用 layoutId，悬浮展开时那一根条做共享元素 FLIP 平移/伸缩，
+                不再是“收起那根淡出、展开那根淡入”的位置跳变。 */}
+            <motion.div
+                layoutId="player-progress-bar"
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="col-span-3 row-start-3 w-full px-2 sm:col-start-2 sm:col-span-1 sm:row-start-2"
+            >
                 <ProgressBar
                     currentTime={currentTime}
                     duration={duration}
@@ -576,7 +612,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                     trackColor={trackColor}
                     disabled={controlsDisabled}
                 />
-            </div>
+            </motion.div>
         </div>
     );
 };
@@ -602,7 +638,7 @@ const CollapsedView: React.FC<CollapsedViewProps> = ({
     controlsDisabled = false,
 }) => {
     return (
-        <div className="flex items-center w-full justify-center h-8 px-4">
+        <motion.div layoutId="player-progress-bar" transition={{ duration: 0.18, ease: 'easeOut' }} className="flex items-center w-full justify-center h-8 px-4">
             <ProgressBar
                 currentTime={currentTime}
                 duration={duration}
@@ -613,7 +649,7 @@ const CollapsedView: React.FC<CollapsedViewProps> = ({
                 disabled={controlsDisabled}
                 collapsed
             />
-        </div>
+        </motion.div>
     );
 };
 

@@ -14,6 +14,7 @@ import { restoreSavedFoliumSelections } from './mods/folium/missingEntries';
 import { installFoliumCommandPaletteSync } from './mods/folium/commandPaletteSync';
 import { installFoliumHostEvents } from './mods/folium/hostEvents';
 import { installLibrarySuiteChromeCommands } from './library/app/installLibrarySuiteChromeCommands';
+import { initGraphicsPresetOnFirstRun } from './stores/useGraphicsPresetStore';
 import { installNativeDragGuard } from './utils/nativeDragGuard';
 import { bootNavidromeServerPreset } from './services/navidromeServerPreset';
 import { isNavidromeEnabled } from './services/navidromeService';
@@ -73,6 +74,11 @@ const renderApp = () => root.render(
 // registry, so the commands are put into its list here, before anything renders (main window only,
 // like the mod commands below). A clashing execute shortcut throws here, at startup.
 if (isMainApp) installLibrarySuiteChromeCommands();
+
+// 画质档位（见 stores/useGraphicsPresetStore）在首次渲染前同步落一次盘：全新/首次升级的用户只读指纹
+// 判定当前档位 id，绝不改写任何旧开关；顺带跑一次设备能力检测，命中低端机时发一条可忽略的提示。
+// 放在这里而不是某个组件的 effect 里，是为了保证第一次读 store 时拿到的就已经是判定完的值。
+if (isMainApp) initGraphicsPresetOnFirstRun();
 
 const bootFolium = async () => {
     if (!isMainApp) return;

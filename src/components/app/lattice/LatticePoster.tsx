@@ -49,6 +49,11 @@ type LatticePosterProps = {
      * static = 淡入淡出交叉里进来（不跑入场）。不在交接里为 null。同一段里是同一个对象（PosterWall 缓存）。
      */
     handoff: LatticePosterHandoff | null;
+    /**
+     * 涟漪熄灯：关灯/开灯时这一张的熄灯层相对中心的延迟（ms）。PosterWall 按与当前播放卡中心的欧氏距离算。
+     * 无当前播放卡时为 0，等同于旧行为。写入 span 的 inline transitionDelay，wall.css 里的 duration/easing 不变。
+     */
+    lightsRippleDelay: number;
     expanded: boolean;
     reducedMotion: boolean | null;
     didDragRef: MutableRefObject<boolean>;
@@ -135,6 +140,7 @@ function LatticePoster({
     entranceDelay,
     getExitDelay,
     handoff,
+    lightsRippleDelay,
     expanded,
     reducedMotion,
     didDragRef,
@@ -284,7 +290,7 @@ function LatticePoster({
             aria-label={`${tile.title} · ${tile.artist}`}
         >
             <span className="lattice-poster-shade" />
-            <span className="lattice-poster-lights-out" />
+            <span className="lattice-poster-lights-out" style={{ transitionDelay: `${lightsRippleDelay}ms` }} />
             <span className="lattice-poster-tint" />
             <span className={`lattice-poster-badge ${isCurrent ? 'is-current' : ''}`}>
                 {isCurrent && <>{t('home.latticeBadgeNow')} · </>}

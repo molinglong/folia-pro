@@ -5,7 +5,6 @@ import { sanitizeDualTheme } from '../../../services/themeSanitizer';
 // Pure model for the Theme Park editor: the editable field map, the metadata normalizer that keeps
 // a half-typed draft renderable, and the validators the save button gates on.
 
-export type ThemeEditTarget = 'ai' | 'custom';
 export type EditableMode = 'light' | 'dark';
 export type EditableColorKey = 'backgroundColor' | 'primaryColor' | 'accentColor' | 'secondaryColor';
 export type ThemeParkTab = 'colors' | 'details' | 'content' | 'ai';
@@ -39,21 +38,17 @@ const normalizeDualThemeMetadata = (dualTheme: DualTheme, provider: string): Dua
     dark: normalizeThemeMetadata(dualTheme.dark, 'Theme Park Dark', provider),
 });
 
-export const getTargetProvider = (target: ThemeEditTarget) => (target === 'custom' ? 'Custom' : 'AI');
-
 // Keeps an in-progress draft (empty name, missing wordColors, invalid hex) renderable without
 // discarding what the user typed; the same normalizer runs again on save.
 export const normalizeThemeParkDualTheme = (
     dualTheme: DualTheme,
-    target: ThemeEditTarget,
     fallbackTheme?: DualTheme,
 ): DualTheme => {
-    const provider = getTargetProvider(target);
-    const normalized = normalizeDualThemeMetadata(dualTheme, provider);
+    const normalized = normalizeDualThemeMetadata(dualTheme, 'AI');
 
     return sanitizeDualTheme(
         normalized,
-        fallbackTheme ? normalizeDualThemeMetadata(fallbackTheme, provider) : normalized,
+        fallbackTheme ? normalizeDualThemeMetadata(fallbackTheme, 'AI') : normalized,
     );
 };
 

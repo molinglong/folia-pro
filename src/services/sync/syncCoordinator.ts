@@ -1,5 +1,7 @@
-import { getSyncConfig, isSyncConfigured, setSyncStatus } from './syncConfig';
+import { getSyncConfig, isSyncConfigured, setSyncStatus, whenSessionHydrated } from './syncConfig';
 import { getRemoteState, testSyncConnection } from './syncClient';
+import { syncAllCollections, type CollectionSyncSummary } from './collectionSync';
+import { syncPlatformSessions } from './platformSessionSync';
 import type { SyncProviderConfig } from './syncTypes';
 import { applySyncedVisualSettings, buildSyncedSettingsRecord, readSyncableSettingsState } from './settingsSnapshot';
 import {
@@ -47,7 +49,11 @@ const pushCurrentSettings = async () => {
 };
 
 export const initializeSyncCoordinator = () => {
-    void syncNow({ syncThemes: true, applyRemoteSettings: false, pushSettings: false });
+    void (async () => {
+        // 会话从 IndexedDB 水合是异步的：等它落地再决定启动同步走账号域还是兼容域。
+        await whenSessionHydrated();
+        await syncNow({ syncThemes: true, applyRemoteSettings: false, pushSettings: false });
+    })();
 
     return () => {};
 };
@@ -89,9 +95,15 @@ export type SyncNowResult = {
     skippedRemoteThemeScan: boolean;
     appliedRemoteSettings: boolean;
     pushedLocalSettings: boolean;
+    collectionSyncSummary: CollectionSyncSummary | null;
 };
 
-export const syncNow = async (options: { syncThemes?: boolean; applyRemoteSettings?: boolean; pushSettings?: boolean } = {}): Promise<SyncNowResult | null> => {
+export const syncNow = async (options: {
+    syncThemes?: boolean;
+    applyRemoteSettings?: boolean;
+    pushSettings?: boolean;
+    syncCollections?: boolean;
+} = {}): Promise<SyncNowResult | null> => {
     if (isSyncingInProgress) {
         return null;
     }
@@ -124,6 +136,13 @@ export const syncNow = async (options: { syncThemes?: boolean; applyRemoteSettin
         if (options.pushSettings) {
             pushedLocalSettings = await pushCurrentSettings();
         }
+        let collectionSyncSummary: CollectionSyncSummary | null = null;
+        if (options.syncCollections ?? true) {
+            collectionSyncSummary = await syncAllCollections();
+            // 平台会话键对账（QQ 共享登录态）：与收藏同一个同步周期，
+            // 本机扫码→推云、他机扫码→领养 token 并通知 UI 重查。
+            await syncPlatformSessions('qq');
+        }
         setSyncStatus({ state: 'success', lastSyncAt: new Date().toISOString(), lastError: null });
         const summary = {
             uploadedThemeCount: themeSyncResult.uploadedCount,
@@ -133,6 +152,7 @@ export const syncNow = async (options: { syncThemes?: boolean; applyRemoteSettin
             skippedRemoteThemeScan: themeSyncResult.skippedRemoteThemeScan,
             appliedRemoteSettings,
             pushedLocalSettings,
+            collectionSyncSummary,
         };
         console.info('[sync] Sync completed', summary);
         if (summary.downloadedThemeCount > 0 && typeof window !== 'undefined') {

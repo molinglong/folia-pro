@@ -11,6 +11,7 @@ import type {
     ProviderUser,
 } from '../types/onlineMusic';
 import { handleLoginStatusFailure } from '../services/onlineMusic/loginStatusFailure';
+import { onPlatformSessionAdopted } from '../services/sync/platformSessionSync';
 import {
     clearProviderAccountSnapshot,
     loadProviderAccountSnapshot,
@@ -109,6 +110,8 @@ export const refreshQqLibraryAccount = async ({
             hydration: 'ready',
             freshness: 'fresh',
             lastUpdatedAt: savedAt,
+            // 本机真实登录数据落地，云端投影标记使命结束。
+            cloudOrigin: false,
         });
         console.info('[QQLibrary] refresh:complete', {
             collectionCount: collections.length,
@@ -161,6 +164,15 @@ export const useQqLibrary = () => {
             // A profile without a display name still counts as authenticated; the provider owns that judgement.
             const user = await omni.getLoginStatus('qq');
             if (!user) {
+                if (cachedAccount?.cloudOrigin) {
+                    // 云端投影数据在展示（本机从未扫码接管）：保留数据供首页展示，只降级登录态。
+                    // 否则一次刷新就会把同步拉下来的歌单当未登录清光。
+                    updateAccount('qq', { status: 'anonymous', hydration: 'ready', error: undefined });
+                    console.info('[QQLibrary] login-status:cloud-snapshot-kept', {
+                        collectionCount: cachedAccount.collections.length,
+                    });
+                    return null;
+                }
                 await clearAuthState(cachedAccount?.user ? 'auth-required' : undefined);
                 console.info('[QQLibrary] login-status:anonymous', {
                     previousAccountExpired: Boolean(cachedAccount?.user),
@@ -215,12 +227,14 @@ export const useQqLibrary = () => {
                         .map(collection => omni.normalizeCachedCollection('qq', collection, collection.type))
                         .filter(Boolean) as ProviderCollection[];
                     updateAccount('qq', {
-                        status: 'authenticated',
+                        // 云端投影快照不伪造登录态：数据照常展示，扫码接管后才升 authenticated。
+                        status: snapshot.cloudOrigin ? 'anonymous' : 'authenticated',
                         user,
                         collections,
                         hydration: 'ready',
                         freshness: 'stale',
                         lastUpdatedAt: snapshot.savedAt,
+                        cloudOrigin: snapshot.cloudOrigin,
                     });
                 }
             }
@@ -228,6 +242,12 @@ export const useQqLibrary = () => {
         })();
         return () => { cancelled = true; };
     }, [refresh]);
+
+    // 平台会话键被云端领养（他机扫码，本机无 token）后触发重查：token 已写进 providerStorage，
+    // 走标准 refresh 链路即可把 guest 翻成 authenticated，全程无交互。
+    useEffect(() => onPlatformSessionAdopted(providerId => {
+        if (providerId === 'qq') void refresh();
+    }), [refresh]);
 
     return { refresh, logout, checkLoginStatus };
 };

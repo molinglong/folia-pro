@@ -28,7 +28,6 @@ interface ControlsTabProps {
     onThemeChange: (theme: Theme) => void;
     bgMode: ThemeMode;
     onBgModeChange: (mode: ThemeMode) => void;
-    hasCustomTheme: boolean;
     themeSourceModel: ThemeSourceModel;
     defaultTheme: Theme;
     daylightTheme: Theme;
@@ -60,7 +59,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     theme,
     onThemeChange,
     onBgModeChange,
-    hasCustomTheme,
     themeSourceModel,
     defaultTheme,
     daylightTheme,
@@ -145,7 +143,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                         onToggleCoverColorBg={onToggleCoverColorBg}
                         themeSourceModel={themeSourceModel}
                         onBgModeChange={onBgModeChange}
-                        hasCustomTheme={hasCustomTheme}
                         defaultTheme={defaultTheme}
                         daylightTheme={daylightTheme}
                         onClosePanel={onClosePanel}
@@ -168,9 +165,7 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                                 type="button"
                                 onClick={openCurrentThemeQuickEditor}
                                 className={`max-w-[120px] truncate rounded-md px-1.5 py-1 text-left text-xs font-bold transition-colors ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'}`}
-                                title={currentEditableSource === 'custom'
-                                    ? (t('options.customThemeQuickEditTitle') || 'Edit Custom Theme')
-                                    : (t('options.aiThemeQuickEditTitle') || 'Edit AI Theme')}
+                                title={t('options.aiThemeQuickEditTitle') || 'Edit AI Theme'}
                             >
                                 {themeDisplayName}
                             </button>

@@ -6,6 +6,7 @@ import { useSearchNavigationStore } from '../../../stores/useSearchNavigationSto
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../stores/usePlayerChromeSettingsStore';
+import { usePlaybackQuickPanelStore } from '../../../stores/usePlaybackQuickPanelStore';
 import { useTranslation } from 'react-i18next';
 import {
     selectDisplayCoverUrl,
@@ -42,6 +43,8 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
     const stageTrackPillTimeoutSec = useStageSettingsStore(state => state.stageTrackPillTimeoutSec);
     const playerControlSlotPrimary = usePlayerChromeSettingsStore(state => state.playerControlSlotPrimary);
     const playerControlSlotSecondary = usePlayerChromeSettingsStore(state => state.playerControlSlotSecondary);
+    // @fork 播放快捷二级浮层的开关：只用来让槽位那颗按钮亮着，开关本身住在纯 UI store 里。
+    const isPlaybackQuickOpen = usePlaybackQuickPanelStore(state => state.isOpen);
     const handleSetPlayerBottomBarOffset = usePlayerChromeSettingsStore(state => state.handleSetPlayerBottomBarOffset);
     const audioSrc = usePlaybackStore(state => state.audioSrc);
     const playQueue = usePlaybackStore(state => state.playQueue);
@@ -66,6 +69,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         ).disabled,
         invokeCommandById: deps.invokeCommandById,
         canInvokeCommandById: deps.canInvokeCommandById,
+        isPlaybackQuickOpen,
     }), [
         activePlaybackContext,
         deps.canInvokeCommandById,
@@ -76,6 +80,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         deps.shuffleQueue,
         displaySong,
         isFmMode,
+        isPlaybackQuickOpen,
         playQueue.length,
     ]);
 
