@@ -360,6 +360,10 @@ const normalizeSongResult = (raw: any): SongResult => {
     resourceState: typeof (base?.resourceState ?? raw?.resourceState) === 'boolean'
       ? Boolean(base?.resourceState ?? raw?.resourceState)
       : undefined,
+    // `mv` is NetEase's MV id (0/absent = none). Callers re-normalize already-normalized songs
+    // (provider second pass), so this field must survive the whitelist rebuild for the video
+    // layer's MV lookup to see an id at all.
+    mv: Number(base?.mv ?? raw?.mv) || undefined,
     privilege: normalizeSongPrivilege(base?.privilege ?? raw?.privilege),
   };
 };
@@ -459,6 +463,17 @@ const getSongDetail = async (ids: number[] | number) => {
   const res = await fetchWithCreds(`/song/detail?ids=${idParam}`);
   res.songs = mergeSongsWithPrivileges(res.songs, res.privileges);
   return res;
+};
+
+// MV stream lookup for the video layer's "current song MV" source. `/mv/url` answers with a
+// single-item `data` array whose `url` stays empty when the account may not stream that quality.
+const getMvUrl = async (id: number, r = 1080) => {
+  const res = await fetchWithCreds(`/mv/url?id=${id}&r=${r}`);
+  const payload = Array.isArray(res?.data) ? res.data[0] : res?.data;
+  if (payload && typeof payload.url === 'string' && payload.url) {
+    payload.url = toHttps(payload.url);
+  }
+  return payload ?? null;
 };
 
 const getSongCopyrightRecommendation = async (songId: number) => {
@@ -679,6 +694,10 @@ export const neteaseApi = {
 
   getSongDetail: async (ids: number[] | number) => {
     return getSongDetail(ids);
+  },
+
+  getMvUrl: async (id: number, r = 1080) => {
+    return getMvUrl(id, r);
   },
 
   getFavoriteAlbums: async (limit = 25, offset = 0) => {

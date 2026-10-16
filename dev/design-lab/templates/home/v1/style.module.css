@@ -1,0 +1,22 @@
+.page { min-height: 100dvh; display: grid; grid-template-columns: 1fr 260px 1fr; padding: 55px 35px 155px; gap: 36px; align-items: center; background: var(--page); }
+.wall { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 24px; }
+.poster { padding: 0; position: relative; text-align: left; transition: transform .2s; border-radius: 4px; }
+.poster img { aspect-ratio: 1; width: 100%; height: auto; border-radius: 4px; box-shadow: 0 12px 25px #00000016; }
+.poster > span { display: block; padding: 13px 3px 0; font-size: 14px; }
+.poster small { display: block; font-size: 11px; color: var(--secondary); margin-top: 5px; }
+.poster[aria-pressed=true] { transform: translateY(-8px); outline: 2px solid var(--active); outline-offset: 8px; }
+.poster > svg { position: absolute; right: 8px; bottom: 22px; }
+.seam { align-self: stretch; border-inline: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 35px 20px; text-align: center; }
+.seam h1 { font-size: 36px; font-weight: 500; margin: 15px 0 10px; letter-spacing: -1px; }
+.seam p { font-size: 12px; color: var(--secondary); line-height: 1.8; }
+.seam nav { display: flex; gap: 7px; margin: 22px 0 18px; }
+.seam nav button { padding: 10px; min-height: 44px; font-size: 13px; border-bottom: 2px solid transparent; }
+.seam nav button[aria-pressed=true] { border-color: var(--active); }
+.detail { margin: auto 0; padding-block: 40px; }
+.detail h2 { font-size: 21px; font-weight: 500; margin-top: 20px; }
+.seam > small { font-size: 10px; color: var(--secondary); }
+.player { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 450px; max-width: calc(100vw - 32px); display: flex; align-items: center; gap: 18px; border: 1px solid var(--line); background: var(--panel); border-radius: 45px; padding: 14px 22px; }
+.player > div { flex: 1; min-width: 0; }
+.player strong { display: block; font-size: 13px; text-align: center; margin-bottom: 8px; }
+@media (max-width: 1000px) { .page { gap: 24px; grid-template-columns: 1fr 210px 1fr; padding-inline: 24px; } .wall { grid-template-columns: 1fr; } .poster:nth-child(n+3) { display: none; } }
+@media (max-width: 600px) { .page { grid-template-columns: 1fr 1fr; padding: 28px 24px 160px; gap: 28px; } .seam { grid-column: 1 / -1; grid-row: 1; border: 0; padding: 0; } .seam > svg, .detail, .seam > small { display: none; } .seam h1 { margin-top: 0; } .seam nav { margin: 0 0 12px; } }

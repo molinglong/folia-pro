@@ -1,0 +1,6 @@
+{
+  "id":"collection", "title":"歌单与专辑详情", "description":"封面头部、操作区与歌曲列表，提供选中歌曲、专辑及空列表场景。",
+  "version":"v1", "sharedVersion":"v1", "createdAt":"2026-10-14", "order":4,
+  "sourcePaths":["src/library/suites/grid/collection/GridCollectionSurface.tsx","src/library/suites/bravais/BravaisSeamCollection.tsx"],
+  "scenes":[{"id":"default","label":"歌单详情"},{"id":"selected","label":"选中歌曲"},{"id":"album","label":"专辑详情"},{"id":"empty","label":"空列表"}]
+}

@@ -15,6 +15,7 @@ describe('visualizer registry', () => {
             'sonnet',
             'tempera',
             'lumiere',
+            'paperwindow',
             'classic',
             'cadenza',
             'partita',
@@ -26,6 +27,7 @@ describe('visualizer registry', () => {
             'cappella',
             'diorama',
             'still',
+            'rings',
         ]);
     });
 

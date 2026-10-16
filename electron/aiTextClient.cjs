@@ -16,7 +16,7 @@ const { REASONING_SUPPRESSION_ATTEMPTS } = require('../shared/lyricSegmentationP
 
 const DEFAULT_OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
-const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
+const DEEPSEEK_DEFAULT_MODEL = 'deepseek-flash';
 const DEFAULT_OPENAI_TEMPERATURE = 0.7;
 const GEMINI_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';

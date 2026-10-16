@@ -30,12 +30,15 @@ export const generateThemeFromLyrics = async (
     const provider = getWebAiProvider();
     const endpoint = provider === 'openai' ? '/api/generate-theme_openai' : '/api/generate-theme';
 
+    // A stalled endpoint must not pin the "generating" state forever; the Electron main process
+    // already wraps its own requests in a timeout signal.
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ lyricsText, ...options }),
+      signal: AbortSignal.timeout(45_000),
     });
 
     if (!response.ok) {
@@ -44,7 +47,9 @@ export const generateThemeFromLyrics = async (
     }
 
     const dualTheme = await response.json();
-    return applyStoredAnimationIntensityToDualTheme(sanitizeDualTheme(dualTheme as DualTheme));
+    // Animation intensity is applied once by the theme controller; the OBS variant below keeps its
+    // own because its caller does not run through the controller.
+    return sanitizeDualTheme(dualTheme as DualTheme);
   } catch (error) {
     console.error("Failed to generate theme via API:", error);
     throw error;

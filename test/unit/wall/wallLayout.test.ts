@@ -4,8 +4,11 @@ import {
     getLatticeGeometry,
     layoutExpandedBlock,
     layoutLattice,
+    locateFullyVisibleInstance,
     locateInstanceAt,
+    locateInstanceWithId,
     locateNearestInstance,
+    type QueueInstance,
 } from '../../../src/components/wall/layout';
 import {
     BLOCK_COLS,
@@ -288,6 +291,90 @@ describe('infinite lattice', () => {
         it('refuses an index outside the queue', () => {
             expect(locateNearestInstance(geometry, TOTAL, -1, { x: 0, y: 0 }, metrics)).toBeNull();
             expect(locateNearestInstance(geometry, TOTAL, TOTAL, { x: 0, y: 0 }, metrics)).toBeNull();
+        });
+    });
+
+    describe('locateFullyVisibleInstance', () => {
+        const identity = (instance: QueueInstance) => instance;
+        const fullyInside = (
+            rect: { x: number; y: number; width: number; height: number },
+            view: { left: number; right: number; top: number; bottom: number },
+        ) => rect.x >= view.left && rect.y >= view.top
+            && rect.x + rect.width <= view.right && rect.y + rect.height <= view.bottom;
+
+        it('refuses an index outside the queue', () => {
+            expect(locateFullyVisibleInstance(geometry, TOTAL, -1, viewport(0, 0), metrics, identity)).toBeNull();
+            expect(locateFullyVisibleInstance(geometry, TOTAL, TOTAL, viewport(0, 0), metrics, identity)).toBeNull();
+        });
+
+        it('returns nothing when every copy is clipped or off screen', () => {
+            const card = locateInstanceAt(geometry, TOTAL, 0, 0, 0, metrics)!;
+            // 视口小到只罩住这张卡的中段：它自己被四边裁掉，紧邻的副本又都在视口外。
+            const narrow = {
+                left: card.x + 2, right: card.x + card.width - 2,
+                top: card.y + 10, bottom: card.y + card.height - 10,
+            };
+            expect(locateFullyVisibleInstance(geometry, TOTAL, card.queueIndex, narrow, metrics, identity)).toBeNull();
+        });
+
+        it('counts an edge-flush copy as fully visible', () => {
+            const card = locateInstanceAt(geometry, TOTAL, 0, 0, 0, metrics)!;
+            // 视口正好是卡的外接矩形：贴边不算被裁，否则就该返回 null。
+            const flush = {
+                left: card.x, right: card.x + card.width,
+                top: card.y, bottom: card.y + card.height,
+            };
+            const found = locateFullyVisibleInstance(geometry, TOTAL, card.queueIndex, flush, metrics, identity)!;
+            expect(found.instanceId).toBe(card.instanceId);
+        });
+
+        it('skips the snapped copy when it is clipped, in favour of a fully visible one', () => {
+            const card = locateInstanceAt(geometry, TOTAL, 0, 0, 0, metrics)!;
+            // 视口中心对着这张卡，但右缘压进卡里 5px：最近的副本被裁，返回的必须是别的完整副本。
+            const view = {
+                left: card.x + card.width + 5 - 2400,
+                right: card.x + card.width - 5,
+                top: card.y + card.height / 2 - 700,
+                bottom: card.y + card.height / 2 + 700,
+            };
+            const found = locateFullyVisibleInstance(geometry, TOTAL, card.queueIndex, view, metrics, identity)!;
+            expect(found.queueIndex).toBe(card.queueIndex);
+            expect(fullyInside(found, view)).toBe(true);
+            expect(found.instanceId).not.toBe(card.instanceId);
+        });
+
+        it('measures with the rect the caller hands back, not the base one', () => {
+            const card = locateInstanceAt(geometry, TOTAL, 0, 0, 0, metrics)!;
+            const view = {
+                left: card.x + 2, right: card.x + card.width - 2,
+                top: card.y + 10, bottom: card.y + card.height - 10,
+            };
+            // 基础矩形被四边裁掉；调用方交回居中收窄的实际矩形（展开 reflow 的形状）后它就完整了。
+            const slimmer = (instance: QueueInstance) => ({
+                ...instance,
+                x: instance.x + 3, y: instance.y + 11,
+                width: instance.width - 8, height: instance.height - 30,
+            });
+            const found = locateFullyVisibleInstance(geometry, TOTAL, card.queueIndex, view, metrics, slimmer)!;
+            expect(found.instanceId).toBe(card.instanceId);
+        });
+    });
+
+    describe('locateInstanceWithId', () => {
+        it('rebuilds the exact copy a persistent id addresses, negative repeats included', () => {
+            const corners = [[0, 0], [3, 2], [-1, -2], [-4, 5]] as const;
+            for (const [column, row] of corners) {
+                for (let slotIndex = 0; slotIndex < SLOTS_PER_BLOCK; slotIndex += 1) {
+                    const instance = locateInstanceAt(geometry, TOTAL, column, row, slotIndex, metrics)!;
+                    expect(locateInstanceWithId(geometry, TOTAL, instance.instanceId, metrics)).toEqual(instance);
+                }
+            }
+        });
+
+        it('refuses ids that do not address a slot', () => {
+            expect(locateInstanceWithId(geometry, TOTAL, 'not-an-id', metrics)).toBeNull();
+            expect(locateInstanceWithId(geometry, TOTAL, '-1:0:0', metrics)).toBeNull();
+            expect(locateInstanceWithId(geometry, TOTAL, `${geometry.cellSlots}:0:0`, metrics)).toBeNull();
         });
     });
 });

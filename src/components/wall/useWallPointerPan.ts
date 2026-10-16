@@ -12,6 +12,8 @@ import { createWallWheelClassifier, stepWallWheel, wallWheelDelta, WALL_PAN_INER
 
 const DRAG_THRESHOLD_PX = 7;
 const CULL_EDGE_MARGIN_PX = 180;
+// 滚轮/触控板没有「松手」信号：输入停这么久、且没有相机动画在跑，才算这一眼看完。
+const WHEEL_SETTLE_MS = 300;
 
 type WallPointerPanOptions = {
     applyCamera: (camera: LatticeCamera, updateBounds?: boolean) => void;
@@ -24,12 +26,27 @@ type WallPointerPanOptions = {
     cameraRef: MutableRefObject<LatticeCamera>;
     getWorldBounds: (camera: LatticeCamera, viewport: { width: number; height: number }) => Bounds;
     viewportRef: MutableRefObject<{ width: number; height: number }>;
+    /**
+     * 镜头停稳后的回调：拖动松手（含惯性滑完，以及没带起惯性的松手）与滚轮滚动停下各触发一次。
+     * 按下又没拖动（单击）、手势取消不触发。Lattice 用它检查正在播放的卡要不要吸到屏幕中间。
+     */
+    onPanSettle?: () => void;
+    /**
+     * 用户驱动的镜头（拖动 / 滚轮 / 触控板 / 惯性）每帧的回调；panTo 的程序化飞行不经过这里。
+     * Lattice 用它逐帧跟踪正在播放的卡是否离开过「完整在屏」。
+     */
+    onCameraFrame?: (camera: LatticeCamera) => void;
 };
 
 export const useWallPointerPan = ({
     applyCamera, animationRef, stopPan, containerRef, reducedMotion, overscan,
-    bounds, cameraRef, getWorldBounds, viewportRef,
+    bounds, cameraRef, getWorldBounds, viewportRef, onPanSettle, onCameraFrame,
 }: WallPointerPanOptions) => {
+    // 永久身份：回调随渲染重建，读方（pointerup 与 wheel 监听）不跟着重挂。
+    const onPanSettleRef = useRef(onPanSettle);
+    onPanSettleRef.current = onPanSettle;
+    const onCameraFrameRef = useRef(onCameraFrame);
+    onCameraFrameRef.current = onCameraFrame;
     const boundsRef = useRef(bounds);
     boundsRef.current = bounds;
     const pointerRef = useRef<{
@@ -55,6 +72,7 @@ export const useWallPointerPan = ({
             || visible.top < culled.top - padding
             || visible.bottom > culled.bottom + padding;
         applyCamera(next, nearCullEdge);
+        onCameraFrameRef.current?.(next);
     }, [applyCamera, cameraRef, getWorldBounds, overscan, viewportRef]);
 
     const interrupt = useCallback(() => {
@@ -103,16 +121,30 @@ export const useWallPointerPan = ({
         if (!pointer || pointer.id !== event.pointerId) return;
         pointerRef.current = null;
         if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-        if (!pointer.dragged || reducedMotion || event.timeStamp - pointer.last.time > WALL_PAN_INERTIA.staleReleaseMs) return;
+        if (!pointer.dragged) return;
+        if (reducedMotion || event.timeStamp - pointer.last.time > WALL_PAN_INERTIA.staleReleaseMs) {
+            onPanSettleRef.current?.();
+            return;
+        }
         const speed = Math.hypot(pointer.vx, pointer.vy);
-        if (speed < WALL_PAN_INERTIA.minSpeed) return;
+        if (speed < WALL_PAN_INERTIA.minSpeed) {
+            onPanSettleRef.current?.();
+            return;
+        }
         const from = cameraRef.current;
         const velocity = Math.min(speed, WALL_PAN_INERTIA.maxSpeed);
-        animationRef.current = animate(0, velocity * WALL_PAN_INERTIA.power, {
+        const coast = animate(0, velocity * WALL_PAN_INERTIA.power, {
             type: 'inertia', velocity, power: WALL_PAN_INERTIA.power, timeConstant: WALL_PAN_INERTIA.timeConstant,
             restDelta: WALL_PAN_INERTIA.restDelta,
             onUpdate: distance => updateCamera(from.x + distance * pointer.vx / speed, from.y + distance * pointer.vy / speed),
+            onComplete: () => {
+                // 滑完这一段才算停稳；期间若别的动画（panTo 等）已接管镜头，就不动它也不检查。
+                if (animationRef.current !== coast) return;
+                animationRef.current = null;
+                onPanSettleRef.current?.();
+            },
         });
+        animationRef.current = coast;
     }, [animationRef, cameraRef, reducedMotion, updateCamera]);
 
     const onPointerCancel = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -135,11 +167,26 @@ export const useWallPointerPan = ({
         lastTime: number | null;
         handle: { stop: () => void };
     } | null>(null);
+    // 滚轮停稳定时器：与平滑共用一套等待逻辑（见 WHEEL_SETTLE_MS），到期时相机还没停就再等一轮。
+    const settleTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
         const classify = createWallWheelClassifier();
+        // 滚轮/触控板的一次浏览没有明确终点：输入停 WHEEL_SETTLE_MS 且相机动画都结束才交给 onPanSettle。
+        const queueSettleCheck = () => {
+            if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
+            settleTimerRef.current = window.setTimeout(() => {
+                settleTimerRef.current = null;
+                if (pointerRef.current) return; // 转成了拖动：松手时另有检查
+                if (animationRef.current) {
+                    queueSettleCheck();
+                    return;
+                }
+                onPanSettleRef.current?.();
+            }, WHEEL_SETTLE_MS);
+        };
         // 交接（翻牌到另一面墙）期间不接滚轮，正在平滑的也停下：交接要按此刻的相机量磁贴位置。
         const inHandoff = () => Boolean(container.closest('[data-wall-handoff]'));
         const stopWheel = () => {
@@ -179,6 +226,8 @@ export const useWallPointerPan = ({
             if (event.ctrlKey || event.metaKey) return;
             event.preventDefault();
             if (pointerRef.current || inHandoff()) return;
+            // 触控板路径提前返回，排队放在所有平移输入的公共路径上。
+            queueSettleCheck();
             const source = classify(event);
             const { dx, dy } = wallWheelDelta(event, viewportRef.current.height);
             let wheel = wheelRef.current;
@@ -228,6 +277,10 @@ export const useWallPointerPan = ({
             window.removeEventListener('blur', cancel);
             window.removeEventListener('pointerup', endOutside);
             window.removeEventListener('pointercancel', endOutside);
+            if (settleTimerRef.current !== null) {
+                window.clearTimeout(settleTimerRef.current);
+                settleTimerRef.current = null;
+            }
             cancel();
             stopWheel();
         };

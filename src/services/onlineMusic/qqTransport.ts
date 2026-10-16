@@ -9,7 +9,7 @@ export const QQ_OPERATIONS = [
     'login_qr_key', 'login_qr_create', 'login_qr_check', 'login_qr_cancel', 'login_status', 'logout',
     'login_channels',
     'user_detail', 'user_playlist', 'user_albums', 'user_liked_songs', 'user_playlist_detail',
-    'music_play', 'song_list_detail', 'song_info',
+    'music_play', 'mv_play', 'song_list_detail', 'song_info',
     'album_info', 'artist_albums', 'artist_songs',
 ] as const;
 
@@ -33,6 +33,8 @@ const ENDPOINTS: Record<QqOperation, string> = {
     // 与 `login_channels` 同样的处境：旧后端没有这条路由，回 404，调用方要当成「没有声明」。
     user_playlist_detail: '/user/playlist-detail',
     music_play: '/getMusicPlay',
+    // MV 流必须走后端会话：匿名请求结构一致但每档 freeflow_url 全空（档位 code 2000/1000）。
+    mv_play: '/getMvPlay',
     song_list_detail: '/getSongListDetail',
     song_info: '/getSongInfo',
     // 曲库端点用领域语汇命名，与 provider 的 getAlbum* / getArtist* 一一对应，不沿用上游的 singer_* 路径名。

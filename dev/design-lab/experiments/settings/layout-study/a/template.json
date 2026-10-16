@@ -1,0 +1,11 @@
+{
+  "id": "settings",
+  "title": "设置",
+  "description": "侧栏、卡片与折叠结构。在同一组设置内容上尝试不同布局。",
+  "version": "v1",
+  "sharedVersion": "v1",
+  "createdAt": "2026-10-14",
+  "order": 3,
+  "sourcePaths": ["src/components/modal/SettingsModal.tsx", "src/components/modal/settings/navigation/SettingsSidebarWide.tsx"],
+  "scenes": [{"id":"default","label":"外观设置"},{"id":"graphics","label":"图形设置"},{"id":"playback","label":"播放设置"},{"id":"lyrics","label":"歌词设置"}]
+}

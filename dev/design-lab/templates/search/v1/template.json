@@ -1,0 +1,6 @@
+{
+  "id":"search", "title":"搜索", "description":"本地示例搜索、结果分类、加载与空状态；所有业务动作明确标注为演示。",
+  "version":"v1", "sharedVersion":"v1", "createdAt":"2026-10-14", "order":5,
+  "sourcePaths":["src/components/app/search/SearchWorkspace.tsx","src/components/app/search/SearchResultRow.tsx"],
+  "scenes":[{"id":"default","label":"搜索结果"},{"id":"loading","label":"加载中"},{"id":"empty","label":"无结果"}]
+}

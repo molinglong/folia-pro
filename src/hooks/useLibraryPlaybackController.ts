@@ -581,14 +581,16 @@ export function useLibraryPlaybackController({
         setCurrentSong(initialMeta.unifiedSong);
         setAudioSrc(playbackUrl);
 
+        // Drop the previous song's cover immediately: the async resolve below can take longer than
+        // the theme generator's debounce, and a stale cover here means the song's theme gets
+        // derived from the wrong artwork. The resolver falls back to the song's own metadata.
+        setManagedCachedCoverUrl(null);
         if (initialMeta.coverUrl) {
             loadCachedOrFetchCover(`cover_local_${preparedLocalSong.id}`, initialMeta.coverUrl).then((resolvedCoverUrl) => {
                 if (currentSongRef.current === initialSongKey) {
                     setManagedCachedCoverUrl(resolvedCoverUrl);
                 }
             });
-        } else {
-            setManagedCachedCoverUrl(null);
         }
 
         setIsLyricsLoading(true);

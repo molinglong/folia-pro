@@ -131,6 +131,23 @@ const VISUALIZER_MODE_GLYPHS: Record<string, React.ReactNode> = {
             <path d="M6 19h12" />
         </>
     ),
+    // 年轮：同心圆环年轮纹理
+    rings: (
+        <>
+            <circle cx="12" cy="12" r="8" opacity="0.45" />
+            <circle cx="12" cy="12" r="5.5" opacity="0.7" />
+            <circle cx="12" cy="12" r="3" />
+            <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+        </>
+    ),
+    // 纸窗：幕布框上剪出的洞透着光，四周是暗下去的字位
+    paperwindow: (
+        <>
+            <rect x="3.5" y="5" width="17" height="14" rx="2" opacity="0.45" />
+            <path d="M8 9.5h.01M16 9.5h.01M8 14.5h.01M16 14.5h.01" strokeWidth="2.2" opacity="0.5" />
+            <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
+        </>
+    ),
 };
 
 const BACKGROUND_MODE_GLYPHS: Record<string, React.ReactNode> = {

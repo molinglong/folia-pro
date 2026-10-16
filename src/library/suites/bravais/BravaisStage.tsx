@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { collectWallSlots, type WallSlot } from '../../../components/wall/wallSlots';
+import LightsStageGlow from '../../../components/wall/LightsStageGlow';
 import { FLIP_MAX_TILES } from '../../../components/wall/flipPlan';
 import { useDevicePixelRatio } from '../../../hooks/useMediaQuery';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
@@ -489,6 +490,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                     rightRef={rightRef}
                     plates={plates}
                 />
+                {/* 关灯态舞台聚光（与 Lattice 同一组件）：在 field 内盖过两半世界层，仅当前卡抠穿。 */}
+                <LightsStageGlow />
             </div>
             <BravaisSeam
                 seamRef={seamRef}

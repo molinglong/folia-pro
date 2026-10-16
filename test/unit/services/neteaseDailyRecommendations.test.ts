@@ -10,12 +10,13 @@ const mockJsonResponse = (payload: unknown) => ({
     text: vi.fn().mockResolvedValue(JSON.stringify(payload)),
 });
 
-const createSong = (id: number, name: string) => ({
+const createSong = (id: number, name: string, mv?: number) => ({
     id,
     name,
     ar: [{ id: 1, name: 'Artist' }],
     al: { id: 2, name: 'Album', picUrl: 'http://example.com/cover.jpg' },
     dt: 1234,
+    ...(mv === undefined ? {} : { mv }),
 });
 
 describe('netease daily recommendations', () => {
@@ -56,6 +57,25 @@ describe('netease daily recommendations', () => {
         });
         expect(result.songs[0].album.coverUrl).toBe('https://example.com/cover.jpg');
         expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain('/recommend/songs?afresh=true&timestamp=');
+    });
+
+    it('keeps the NetEase mv id on the normalized song for the provider second pass', async () => {
+        // The video layer's MV lookup reads `mv` AFTER the provider re-normalizes an
+        // already-normalized song (neteaseApi layer normalizes first). The id must survive
+        // the whitelist rebuild, else every song looks MV-less and the layer stays silent.
+        vi.mocked(fetch).mockResolvedValueOnce(mockJsonResponse({
+            code: 200,
+            data: {
+                dailySongs: [createSong(10, 'Daily Song', 420144), createSong(11, 'No MV Song')],
+                privileges: [{ id: 10, st: 0, pl: 320000 }],
+            },
+        }) as any);
+
+        const { neteaseApi } = await import('@/services/netease');
+        const result = await neteaseApi.getDailyRecommendedSongs(true);
+
+        expect(result.songs[0].mv).toBe(420144);
+        expect(result.songs[1].mv).toBeUndefined();
     });
 
     it('normalizes the replacement returned after marking a song as disliked', async () => {

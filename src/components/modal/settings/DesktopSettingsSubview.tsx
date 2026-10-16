@@ -617,11 +617,11 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                                         type="text"
                                         value={electronSettings.OPENAI_API_MODEL || ''}
                                         onChange={(e) => setElectronSettings({ ...electronSettings, OPENAI_API_MODEL: e.target.value })}
-                                        placeholder="gpt-5.6-luna / gpt-4.1-mini / deepseek-v4-flash"
+                                        placeholder="gpt-5.6-luna / gpt-4.1-mini / deepseek-flash"
                                         className={fieldClass}
                                         style={{ color: 'var(--text-primary)' }}
                                     />,
-                                    t('options.openaiApiModelDesc') || 'Required for many OpenAI-compatible providers. DeepSeek models like deepseek-v4-flash must be filled explicitly if auto-detection does not apply.',
+                                    t('options.openaiApiModelDesc') || 'Required for many OpenAI-compatible providers. DeepSeek models like deepseek-flash must be filled explicitly if auto-detection does not apply.',
                                 )}
                                 {renderField(
                                     t('options.openaiApiTemperature') || 'Temperature',

@@ -11,9 +11,59 @@ import { omni } from '../services/onlineMusic/omni';
 import { isLocalPlaybackSong, isNavidromePlaybackSong } from '../utils/appPlaybackGuards';
 
 const LAST_HOME_VIEW_TAB_KEY = 'last_home_view_tab';
+const SEARCH_HISTORY_KEY = 'search_history';
+const SEARCH_HISTORY_LIMIT = 10;
 const DEFAULT_SEARCH_LIMIT = 30;
 export type SearchSource = OnlineProviderId | 'local' | 'navidrome';
 export type SearchReturnView = 'home' | 'player';
+
+export type SearchHistoryEntry = {
+    query: string;
+    sourceTab: SearchSource;
+    at: number;
+};
+
+// 最近搜索只服务快速重搜，读写都容错：localStorage 不可用或内容损坏时静默回空表。
+const readSearchHistory = (): SearchHistoryEntry[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+        const raw = window.localStorage.getItem(SEARCH_HISTORY_KEY);
+        if (!raw) return [];
+        const parsed: unknown = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+            .filter((entry): entry is SearchHistoryEntry => {
+                const candidate = entry as SearchHistoryEntry;
+                return typeof candidate?.query === 'string'
+                    && typeof candidate?.sourceTab === 'string'
+                    && typeof candidate?.at === 'number';
+            })
+            .slice(0, SEARCH_HISTORY_LIMIT);
+    } catch {
+        return [];
+    }
+};
+
+const persistSearchHistory = (entries: SearchHistoryEntry[]): void => {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(entries));
+    } catch {
+        // 写满或被禁用就放弃，历史不是关键数据。
+    }
+};
+
+const recordSearchHistoryEntry = (
+    entries: SearchHistoryEntry[],
+    query: string,
+    sourceTab: SearchSource,
+): SearchHistoryEntry[] => {
+    const normalized = query.trim().toLowerCase();
+    return [
+        { query: query.trim(), sourceTab, at: Date.now() },
+        ...entries.filter(entry => entry.query.trim().toLowerCase() !== normalized),
+    ].slice(0, SEARCH_HISTORY_LIMIT);
+};
 
 type SearchExecutorDeps = {
     localSongs: LocalSong[];
@@ -50,6 +100,7 @@ interface SearchNavigationState {
     hasMore: boolean;
     scrollTop: number;
     searchCache: Record<string, SearchCacheEntry>;
+    searchHistory: SearchHistoryEntry[];
     setHomeViewTab: (tab: HomeViewTab) => void;
     setSearchQuery: (query: string) => void;
     setSearchScrollTop: (scrollTop: number) => void;
@@ -59,6 +110,7 @@ interface SearchNavigationState {
     followOnlineProvider: (providerId: OnlineProviderId) => void;
     submitSearch: (payload: { query?: string; sourceTab: SearchSource; deps: SearchExecutorDeps; returnView?: SearchReturnView; }) => Promise<boolean>;
     loadMoreSearchResults: (payload: { deps: SearchExecutorDeps; }) => Promise<void>;
+    clearSearchHistory: () => void;
 }
 
 const getSearchCacheKey = (query: string, sourceTab: SearchSource) => (
@@ -94,23 +146,48 @@ const mapLocalSongToUnifiedSong = (
         preferOnlineMetadata: false,
     }), catalog);
 
+// 拆词匹配：空格分词，token 之间 AND、字段之间 OR，「周杰伦 晴天」这种跨字段组合也能命中。
+// 评分让歌名命中的行排前（歌名以词开头再加分），平分靠 sort 的稳定性保持曲库原序。
+const scoreLocalSongMatch = (
+    tokens: string[],
+    fields: { title: string; artist: string; album: string },
+): number | null => {
+    let score = 0;
+    for (const token of tokens) {
+        if (fields.title.includes(token)) score += 3;
+        else if (fields.artist.includes(token)) score += 2;
+        else if (fields.album.includes(token)) score += 1;
+        else return null;
+        if (fields.title.startsWith(token)) score += 2;
+    }
+    return score;
+};
+
 const searchLocalSongs = (
     deps: SearchExecutorDeps,
     query: string,
 ): SearchExecutionResult => {
-    const lowerQuery = query.toLowerCase();
+    const tokens = query.toLowerCase().split(/\s+/u).filter(Boolean);
+    if (tokens.length === 0) {
+        return { results: [], hasMore: false, nextOffset: 0 };
+    }
+
     const results = deps.localSongs
-        .filter(song => {
-            const title = song.title.toLowerCase();
-            const artist = [
-                ...song.importedMetadata.artistNames,
-                ...song.onlineMetadata?.artists.map(item => item.name) || [],
-            ].join(' ').toLowerCase();
-            const album = [song.importedMetadata.albumName, song.onlineMetadata?.album?.name]
-                .filter(Boolean).join(' ').toLowerCase();
-            return title.includes(lowerQuery) || artist.includes(lowerQuery) || album.includes(lowerQuery);
-        })
-        .map(song => mapLocalSongToUnifiedSong(song, deps.localLibraryCatalog));
+        .map(song => ({
+            song,
+            score: scoreLocalSongMatch(tokens, {
+                title: song.title.toLowerCase(),
+                artist: [
+                    ...song.importedMetadata.artistNames,
+                    ...song.onlineMetadata?.artists.map(item => item.name) || [],
+                ].join(' ').toLowerCase(),
+                album: [song.importedMetadata.albumName, song.onlineMetadata?.album?.name]
+                    .filter(Boolean).join(' ').toLowerCase(),
+            }),
+        }))
+        .filter((entry): entry is { song: LocalSong; score: number } => entry.score !== null)
+        .sort((left, right) => right.score - left.score)
+        .map(entry => mapLocalSongToUnifiedSong(entry.song, deps.localLibraryCatalog));
 
     return {
         results,
@@ -192,6 +269,7 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
     hasMore: false,
     scrollTop: 0,
     searchCache: {},
+    searchHistory: readSearchHistory(),
     setHomeViewTab: (tab) => {
         if (typeof window !== 'undefined') {
             localStorage.setItem(LAST_HOME_VIEW_TAB_KEY, tab);
@@ -229,6 +307,10 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
         };
     }),
     hideSearchOverlay: () => set({ isSearchOpen: false, searchReturnView: 'home' }),
+    clearSearchHistory: () => {
+        persistSearchHistory([]);
+        set({ searchHistory: [] });
+    },
     resetRuntime: (onlineProviderId) => set(state => ({
         searchQuery: '',
         searchSourceTab: onlineProviderId ?? state.searchSourceTab,
@@ -279,11 +361,15 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
             if (get().requestId !== requestId) {
                 return true;
             }
+            // 只记真正落地的提交：过期请求与失败不算，同词去重置顶。
+            const nextHistory = recordSearchHistoryEntry(get().searchHistory, trimmedQuery, sourceTab);
+            persistSearchHistory(nextHistory);
             set(state => ({
                 searchResults: result.results,
                 hasMore: result.hasMore,
                 offset: result.nextOffset,
                 isSearching: false,
+                searchHistory: nextHistory,
                 searchCache: {
                     ...state.searchCache,
                     [getSearchCacheKey(trimmedQuery, sourceTab)]: {

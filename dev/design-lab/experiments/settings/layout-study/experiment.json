@@ -1,0 +1,42 @@
+{
+  "id": "layout-study",
+  "templateId": "settings",
+  "templateVersion": "v1",
+  "title": "设置布局  三种方向",
+  "createdAt": "2026-10-14",
+  "variants": [
+    {
+      "id": "a",
+      "title": "方案 A · 轻量侧栏",
+      "description": "保留侧栏，收窄导航，以分隔线替代厚重卡片。"
+    },
+    {
+      "id": "b",
+      "title": "方案 B · 顶部分区",
+      "description": "分区移到顶部，同一内容双列铺开，扩大可用区域。"
+    },
+    {
+      "id": "c",
+      "title": "方案 C · 专注分组",
+      "description": "默认仅展开首组，强化当前分区与展开卡片的层次。"
+    }
+  ],
+  "sourcePaths": [
+    "src/components/modal/SettingsModal.tsx",
+    "src/components/modal/settings/navigation/SettingsSidebarWide.tsx"
+  ],
+  "templateSnapshot": {
+    "SettingsContent.tsx": "799302e680cc9c5fa1b521df6775f5a34ad0eda3459f54ffab5cae88c6e3d700",
+    "style.module.css": "a9abc754347ddc1ee6d248c42ac2fa67305ae732b2d90c64f61187d0f3419c34",
+    "template.json": "7ff249d3432732b2c9a174131d075dee099782160028190196f5be2e2a89bc21",
+    "View.tsx": "5271ac2ec3e51435c076fb219272c36e78d227cf2f1f3bb5070b98f073dd3a40"
+  },
+  "sharedSnapshot": {
+    "Backdrop.tsx": "c2ba9c80eb58e81508079be73ccb872eae58eaaf0a5baa5897a0ea960fd73e1b",
+    "base.css": "517b0706ef11d6aa58d91701d3ae45e263784b91dcde810aa4868e183ee978bd",
+    "fixtures.ts": "8af200e1ccab2d49d87899cfcac70bf2724c4e720db23710a41b5f068cb638e4",
+    "primitives.tsx": "06816d07dc578dc32f61d26958144ca27469f9ae2464bc0a8811eb7c9c11d0b4",
+    "Progress.tsx": "41e2df5a2d0d313f7203509a095a081e425641813fe58a151ffb0c232bc3248c",
+    "settings.ts": "f5cdb9104da147f22b51c8aed92174746e82e395c9ec01ce51e67d00a308e838"
+  }
+}

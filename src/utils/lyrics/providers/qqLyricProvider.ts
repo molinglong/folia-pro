@@ -88,9 +88,10 @@ function detectIsQrc(content: string): boolean {
 }
 
 /**
- * Searches songs on QQ Music.
+ * Searches songs on QQ Music. Rejects on transport or API failure; callers decide
+ * whether to swallow it (lyric matching) or surface it (song search).
  */
-export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
+async function doSearchQQ(keyword: string, page: number, pageSize: number): Promise<SongResult[]> {
   const safeKeyword = keyword.trim();
   if (!safeKeyword) return [];
 
@@ -112,38 +113,56 @@ export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): 
     grp: 1,
   };
 
-  try {
-    const data = await requestQQ("DoSearchForQQMusicLite", "music.search.SearchCgiService", param);
-    const songs = data?.body?.item_song || [];
-    
-    return songs.map((info: any) => {
-      const artists = (info.singer || []).map((s: any, idx: number) => ({
-        id: s.id || idx,
-        name: s.name || 'Unknown Artist',
-      }));
-      
-      const albumMid = info.album?.mid;
-      const picUrl = albumMid
-        ? getOriginalCoverUrl(`https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg?max_age=2592000`)
-        : undefined;
+  const data = await requestQQ("DoSearchForQQMusicLite", "music.search.SearchCgiService", param);
+  const songs = data?.body?.item_song || [];
 
-      return {
-        id: Number(info.id || 0),
-        name: info.title || 'Unknown Song',
-        artists,
-        album: {
-          id: Number(info.album?.id || 0),
-          name: info.album?.name || 'Unknown Album',
-          coverUrl: picUrl,
-        },
-        durationMs: (info.interval || 0) * 1000,
-        qqMid: info.mid,
-      };
-    });
+  return songs.map((info: any) => {
+    const artists = (info.singer || []).map((s: any, idx: number) => ({
+      id: s.id || idx,
+      name: s.name || 'Unknown Artist',
+    }));
+
+    const albumMid = info.album?.mid;
+    const picUrl = albumMid
+      ? getOriginalCoverUrl(`https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg?max_age=2592000`)
+      : undefined;
+
+    return {
+      id: Number(info.id || 0),
+      name: info.title || 'Unknown Song',
+      artists,
+      album: {
+        id: Number(info.album?.id || 0),
+        name: info.album?.name || 'Unknown Album',
+        coverUrl: picUrl,
+      },
+      durationMs: (info.interval || 0) * 1000,
+      qqMid: info.mid,
+      // The MV vid rides along as an extra field; the provider normalizer reads it to
+      // persist sourceRef.providerData.mvVid for the MV background type.
+      mvVid: info.mv?.vid || undefined,
+    };
+  });
+}
+
+/**
+ * Lyric-matching path: keeps the legacy behavior of reading transport failures as
+ * "no candidates" so a broken backend cannot block lyric matching.
+ */
+export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
+  try {
+    return await doSearchQQ(keyword, page, pageSize);
   } catch (error) {
     console.error('[QQMusic] Search failed:', error);
     return [];
   }
+}
+
+/**
+ * Song-search path: failures propagate so the search overlay can show its retry UI.
+ */
+export async function searchQQSongs(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
+  return doSearchQQ(keyword, page, pageSize);
 }
 
 /**

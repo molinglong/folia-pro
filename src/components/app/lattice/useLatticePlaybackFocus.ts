@@ -22,6 +22,8 @@ type PlaybackFocusOptions = {
     setActivePoster: Dispatch<SetStateAction<ActiveLatticePoster | null>>;
     setFocused: (instance: QueueInstance | null) => void;
     panTo: (rect: { x: number; y: number; width: number; height: number }, instant?: boolean) => void;
+    /** Reports the copy a follow centred on, so the wall's playback snap anchors on that same copy. */
+    onFocusInstance?: (instance: QueueInstance) => void;
 };
 
 export const useLatticePlaybackFocus = ({
@@ -34,6 +36,7 @@ export const useLatticePlaybackFocus = ({
     setActivePoster,
     setFocused,
     panTo,
+    onFocusInstance,
 }: PlaybackFocusOptions) => {
     const lastFocusedSongKeyRef = useRef<string | null>(null);
     const autoFocusOnSongChange = useLatticeSettingsStore(state => state.autoFocusOnSongChange);
@@ -61,6 +64,7 @@ export const useLatticePlaybackFocus = ({
         setActivePoster({ instance, tile });
         const expandedRect = layoutExpandedBlock(geometry, tiles.length, instance, metrics).get(instance.instanceId);
         if (expandedRect) panTo(expandedRect, options?.instant);
+        onFocusInstance?.(instance);
     } });
 
     useEffect(() => {

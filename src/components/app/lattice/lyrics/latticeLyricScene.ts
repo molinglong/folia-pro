@@ -13,7 +13,7 @@ import { createLatticeQuadGeometry, createLatticeSweepShader, type LatticeSweep 
 // src/components/app/lattice/lyrics/latticeLyricScene.ts
 type Pixi = typeof import('pixi.js');
 interface PieceView { sprite: Mesh<MeshGeometry, Shader>; glow: Sprite[]; texture: Texture; sweep: LatticeSweep;
-    pad: number; width: number; height: number; piece: LyricPiece; color: string; base: number[]; }
+    pad: number; width: number; height: number; piece: LyricPiece; color: string; base: number[]; born: number; }
 
 /** Builds only the rows near the card viewport; a long lyric never allocates a song-sized texture. */
 export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent: Container,
@@ -27,6 +27,9 @@ export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent:
     near.filters = [glowFilters[0]]; far.filters = [glowFilters[1]];
     const blur = new pixi.BlurFilter({ strength: 0, quality: 2 }); container.filters = [blur];
     const pieces = new Map<number, PieceView>();
+    // Translation rows ride a 0..1 focus blend instead of snapping when the line activates: queued
+    // lines park the blend at 0 under the clipped row, activation slides and fades them into place.
+    let lastStatus = entry.status, shift = entry.status === 'active' ? 1 : 0, shiftFrom = shift, shiftAt = 0;
     const quad = createLatticeQuadGeometry(pixi);
     const matchers = prepareWordColorMatchers(input.theme.wordColors, input.keywordColoringEnabled);
     const colors = resolveTokenColorMap(layout.pieces.map(p => p.token), buildWordColorRangesFromMatchers(entry.line.fullText, matchers));
@@ -47,20 +50,32 @@ export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent:
         const glow = [near, far].map(layer => {
             const clone = new pixi.Sprite(image.texture); clone.position.copyFrom(sprite.position); layer.addChild(clone); return clone;
         });
-        return { ...image, sprite, glow, sweep, piece, color, base };
+        return { ...image, sprite, glow, sweep, piece, color, base, born: 0 };
     };
+    const smoothstep = (p: number) => p * p * (3 - 2 * p);
     const update = (time: number, status: MonetVisibleLineEntry['status'], baseAlpha: number, viewportHeight: number,
         top: number, scale: number, quiet: boolean) => {
-        const maxText = status === 'active' ? Infinity : type.lineHeight * 2;
+        const maxText = status === 'active' ? Infinity : type.lineHeight;
+        const activeTarget = status === 'active' ? 1 : 0;
+        if (status !== lastStatus) { lastStatus = status; shiftFrom = shift; shiftAt = time; }
+        shift = quiet ? activeTarget
+            : shiftFrom + (activeTarget - shiftFrom) * smoothstep(clampMonetProgress((time - shiftAt) / 0.3));
         let glowing = false;
         for (let i = 0; i < layout.pieces.length; i++) {
             const piece = layout.pieces[i];
-            const y = piece.translation && status !== 'active' ? Math.min(layout.textHeight, maxText) + type.fontPx * 0.3 + piece.row * type.translationLineHeight : piece.y;
-            const visible = (piece.translation ? status === 'active' : piece.y < maxText) && (top + y * scale > -type.lineHeight * 2)
+            const placeholder = Math.min(layout.textHeight, maxText === Infinity ? layout.textHeight : maxText)
+                + type.fontPx * 0.3 + piece.row * type.translationLineHeight;
+            const y = piece.translation ? placeholder + (piece.y - placeholder) * shift : piece.y;
+            const visible = (piece.translation ? shift > 0.01 : piece.y < maxText) && (top + y * scale > -type.lineHeight * 2)
                 && (top + y * scale < viewportHeight + type.lineHeight * 2);
             const old = pieces.get(i);
             if (!visible) { if (old) { destroyPiece(old); pieces.delete(i); } continue; }
             const view = old ?? createPiece(piece); pieces.set(i, view);
+            if (!old) view.born = time;
+            // Rows that only appear on activation (past the queued single row) develop in over a
+            // quarter second instead of materializing at full brightness.
+            const reveal = quiet || time - view.born >= 0.25 ? 1 : smoothstep(clampMonetProgress((time - view.born) / 0.25));
+            view.sprite.alpha = reveal * (piece.translation ? shift : 1);
             view.sprite.y = y - view.pad; view.glow.forEach(sprite => { sprite.y = view.sprite.y; });
             const token = piece.token, start = token.startTime ?? Infinity, end = token.endTime ?? Infinity;
             const passed = token.timed && (status === 'passed' || (status === 'active' && time > end));
@@ -87,7 +102,7 @@ export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent:
             const g = Math.round((view.base[1] + (word[1] - view.base[1]) * glow) * 255);
             const b = Math.round((view.base[2] + (word[2] - view.base[2]) * glow) * 255);
             for (const sprite of view.glow) {
-                sprite.alpha = glow * (chorus ? 1 : 0.88);
+                sprite.alpha = glow * (chorus ? 1 : 0.88) * reveal;
                 sprite.tint = (r << 16) | (g << 8) | b;
             }
         }

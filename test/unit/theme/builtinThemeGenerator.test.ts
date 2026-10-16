@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateBuiltinDualTheme } from '@/utils/builtinTheme/generateBuiltinDualTheme';
+import { BUILTIN_THEME_PROVIDER, COVER_PALETTE_VERSION, generateBuiltinDualTheme } from '@/utils/builtinTheme/generateBuiltinDualTheme';
 import { analyzeCoverPalette } from '@/utils/builtinTheme/coverPaletteAnalysis';
 import { BUILTIN_NAME_SUFFIX } from '@/utils/builtinTheme/themeNameTable';
 import { sanitizeDualTheme } from '@/services/themeSanitizer';
@@ -35,6 +35,39 @@ describe('generateBuiltinDualTheme', () => {
         ['#2a2a2c', '#333336'],
         ['rgb(235, 120, 60)', 'rgb(40, 150, 220)'],
     ];
+
+    it('stamps cover-derived themes with the current palette version', () => {
+        const dualTheme = generateBuiltinDualTheme({
+            coverColors: ['#f97316'],
+            random: createSequenceRandom(7),
+        });
+
+        expect(dualTheme.light.provider).toBe(BUILTIN_THEME_PROVIDER);
+        expect(dualTheme.dark.provider).toBe(BUILTIN_THEME_PROVIDER);
+        expect(dualTheme.light.paletteVersion).toBe(COVER_PALETTE_VERSION);
+        expect(dualTheme.dark.paletteVersion).toBe(COVER_PALETTE_VERSION);
+        // The stamp must survive the sanitizer so a fresh cache is not immediately treated stale.
+        expect(sanitizeDualTheme(dualTheme).light.paletteVersion).toBe(COVER_PALETTE_VERSION);
+    });
+
+    it('gives duotone covers a background wash and keeps monochrome covers flat', () => {
+        const duotone = generateBuiltinDualTheme({
+            coverColors: ['#22c55e', '#0ea5e9'],
+            random: createSequenceRandom(11),
+        });
+
+        for (const theme of [duotone.light, duotone.dark]) {
+            expect(theme.backgroundStops).toEqual([theme.backgroundColor, theme.accentColor]);
+        }
+
+        const monochrome = generateBuiltinDualTheme({
+            coverColors: ['#f97316'],
+            random: createSequenceRandom(13),
+        });
+
+        expect(monochrome.light.backgroundStops).toBeUndefined();
+        expect(monochrome.dark.backgroundStops).toBeUndefined();
+    });
 
     it('keeps every generated theme readable and hex-shaped', () => {
         for (const coverColors of coverSamples) {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCachedThemeState, getLastDualTheme, getLastLegacyTheme } from '@/services/themeCache';
 import { getFromCache } from '@/services/db';
 import { FALLBACK_AI_DUAL_THEME, normalizeThemeHexColor, sanitizeDualTheme, sanitizeTheme } from '@/services/themeSanitizer';
+import { BUILTIN_THEME_PROVIDER, COVER_PALETTE_VERSION } from '@/utils/builtinTheme/generateBuiltinDualTheme';
 import type { DualTheme, Theme } from '@/types';
 
 vi.mock('@/services/db', () => ({
@@ -71,6 +72,61 @@ describe('themeCache', () => {
         getFromCacheMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
         await expect(getCachedThemeState(9)).resolves.toEqual({ kind: 'none' });
+    });
+
+    it('treats a stale built-in cover cache as missing when asked, falling through to legacy', async () => {
+        const staleCoverTheme: DualTheme = {
+            light: { ...dualTheme.light, provider: BUILTIN_THEME_PROVIDER },
+            dark: { ...dualTheme.dark, provider: BUILTIN_THEME_PROVIDER }
+        };
+        getFromCacheMock
+            .mockResolvedValueOnce(staleCoverTheme)
+            .mockResolvedValueOnce(legacyTheme);
+
+        await expect(getCachedThemeState(5, { ignoreStaleCoverThemes: true })).resolves.toEqual({
+            kind: 'legacy',
+            theme: sanitizeTheme(legacyTheme, FALLBACK_AI_DUAL_THEME.dark)
+        });
+    });
+
+    it('still returns the stale cover cache without the opt-in', async () => {
+        const staleCoverTheme: DualTheme = {
+            light: { ...dualTheme.light, provider: BUILTIN_THEME_PROVIDER },
+            dark: { ...dualTheme.dark, provider: BUILTIN_THEME_PROVIDER }
+        };
+        getFromCacheMock.mockResolvedValueOnce(staleCoverTheme);
+
+        await expect(getCachedThemeState(5)).resolves.toEqual({
+            kind: 'dual',
+            theme: sanitizeDualTheme(staleCoverTheme)
+        });
+    });
+
+    it('keeps a built-in cache stamped with the current palette version', async () => {
+        const currentCoverTheme: DualTheme = {
+            light: { ...dualTheme.light, provider: BUILTIN_THEME_PROVIDER, paletteVersion: COVER_PALETTE_VERSION },
+            dark: { ...dualTheme.dark, provider: BUILTIN_THEME_PROVIDER, paletteVersion: COVER_PALETTE_VERSION }
+        };
+        getFromCacheMock.mockResolvedValueOnce(currentCoverTheme);
+
+        await expect(getCachedThemeState(5, { ignoreStaleCoverThemes: true })).resolves.toEqual({
+            kind: 'dual',
+            theme: sanitizeDualTheme(currentCoverTheme)
+        });
+    });
+
+    it('keeps the palette version stamp through sanitization and drops non-numeric ones', () => {
+        expect(sanitizeTheme({ ...legacyTheme, paletteVersion: 2 }, FALLBACK_AI_DUAL_THEME.dark).paletteVersion).toBe(2);
+        expect(sanitizeTheme({ ...legacyTheme, paletteVersion: '2' }, FALLBACK_AI_DUAL_THEME.dark).paletteVersion).toBeUndefined();
+    });
+
+    it('sanitizes background wash stops and drops looser shapes', () => {
+        expect(sanitizeTheme({
+            ...legacyTheme,
+            backgroundStops: ['#ABC', 'not-a-color', '#112233', '#445566', '#778899'],
+        }, FALLBACK_AI_DUAL_THEME.dark).backgroundStops).toEqual(['#aabbcc', '#112233', '#445566', '#778899']);
+        expect(sanitizeTheme({ ...legacyTheme, backgroundStops: ['#ABC'] }, FALLBACK_AI_DUAL_THEME.dark).backgroundStops).toBeUndefined();
+        expect(sanitizeTheme({ ...legacyTheme, backgroundStops: 'red' }, FALLBACK_AI_DUAL_THEME.dark).backgroundStops).toBeUndefined();
     });
 
     it('reads the last dual theme from cache', async () => {

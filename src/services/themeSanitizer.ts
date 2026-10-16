@@ -115,6 +115,19 @@ const normalizeLyricsIcons = (value: unknown): string[] => {
         .slice(0, 12);
 };
 
+// Two to four hex stops; anything looser means no wash at all.
+const normalizeBackgroundStops = (value: unknown): string[] | undefined => {
+    if (!Array.isArray(value)) {
+        return undefined;
+    }
+
+    const stops = value
+        .map(item => normalizeHexColorCandidate(item))
+        .filter((stop): stop is string => stop !== null);
+
+    return stops.length >= 2 ? stops.slice(0, 4) : undefined;
+};
+
 export const sanitizeTheme = (
     value: unknown,
     fallbackTheme: Theme,
@@ -145,6 +158,11 @@ export const sanitizeTheme = (
         provider: typeof source.provider === 'string' && source.provider.trim()
             ? source.provider.trim()
             : fallbackTheme.provider,
+        // Version stamp for stale-cover-cache detection; AI themes never carry one.
+        ...(typeof source.paletteVersion === 'number' && Number.isFinite(source.paletteVersion)
+            ? { paletteVersion: source.paletteVersion }
+            : {}),
+        backgroundStops: normalizeBackgroundStops(source.backgroundStops),
     };
 };
 

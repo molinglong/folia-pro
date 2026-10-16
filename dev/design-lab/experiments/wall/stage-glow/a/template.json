@@ -1,0 +1,6 @@
+{
+  "id":"wall", "title":"海报墙（lattice 简化）", "description":"网格海报墙、逐张涟漪熄灯与当前卡发光的最小复刻；无相机、无真实音频。",
+  "version":"v1", "sharedVersion":"v1", "createdAt":"2026-10-14", "order":9,
+  "sourcePaths":["src/components/app/lattice/PosterWall.tsx","src/components/app/lattice/LatticePoster.tsx","src/components/wall/lightsRipple.ts"],
+  "scenes":[{"id":"default","label":"开灯"},{"id":"lights-out","label":"关灯"}]
+}

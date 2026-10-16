@@ -13,7 +13,7 @@ import type {
 import { OnlineProviderError } from '../../types/onlineMusic';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
 import { toSafePlaybackUrl } from '../../utils/appPlaybackHelpers';
-import { fetchQQLyrics, searchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
+import { fetchQQLyrics, searchQQSongs } from '../../utils/lyrics/providers/qqLyricProvider';
 import { writeProviderSessionValue } from './providerStorage';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from './qqNormalize';
 import { clearQqSession, getQqRemoteApiBase, getQqTransportAvailability, hasQqSession, requestQq } from './qqTransport';
@@ -30,8 +30,9 @@ const errorFields = (error: unknown) => ({
 });
 
 const searchSongs = async (query: string, limit: number, offset: number) => {
-    // Reuses the QQ search that already backs lyric matching; only the provider contract is new.
-    const results = await searchQQLyrics(query, Math.floor(offset / Math.max(1, limit)) + 1, limit);
+    // Shares the QQ lyric-search transport; unlike the lyric path, failures propagate so the
+    // search overlay can show its retry UI instead of reading an outage as "no results".
+    const results = await searchQQSongs(query, Math.floor(offset / Math.max(1, limit)) + 1, limit);
     const items = results.map(normalizeQqSong);
     return { items, hasMore: items.length === limit, nextOffset: offset + items.length };
 };
@@ -230,6 +231,30 @@ const getSongDetail = async (id: MediaId) => {
 };
 
 const qqSongDetailRequests = new Map<string, Promise<UnifiedSong | null>>();
+
+// New-protocol stream tiers live on the `filetype` field (30=1080p, 20=720p, 10=480p): the
+// URL suffixes use an unrelated encoding (.f9834.mp4), so tier matching by path is useless.
+// 4K (40/50) requires VIP and stays out of the preferred order.
+const MV_MP4_TIERS = [30, 20, 10];
+
+// https first: web deployments block http video as mixed content; Electron plays either.
+const httpsFirst = (urls: string[]): string | undefined =>
+    urls.find(url => url.startsWith('https://')) ?? urls[0];
+
+const pickMvStreamUrl = (mp4: unknown): string | null => {
+    const usable = (Array.isArray(mp4) ? mp4 : [])
+        .filter((item: any) => Number(item?.code) === 0 && Array.isArray(item?.freeflow_url))
+        .map((item: any) => ({
+            filetype: Number(item.filetype),
+            urls: (item.freeflow_url as unknown[]).filter((url): url is string => typeof url === 'string' && url.startsWith('http')),
+        }))
+        .filter(item => item.urls.length > 0);
+    for (const tier of MV_MP4_TIERS) {
+        const hit = usable.find(item => item.filetype === tier);
+        if (hit) return httpsFirst(hit.urls) ?? null;
+    }
+    return usable.length > 0 ? httpsFirst(usable[0].urls) ?? null : null;
+};
 
 // 同一首歌的专辑与歌手会各触发一次解析，两次落到同一个 songmid 上，去重掉重复请求。
 const requestQqSongDetail = (songmid: string): Promise<UnifiedSong | null> => {
@@ -765,6 +790,7 @@ export const qqProvider: OnlineMusicProvider = {
         wordByWordLyrics: true,
         likes: true,
         userAlbums: true,
+        mv: true,
     },
     normalizeSong: normalizeQqSong,
     normalizeUser: normalizeQqUser,
@@ -776,6 +802,33 @@ export const qqProvider: OnlineMusicProvider = {
     },
     search: { searchSongs },
     playback: { getSongDetail, getAudioSource },
+    mv: {
+        // MV streams must ride the backend session (mv_play): anonymous upstream calls answer
+        // 200 but carry empty freeflow_url arrays on every tier.
+        async getMvUrl(song) {
+            const sourceRef = song.sourceRef;
+            if (sourceRef?.kind !== 'online' || sourceRef.providerId !== 'qq') return null;
+            const vid = String(sourceRef.providerData?.mvVid ?? '').trim();
+            if (!vid) return null;
+            try {
+                const payload = await requestQq<any>('mv_play', { vid });
+                const root = payload?.response ?? payload;
+                const entry = root?.getMVUrl?.data?.[vid] ?? root?.data?.[vid] ?? root?.[vid];
+                const url = pickMvStreamUrl(entry?.mp4);
+                if (!url) {
+                    console.warn('[QQProvider] mv:no-stream', { vid });
+                    return null;
+                }
+                return { url, fetchedAt: Date.now() };
+            } catch (error) {
+                console.warn('[QQProvider] mv:lookup-failed', {
+                    vid,
+                    message: error instanceof Error ? error.message : String(error),
+                });
+                return null;
+            }
+        },
+    },
     lyrics: { getLyrics },
     auth: {
         getLoginStatus,

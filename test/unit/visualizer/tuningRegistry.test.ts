@@ -20,6 +20,7 @@ describe('visualizer tuning registry', () => {
             'monet',
             'partita',
             'pendolo',
+            'rings',
             'sonnet',
             'tempera',
             'tilt',

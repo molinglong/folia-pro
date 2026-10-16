@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { DualTheme } from '../types';
 import type { WebLyricSourceState } from '../types/webLyricSource';
 import { generateObsThemeFromLyrics, type ObsAiConfig } from '../services/gemini';
+import { polishAiDualTheme } from '../services/aiThemePolish';
 
 // Dynamic AI web OBS overlay: regenerate an AI DualTheme once per song from the lyrics the source
 // provides. Returns null until (and unless) one is generated, so the overlay shows the cover-derived
@@ -67,7 +68,7 @@ export function useObsAiTheme(params: {
         .then((theme) => {
           if (cancelled) return;
           completedForKeyRef.current = trackKey;
-          setAiTheme(theme);
+          setAiTheme(polishAiDualTheme(theme));
         })
         .catch(() => {
           // Aborted (cancelled) means lyrics changed mid-flight — leave it retryable. A genuine

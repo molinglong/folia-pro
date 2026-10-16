@@ -1,0 +1,14 @@
+.page { position: relative; min-height: 100dvh; }
+.hint { position: relative; padding: 45px 45px 0; text-align: right; }
+.hint h1 { font-size: 24px; font-weight: 500; }
+.hint p { color: var(--secondary); font-size: 13px; }
+.panel { position: fixed; bottom: 148px; right: 24px; }
+.volume { display: flex; align-items: center; gap: 10px; margin: 10px 0 18px; }
+.volume input { flex: 1; }
+.shuffle { width: 100%; display: flex; gap: 12px; align-items: center; min-height: 48px; border-block: 1px solid var(--line); text-align: left; font-size: 14px; }
+.panel ol { padding-left: 24px; font-size: 13px; line-height: 2.4; color: var(--secondary); }
+.panel > p { font-size: 11px; line-height: 1.8; color: var(--secondary); margin: 10px 0 0; }
+.capsule { position: fixed; bottom: 32px; right: 24px; width: 430px; max-width: calc(100vw - 32px); display: flex; align-items: center; gap: 15px; border: 1px solid var(--line); border-radius: 45px; padding: 16px; background: var(--panel); }
+.capsule > div { flex: 1; min-width: 0; }
+.capsule strong { display: block; font-size: 13px; text-align: center; margin-bottom: 9px; }
+@media (max-width: 600px) { .hint { padding: 160px 24px 0; text-align: left; } .panel, .capsule { right: 16px; } .capsule { gap: 8px; } }

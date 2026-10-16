@@ -26,6 +26,9 @@ type UseSongThemeAutoGenerationParams = {
     isLyricsLoading: boolean;
     // 'cover' generates from the artwork alone, so it does not wait for a lyric prompt source.
     themeGenerationSource: ThemeGenerationSource;
+    // The cover path reads this artwork; a cover that belongs to the previous song would bake
+    // another song's palette into the current one, so generation waits for it to resolve.
+    coverUrl: string | null;
     generateAITheme: GenerateAITheme;
 };
 
@@ -35,6 +38,7 @@ export function useSongThemeAutoGeneration({
     enabled,
     isLyricsLoading,
     themeGenerationSource,
+    coverUrl,
     generateAITheme,
 }: UseSongThemeAutoGenerationParams) {
     const currentSong = usePlaybackStore(state => state.currentSong);
@@ -43,7 +47,7 @@ export function useSongThemeAutoGeneration({
     const requiresPromptSource = themeGenerationSource !== 'cover';
     const latestSongKeyRef = useRef<string | null>(null);
     const latestEnabledRef = useRef(enabled);
-    const latestGenerationInputRef = useRef({ currentSong, lyrics });
+    const latestGenerationInputRef = useRef({ currentSong, lyrics, coverUrl });
     const attemptedSongKeysRef = useRef(new Set<string>());
     const generateAIThemeRef = useRef(generateAITheme);
     const songKey = getSongThemeAutoGenerationKey(currentSong);
@@ -56,8 +60,8 @@ export function useSongThemeAutoGeneration({
     }, [generateAITheme]);
 
     useEffect(() => {
-        latestGenerationInputRef.current = { currentSong, lyrics };
-    }, [currentSong, lyrics]);
+        latestGenerationInputRef.current = { currentSong, lyrics, coverUrl };
+    }, [currentSong, lyrics, coverUrl]);
 
     useEffect(() => {
         latestEnabledRef.current = enabled;
@@ -71,6 +75,12 @@ export function useSongThemeAutoGeneration({
         const scheduledInput = latestGenerationInputRef.current;
         const scheduledSong = scheduledInput.currentSong;
         if (!scheduledSong || !songKey) {
+            return;
+        }
+
+        // The cover path reads the artwork: without a resolved cover there is nothing honest to
+        // derive, and reusing a stale cover would bake another song's palette into this one.
+        if (!requiresPromptSource && !scheduledInput.coverUrl) {
             return;
         }
 
@@ -103,8 +113,15 @@ export function useSongThemeAutoGeneration({
                 if (!latestSong) {
                     return;
                 }
+                if (!requiresPromptSource && !latestInput.coverUrl) {
+                    return;
+                }
 
-                const cachedTheme = await getCachedThemeStateForSong(latestSong);
+                // Match the restore path: under the cover source a stale pre-v2 cache counts as
+                // missing so the new algorithm rebuilds it instead of being blocked by it.
+                const cachedTheme = await getCachedThemeStateForSong(latestSong, {
+                    ignoreStaleCoverThemes: themeGenerationSource === 'cover',
+                });
                 if (cancelled || !isSongThemeGenerationStillCurrent({
                     latestSongKey: latestSongKeyRef.current,
                     targetSongKey,
@@ -126,7 +143,7 @@ export function useSongThemeAutoGeneration({
                 }
 
                 attemptedSongKeysRef.current.add(targetSongKey);
-                await generateAIThemeRef.current(latestInput.lyrics, latestSong, {
+                const result = await generateAIThemeRef.current(latestInput.lyrics, latestSong, {
                     source: 'auto',
                     shouldApply: () => isSongThemeGenerationStillCurrent({
                         latestSongKey: latestSongKeyRef.current,
@@ -134,6 +151,11 @@ export function useSongThemeAutoGeneration({
                         enabled: latestEnabledRef.current,
                     }),
                 });
+                // A skip (no cover resolved yet, no prompt source) is not a verdict: release the
+                // key so a later run -- e.g. the cover finishing resolving -- can try again.
+                if (result.status === 'skipped') {
+                    attemptedSongKeysRef.current.delete(targetSongKey);
+                }
             })();
         }, AUTO_GENERATE_DELAY_MS);
 
@@ -141,5 +163,5 @@ export function useSongThemeAutoGeneration({
             cancelled = true;
             window.clearTimeout(timeoutId);
         };
-    }, [enabled, hasPromptSource, isLyricsLoading, requiresPromptSource, songKey]);
+    }, [coverUrl, enabled, hasPromptSource, isLyricsLoading, requiresPromptSource, songKey]);
 }

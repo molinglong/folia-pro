@@ -41,7 +41,11 @@ const SongActionRow: React.FC<SongActionRowProps> = ({
     const loopButtonBg = isDaylight ? 'bg-black/5 hover:bg-zinc-300/85' : 'bg-white/5 hover:bg-white/10';
     const buttonBg = isDaylight ? 'bg-black/5 hover:bg-black/10' : 'bg-white/5 hover:bg-white/10';
     const loopTitle = loopMode === 'off' ? t('player.loopOff') : loopMode === 'one' ? t('player.loopOne') : t('player.loopAll');
-    const generateThemeTitle = isGeneratingTheme ? t('ui.generatingTheme') : t('ui.generateAITheme');
+    const generateThemeTitle = isGeneratingTheme
+        ? t('ui.generatingTheme')
+        : themeSourceModel.hasSavedAiTheme
+            ? t('ui.regenerateAITheme')
+            : t('ui.generateAITheme');
 
     return (
         <div className="grid grid-cols-3 gap-3">

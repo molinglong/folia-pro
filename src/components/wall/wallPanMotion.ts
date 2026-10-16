@@ -36,6 +36,13 @@ export const WALL_WHEEL_SMOOTHING = {
     gestureGapMs: 120,
 } as const;
 
+/**
+ * 镜头吸附（播放中的卡「重新出现才吸一次」）的弹簧：与磁贴让位（wallReflowMotion 的 WALL_REFLOW_SPRING）
+ * 同是几乎临界阻尼、不过冲，但质量尺度不同——镜头是大视野慢运动，刚度压到让位的四成上下，
+ * 从静止缓起、到位缓收，小距离也不会像 tween 的 easeOut 那样起步就猛拉一下。
+ */
+export const WALL_CAMERA_SETTLE_SPRING = { type: 'spring', stiffness: 130, damping: 24 } as const;
+
 export type WallWheelSource = 'wheel' | 'trackpad';
 
 type WheelSample = Pick<WheelEvent, 'deltaMode' | 'deltaX' | 'deltaY' | 'timeStamp'>;

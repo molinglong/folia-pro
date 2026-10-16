@@ -122,6 +122,7 @@ import { readLyricOffset, writeLyricOffset } from './utils/lyrics/lyricOffsetMem
 import { FALLBACK_AI_DUAL_THEME } from './services/themeSanitizer';
 import { BASE_DUAL_THEME, DAYLIGHT_THEME, DEFAULT_THEME } from './services/baseThemes';
 import { initializeSyncCoordinator } from './services/sync/syncCoordinator';
+import { useAccountSessionStore } from './stores/useAccountSessionStore';
 import { applyLocalLibraryEntityDisplay } from './services/playbackAdapters';
 import { transitionCapabilities } from './services/automix/stems';
 import { buildLocalLibraryIndex } from './utils/localLibraryIndex';
@@ -291,7 +292,12 @@ export default function App() {
     // 它原先还会开「版本更新」弹窗与思索引导，两者已摘掉，返回值不再被使用。
     useStartupExperienceGate();
 
-    useEffect(() => initializeSyncCoordinator(), []);
+    useEffect(() => {
+        initializeSyncCoordinator();
+        // 会话水合上移到启动链路：侧栏账号卡等全局入口都要读登录态，
+        // 不能等用户打开设置页才开始 hydrate。
+        void useAccountSessionStore.getState().initialize();
+    }, []);
 
     const loadNavidromeFavorites = useCallback(async () => {
         if (!navidromeEnabled) {
@@ -1662,7 +1668,9 @@ export default function App() {
     });
     const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
     const generateCurrentSongTheme = useCallback(() => {
-        void generateAITheme(lyrics, currentSong);
+        // The panel button is the explicit "let the AI redo this song" action: it always routes
+        // to the AI provider and overwrites the song's cached theme, whatever the ambient source.
+        void generateAITheme(lyrics, currentSong, { source: 'manual', forceAi: true });
     }, [currentSong, generateAITheme, lyrics]);
     const toggleDaylightMode = useCallback(() => {
         handleToggleDaylight(!isDaylight);
@@ -1889,6 +1897,7 @@ export default function App() {
         }),
         isLyricsLoading,
         themeGenerationSource,
+        coverUrl,
         generateAITheme,
     });
     // Loads the playing song's saved word segmentation into the store the lyric setter reads.

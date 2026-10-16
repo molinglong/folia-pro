@@ -19,10 +19,7 @@ import { hasRenderableLyrics } from '../../utils/lyrics/validity';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { decibelsToLinearPeak, toFiniteNumber } from '../../utils/replayGain';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
-import {
-    buildKugouLyricSearchQuery,
-    normalizeSongTitleForLyricSearch,
-} from '../../utils/lyrics/searchQuery';
+import { normalizeSongTitleForLyricSearch } from '../../utils/lyrics/searchQuery';
 import { removeProviderSessionValue, readProviderSessionValue } from './providerStorage';
 import {
     getKugouTransportAvailability,
@@ -982,8 +979,9 @@ export const kugouProvider: OnlineMusicProvider = {
         async searchSongs(query, limit, offset) {
             const page = Math.floor(offset / limit) + 1;
             if (!hasKugouAuthenticatedSearchSession()) {
+                // 歌曲搜索透传原词：buildKugouLyricSearchQuery 是歌词匹配的去重逻辑，会把「歌手 - 歌名」截成只剩歌名。
                 const response = await requestKugouAnonymousSearch(
-                    buildKugouLyricSearchQuery(query),
+                    query.trim(),
                     page,
                     limit,
                 );

@@ -32,6 +32,12 @@ import {
 
 const between = (random: () => number, [min, max]: Range) => min + random() * (max - min);
 
+// v2 stops flinging the accent hue with random harmony schemes; v3 additionally waits for the
+// song's own artwork before deriving; v4 adds the duotone background wash. Caches stamped
+// below this are treated as missing.
+export const COVER_PALETTE_VERSION = 4;
+export const BUILTIN_THEME_PROVIDER = 'Built-in';
+
 // Interpolates along the shorter arc so a base/accent pair never swings through the opposite hue.
 const lerpHue = (from: number, to: number, amount: number) => {
     const delta = ((to - from + 540) % 360) - 180;
@@ -127,7 +133,11 @@ const buildModeTheme = (
         animationIntensity: 'normal',
         wordColors: [],
         lyricsIcons: [],
-        provider: 'Built-in',
+        provider: BUILTIN_THEME_PROVIDER,
+        paletteVersion: COVER_PALETTE_VERSION,
+        // A duotone cover earns a soft accent wash over the ground color; a monochrome one stays
+        // a single flat color by design.
+        ...(palette.scheme === 'duotone' ? { backgroundStops: [backgroundColor, accentColor] } : {}),
     };
 };
 

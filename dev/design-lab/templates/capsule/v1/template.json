@@ -1,0 +1,6 @@
+{
+  "id":"capsule", "title":"播放胶囊", "description":"悬浮与点击展开、模拟播放、进度拖动及左右槽位。",
+  "version":"v1", "sharedVersion":"v1", "createdAt":"2026-10-14", "order":6,
+  "sourcePaths":["src/components/FloatingPlayerControls.tsx"],
+  "scenes":[{"id":"default","label":"展开胶囊"},{"id":"collapsed","label":"收起胶囊"}]
+}

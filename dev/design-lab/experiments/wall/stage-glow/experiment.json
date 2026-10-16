@@ -1,0 +1,42 @@
+{
+  "id": "stage-glow",
+  "templateId": "wall",
+  "templateVersion": "v1",
+  "title": "lattice 关灯音乐跟随光效 · 三方案",
+  "createdAt": "2026-10-14",
+  "variants": [
+    {
+      "id": "a",
+      "title": "方案 A · 环绕舞台聚光",
+      "description": "canvas 逐帧无形状雾感版：光不画几何束形——18 缕各是一串叠印软烟斑（蛇形游走、沿程变宽变淡，边界溶进雾里）；缓冲叠三次以强模糊雾底为主、清晰骨架只留少量；30 团高斯雾慢漂呼吸、束内点亮束外留霾；另有外围薄霾、浮尘景深、卡缘背光、鼓点泛光。光铺在其他卡面上，仅当前卡抠穿。"
+    },
+    {
+      "id": "b",
+      "title": "方案 B · 呼吸光晕",
+      "description": "纯 CSS：光斑层盖在其他卡片面上（screen 提亮），当前卡抬到光斑之上保持卡面干净；包络写 CSS 变量由渲染线程消费，零 canvas 零逐帧 DOM 查询，最便宜。"
+    },
+    {
+      "id": "c",
+      "title": "方案 C · 顶部追光",
+      "description": "canvas 逐帧：灯源在场地上方外，扇形光锥压下、慢摆+鼓点增亮，光同样铺在其他卡片封面上、仅当前卡抠穿；叙事是“追光灯照着这块墙”，光源在卡外而非卡自身。"
+    }
+  ],
+  "sourcePaths": [
+    "src/components/app/lattice/PosterWall.tsx",
+    "src/components/app/lattice/LatticePoster.tsx",
+    "src/components/wall/lightsRipple.ts"
+  ],
+  "templateSnapshot": {
+    "style.module.css": "3ecb5619958a19419948af6fd8bd54588e0487979d7eaec8fc7292753c61e38f",
+    "template.json": "9b87c3c5b9cf0a540f83e1fb28d9d6c838f71456b1b2f52d2a78a1d589ed5f55",
+    "View.tsx": "378d75e866407260f431394120404b2c049e35f0fb4ef255b0e4ba7255cacade"
+  },
+  "sharedSnapshot": {
+    "Backdrop.tsx": "c2ba9c80eb58e81508079be73ccb872eae58eaaf0a5baa5897a0ea960fd73e1b",
+    "base.css": "517b0706ef11d6aa58d91701d3ae45e263784b91dcde810aa4868e183ee978bd",
+    "fixtures.ts": "8af200e1ccab2d49d87899cfcac70bf2724c4e720db23710a41b5f068cb638e4",
+    "primitives.tsx": "06816d07dc578dc32f61d26958144ca27469f9ae2464bc0a8811eb7c9c11d0b4",
+    "Progress.tsx": "41e2df5a2d0d313f7203509a095a081e425641813fe58a151ffb0c232bc3248c",
+    "settings.ts": "f5cdb9104da147f22b51c8aed92174746e82e395c9ec01ce51e67d00a308e838"
+  }
+}

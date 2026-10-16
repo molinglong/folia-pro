@@ -18,6 +18,9 @@
   "scripts": {
     "dev": "vite",
     "dev:probe": "vite --open /dev-probe.html",
+    "dev:design": "vite --config dev/design-lab/vite.config.ts --open /",
+    "design:new": "node dev/design-lab/scripts/create-experiment.mjs",
+    "test:design": "tsc -p dev/design-lab/tsconfig.json --noEmit && vitest run --config dev/design-lab/vitest.config.ts && playwright test --config dev/design-lab/playwright.config.ts",
     "build": "npm run build:vercel-api && vite build",
     "build:vercel-api": "tsc -p api-ts/tsconfig.json",
     "preview": "vite preview",

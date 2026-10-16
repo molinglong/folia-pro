@@ -14,6 +14,9 @@ import { resolveWordColor } from '../wordColoring';
 import { GlowWord } from '../GlowWord';
 import { getGlowWordLineContainerMotion, resolveGlowWordRenderProfile } from '../glowWordTiming';
 import { buildGlowWordLayoutVariants, glowWordBodyVariants } from '../glowWordVariants';
+import { buildWordFrostMaskUrl, resolveClassicMvFrostActive } from '../glowWordFrost';
+import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { useCurrentSongMvUrl } from '../../../services/onlineMusic/useCurrentSongMv';
 
 // This mode is the most straightforward lyric pipeline in the folder.
 // First we ask runtime which line is active right now, then read renderHints from that line,
@@ -78,6 +81,15 @@ const measureWordWidth = (text: string, pxSize: number, fontStack: string, fontW
     return context.measureText(text).width;
 };
 
+/** Pixel size of the classic word font, mirroring the mainFontSize clamp; word layout and the MV frost mask share it. */
+const getPixelFontSize = (fontScale: number, width: number): number => {
+    const rem = 16;
+    const minPx = 2.25 * fontScale * rem;
+    const valPx = (6 * fontScale * width) / 100;
+    const maxPx = 4.5 * fontScale * rem;
+    return Math.max(minPx, Math.min(valPx, maxPx));
+};
+
 const Visualizer: React.FC<VisualizerProps> = (props) => {
     const {
         currentTime,
@@ -114,6 +126,14 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
     const activeLineRenderProfile = activeLine ? resolveGlowWordRenderProfile(activeLine) : null;
     const activeWordRenderProfile = activeLineRenderProfile ?? (activeLine ? resolveGlowWordRenderProfile(activeLine) : null);
     const activeLineContainerMotion = getGlowWordLineContainerMotion(activeLineRenderProfile);
+
+    // MV background variant: when the background type is 'mv' and the current song really resolved an
+    // MV stream, glyph-shaped frosted patches sit under the words (the preview-lyric-frosted
+    // prototype's per-glyph frosted glass). Shares the mv-url cache with MvBackground, so the frost
+    // appears exactly when the MV picture does and both fall back together.
+    const displaySong = usePlaybackStore(selectDisplaySong);
+    const mvUrl = useCurrentSongMvUrl(displaySong);
+    const mvFrostActive = resolveClassicMvFrostActive(props.background?.mode, mvUrl);
 
     const [viewportWidth, setViewportWidth] = useState(() => (
         typeof window === 'undefined' ? 1200 : window.innerWidth
@@ -172,13 +192,6 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
         // That is important because time should change the animation state, not the base geometry.
         const fontStack = resolveThemeFontStack(theme);
         const fontWeight = resolveThemeFontWeight(theme, 700);
-        const getPixelFontSize = (fontScale: number, width: number): number => {
-            const rem = 16;
-            const minPx = 2.25 * fontScale * rem;
-            const valPx = (6 * fontScale * width) / 100;
-            const maxPx = 4.5 * fontScale * rem;
-            return Math.max(minPx, Math.min(valPx, maxPx));
-        };
         const pxFontSize = getPixelFontSize(lyricsFontScale, viewportWidth);
         const wordWidths = displayWords.map(w => measureWordWidth(w.text, pxFontSize, fontStack, fontWeight));
 
@@ -267,6 +280,22 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
     const layoutVariants = buildGlowWordLayoutVariants(theme.animationIntensity, resolvedClassicTuning.enableWordRotation);
     const bodyVariants = glowWordBodyVariants;
 
+    // One frost mask per distinct word text; the cache inside buildWordFrostMaskUrl absorbs repeats
+    // across lines, so this only paints genuinely new glyphs on a line change.
+    const frostMasks = useMemo(() => {
+        if (!mvFrostActive || displayWords.length === 0) return null;
+        const pxFontSize = getPixelFontSize(lyricsFontScale, viewportWidth);
+        const fontStack = resolveThemeFontStack(theme);
+        const fontWeight = resolveThemeFontWeight(theme, 700);
+        const masks = new Map<string, string>();
+        for (const word of displayWords) {
+            if (masks.has(word.text)) continue;
+            const url = buildWordFrostMaskUrl(word.text, pxFontSize, fontStack, fontWeight);
+            if (url) masks.set(word.text, url);
+        }
+        return masks;
+    }, [mvFrostActive, displayWords, lyricsFontScale, viewportWidth, theme]);
+
     const lyricContainerFloat = useMemo(() => {
         const multiplier = resolvedClassicTuning.breathingFloatMultiplier;
         if (multiplier <= 0) {
@@ -323,6 +352,7 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
                                 const config = wordConfigs[idx] || { id: `fallback-${idx}`, x: 0, y: 0, rotate: 0, scale: 1, marginRight: '0.5rem', alignSelf: 'auto', passedRotate: 0 };
 
                                 const activeColor = resolveWordColor(word.text, theme.wordColors, theme.accentColor);
+                                const frostUrl = frostMasks?.get(word.text) ?? null;
 
                                 return (
                                     <GlowWord
@@ -339,6 +369,7 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
                                         isChorus={activeLine.isChorus}
                                         fontSize={mainFontSize}
                                         layoutStyle={{ marginRight: config.marginRight, alignSelf: config.alignSelf }}
+                                        frostBackdrop={frostUrl ? { maskUrl: frostUrl } : null}
                                     />
                                 );
                             })}

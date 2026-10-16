@@ -101,6 +101,10 @@ export interface Theme {
   lyricsIcons?: string[];
   provider?: string;
   description?: string;
+  /** Which cover-palette algorithm produced this theme; only cover-derived themes carry it. */
+  paletteVersion?: number;
+  /** Soft background wash colors for duotone covers; monochrome covers stay a flat color. */
+  backgroundStops?: string[];
 }
 
 export type CustomLyricsFontSource = 'system' | 'uploaded';
@@ -784,6 +788,24 @@ export const DEFAULT_LUMIERE_TUNING: LumiereTuning = {
   renderQuality: 'full',
 };
 
+export interface RingsTuning {
+  /** 年轮扩散速度倍率, 0.4..2（无论快慢，抵达屏幕边缘时都已淡出）. */
+  reach: number;
+  /** 节拍灵敏度, 0.4..2.5：越大越容易判定为节拍，年轮越密. */
+  beatSensitivity: number;
+  /** 响度灵敏度, 0.2..3：响度决定年轮的粗细和亮度. */
+  sensitivity: number;
+  /** 波纹不透明度, 0.1..1. */
+  opacity: number;
+}
+
+export const DEFAULT_RINGS_TUNING: RingsTuning = {
+  reach: 1,
+  beatSensitivity: 1,
+  sensitivity: 1,
+  opacity: 0.8,
+};
+
 // Diorama's camera STYLE (calm/standard/chaotic) is not part of its tuning: like every other
 // visualizer it follows theme.animationIntensity (the player-panel intensity chip / AI themes), so
 // the theme system stays the single source of truth. The tuning only carries diorama-specific knobs.
@@ -912,7 +934,7 @@ export type LatentBackgroundDisplayMode = 'dithering' | 'mesh' | 'both';
 export type LatentBackgroundColorSource = 'cover-theme' | 'cover-only';
 export type MonetAudioStyle = 'bar' | 'line';
 export type MonetPortraitSource = 'cover' | 'custom';
-export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'latent' | 'url' | 'sora';
+export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'mv' | 'nomand' | 'latent' | 'url' | 'sora';
 export type VisualizerBackgroundMode = BuiltinVisualizerBackgroundMode | (string & {});
 
 export interface UrlBackgroundItem {
@@ -1242,6 +1264,9 @@ export interface SongResult {
   qqMid?: string;
   kgHash?: string;
   amllDbPlatform?: AmllDbPlatform;
+  /** NetEase MV id (0/absent = none). Kept through the API-layer normalize so the provider's
+   * second-pass normalize (which receives already-normalized songs) can still pass it through. */
+  mv?: number;
 }
 
 export interface OnlineLyricsState {

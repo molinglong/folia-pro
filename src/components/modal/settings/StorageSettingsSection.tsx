@@ -1,5 +1,5 @@
 import React from 'react';
-import { AudioWaveform, Check, Cloud, Command, Database, Disc3, Download, FolderOpen, HardDrive, Layers, Loader2, LogIn, LogOut, Pencil, PlayCircle, RefreshCw, Trash2, Upload, UserRound, X } from 'lucide-react';
+import { AudioWaveform, Check, Cloud, Command, Database, Disc3, Download, FolderOpen, HardDrive, Layers, Loader2, Pencil, PlayCircle, RefreshCw, Trash2, Upload, UserRound, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
 import { getSyncConfig, getSyncStatus, saveSyncConfig, setSyncStatus, subscribeSyncConfig, subscribeSyncStatus } from '../../../services/sync/syncConfig';
@@ -16,6 +16,7 @@ import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import { openCommandPaletteCommand } from '../../../stores/useAppViewStore';
 import { closeSettings } from '../../../stores/useSettingsModalStore';
 import { useAccountSessionStore } from '../../../stores/useAccountSessionStore';
+import AccountAuthForm from './AccountAuthForm';
 import { LYRIC_EXPORT_COMMAND_ID } from '../../command-palette/commands/lyricExportCommands';
 
 // src/components/modal/settings/StorageSettingsSection.tsx
@@ -74,9 +75,6 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
 }) => {
     const { t } = useTranslation();
     const accountSession = useAccountSessionStore();
-    const [authMode, setAuthMode] = React.useState<'sign-in' | 'sign-up'>('sign-in');
-    const [authEmail, setAuthEmail] = React.useState('');
-    const [authPassword, setAuthPassword] = React.useState('');
     const [syncConfig, setSyncConfig] = React.useState<SyncProviderConfig>(() => getSyncConfig());
     const [draftSyncConfig, setDraftSyncConfig] = React.useState<SyncProviderConfig>(() => getSyncConfig());
     const [syncStatus, setSyncStatusState] = React.useState<SyncRuntimeStatus>(() => getSyncStatus());
@@ -116,7 +114,7 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
             : (t('options.r2SyncStatusIdle') || 'Not synced yet');
 
     React.useEffect(() => {
-        void useAccountSessionStore.getState().initialize();
+        // 会话水合已上移到 App 启动链路（账号卡等全局入口也要读登录态）；这里只订阅同步配置/状态。
         const unsubscribeConfig = subscribeSyncConfig(() => {
             const nextConfig = getSyncConfig();
             setSyncConfig(nextConfig);
@@ -206,42 +204,6 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
         } finally {
             setSyncAction('idle');
         }
-    };
-
-    const authErrorCodeText = (code: string): string => {
-        switch (code) {
-            case 'invalid_credentials':
-                return t('ui.storage.accountErrorInvalidCredentials') || 'Email or password is incorrect';
-            case 'email_taken':
-                return t('ui.storage.accountErrorEmailTaken') || 'This email is already registered';
-            case 'rate_limited':
-                return t('ui.storage.accountErrorRateLimited') || 'Too many attempts, try again later';
-            case 'registration_disabled':
-                return t('ui.storage.accountErrorRegistrationDisabled') || 'Registration is disabled on this server';
-            case 'network_error':
-                return t('ui.storage.accountErrorNetwork') || 'Cannot reach the sync server';
-            default:
-                return t('ui.storage.accountErrorGeneric') || 'Sign in failed';
-        }
-    };
-
-    const handleAuthSubmit = async () => {
-        if (accountSession.busy || !authEmail.trim() || !authPassword) return;
-        const succeeded = authMode === 'sign-in'
-            ? await accountSession.signIn(authEmail, authPassword)
-            : await accountSession.signUp(authEmail, authPassword);
-        if (succeeded) {
-            setAuthPassword('');
-        }
-    };
-
-    const handleSwitchAuthMode = () => {
-        setAuthMode(prev => (prev === 'sign-in' ? 'sign-up' : 'sign-in'));
-        accountSession.clearError();
-    };
-
-    const handleSignOut = () => {
-        void accountSession.signOut();
     };
 
     const handleExportSyncLibrary = async () => {
@@ -422,90 +384,17 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                                 </div>
                             </div>
 
-                            {accountSession.status === 'hydrating' ? (
-                                <div className="flex items-center gap-2 text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                    <Loader2 size={14} className="animate-spin" />
-                                    {t('ui.storage.accountHydrating') || 'Checking session...'}
-                                </div>
-                            ) : accountSession.status === 'signed-in' ? (
-                                <div className="flex items-center justify-between gap-3 bg-black/10 rounded-lg border border-white/5 px-3 py-2">
-                                    <div className="min-w-0">
-                                        <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{accountSession.email}</div>
-                                        <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                            {t('ui.storage.accountSignedIn') || 'Signed in — playlists and likes sync to this account.'}
-                                        </div>
+                            {/* 登录/注册/登出交互在 AccountAuthForm（与侧栏账号页共用同一份）；
+                                地址缺失提示按存储区语境渲染为纯文案。 */}
+                            <AccountAuthForm
+                                serverConfigured={Boolean(draftSyncConfig.workerBaseUrl.trim())}
+                                errorTextColor={errorTextColor}
+                                needsServerHint={(
+                                    <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                        {t('ui.storage.accountNeedsServerUrl') || 'Set the sync server URL above first.'}
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={handleSignOut}
-                                        disabled={accountSession.busy}
-                                        className={`shrink-0 px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-1.5 disabled:opacity-40 ${errorTextColor}`}
-                                    >
-                                        {accountSession.busy ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
-                                        {t('ui.storage.accountSignOut') || 'Sign out'}
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <input
-                                            type="email"
-                                            autoComplete="email"
-                                            value={authEmail}
-                                            onChange={(event) => setAuthEmail(event.target.value)}
-                                            placeholder={t('ui.storage.accountEmail') || 'Email'}
-                                            className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
-                                            style={{ color: 'var(--text-primary)' }}
-                                        />
-                                        <input
-                                            type="password"
-                                            autoComplete={authMode === 'sign-in' ? 'current-password' : 'new-password'}
-                                            value={authPassword}
-                                            onChange={(event) => setAuthPassword(event.target.value)}
-                                            onKeyDown={(event) => {
-                                                if (event.key === 'Enter') void handleAuthSubmit();
-                                            }}
-                                            placeholder={t('ui.storage.accountPassword') || 'Password'}
-                                            className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
-                                            style={{ color: 'var(--text-primary)' }}
-                                        />
-                                    </div>
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => void handleAuthSubmit()}
-                                            disabled={accountSession.busy || !authEmail.trim() || !authPassword || !draftSyncConfig.workerBaseUrl.trim()}
-                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                                            style={{ color: 'var(--text-primary)' }}
-                                        >
-                                            {accountSession.busy ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
-                                            {authMode === 'sign-in'
-                                                ? (t('ui.storage.accountSignIn') || 'Sign in')
-                                                : (t('ui.storage.accountSignUp') || 'Sign up')}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleSwitchAuthMode}
-                                            className="text-xs opacity-60 hover:opacity-90 underline underline-offset-2 transition-opacity"
-                                            style={{ color: 'var(--text-secondary)' }}
-                                        >
-                                            {authMode === 'sign-in'
-                                                ? (t('ui.storage.accountSwitchToSignUp') || 'No account? Sign up')
-                                                : (t('ui.storage.accountSwitchToSignIn') || 'Have an account? Sign in')}
-                                        </button>
-                                    </div>
-                                    {!draftSyncConfig.workerBaseUrl.trim() && (
-                                        <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                            {t('ui.storage.accountNeedsServerUrl') || 'Set the sync server URL above first.'}
-                                        </div>
-                                    )}
-                                    {accountSession.errorCode && (
-                                        <div className="text-xs rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2" style={{ color: 'var(--text-secondary)' }}>
-                                            <span className={errorTextColor}>{authErrorCodeText(accountSession.errorCode)}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                )}
+                            />
                         </div>
 
                         <details>

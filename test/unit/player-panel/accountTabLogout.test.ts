@@ -2,9 +2,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/player-panel/accountTabLogout.test.ts
-// 面板账户页（AccountTab）的登出按钮跟账户 controller 的判定走（A4 遗留①）：网易启动 / 首次刷新时，App 的 user
-// 已经有了（面板显示昵称），账户 store 却还没写成 authenticated，controller 这时会以 not-authenticated 拒绝登出。
-// 按钮在这段窗口里不可用（而不是点了没反应）；controller 判定可登出后才可用，登出进行中再次不可用。
+// 面板账户页（AccountTab）已不再提供平台登出按钮：登出统一走首页切换器与 TUI 账号列表
+// （与 AccountTab 同一条 controller.logout 路径）。本文件锁住这个现状，防止登出入口无意回流：
+// 账号页只做用户展示、音质与云同步账号卡。
+// 历史背景：A4 遗留① 曾要求登出按钮跟 controller 判定走（水合窗口内不可用），该交互随按钮一起移除。
 
 vi.hoisted(() => {
     // jsdom 环境下 node 自带的 localStorage 占位没有 getItem，i18n 初始化会直接抛。
@@ -101,39 +102,25 @@ const renderAccountTab = (controller: LibraryAccountController, user: ProviderUs
         onSyncData: () => {},
         isSyncing: false,
         onNavigateHome: () => {},
+        onClosePanel: () => {},
     })));
     const logoutButton = () => host.querySelector<HTMLButtonElement>('button[title="account.logout"]');
     return { host, logoutButton };
 };
 
 describe('account tab logout', () => {
-    it('shows the cached NetEase user but keeps logout unavailable until the controller would accept it', () => {
+    it('shows the cached NetEase user but renders no logout button (sign-out lives in the home switcher)', () => {
         // 水合窗口：store 里网易还是 unknown（没有 user），App 的 user 已经是缓存的那个。
+        // 账号页仍要展示这个缓存用户，但不再提供登出入口。
         const fake = createFakeController(snapshotWith(netease('unknown', null)));
         const { host, logoutButton } = renderAccountTab(fake.controller, cachedUser);
 
         expect(host.textContent).toContain('Cached Netease User');
-        expect(logoutButton()).not.toBeNull();
-        expect(logoutButton()!.disabled).toBe(true);
-        act(() => logoutButton()!.click());
-        expect(fake.logout).not.toHaveBeenCalled();
+        expect(logoutButton()).toBeNull();
 
-        // 刷新落定、controller 判定可登出：按钮可用，点了走 controller 的登出。
+        // 登录落定后同样没有登出按钮，controller.logout 不应被账号页触发。
         fake.update({ providers: [netease('authenticated', cachedUser)] });
-        expect(logoutButton()!.disabled).toBe(false);
-        act(() => logoutButton()!.click());
-        expect(fake.logout).toHaveBeenCalledWith('netease');
-    });
-
-    it('disables logout while a logout is in flight', () => {
-        const fake = createFakeController(snapshotWith(netease('authenticated', cachedUser)));
-        const { logoutButton } = renderAccountTab(fake.controller, cachedUser);
-        expect(logoutButton()!.disabled).toBe(false);
-
-        fake.update({ logout: { providerId: 'netease', status: 'pending' } });
-        expect(logoutButton()!.disabled).toBe(true);
-
-        fake.update({ logout: { providerId: null, status: 'idle' } });
-        expect(logoutButton()!.disabled).toBe(false);
+        expect(logoutButton()).toBeNull();
+        expect(fake.logout).not.toHaveBeenCalled();
     });
 });

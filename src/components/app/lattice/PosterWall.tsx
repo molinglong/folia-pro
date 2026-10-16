@@ -4,14 +4,18 @@ import {
     getLatticeGeometry,
     layoutExpandedBlock,
     layoutLattice,
+    locateFullyVisibleInstance,
+    locateInstanceWithId,
     overlaps,
     toBounds,
     type Bounds,
+    type LatticeGeometry,
     type ReflowTile,
     type WallMetrics,
 } from '../../wall/layout';
 import { useWallCameraPan, type LatticeCamera } from '../../wall/useWallCameraPan';
 import { computeLightsRippleDelay } from '../../wall/lightsRipple';
+import LightsStageGlow from '../../wall/LightsStageGlow';
 import { useLatticePosterSelection } from './useLatticePosterSelection';
 import { useWallKeyboardFocus } from './useWallKeyboardFocus';
 import { useWallPointerPan } from '../../wall/useWallPointerPan';
@@ -91,6 +95,8 @@ export default function PosterWall({
         rect: Omit<ReflowTile, 'instanceId'> | null;
     }>({ enabled: false, rect: null });
     const currentPosterVisibleRef = useRef(true);
+    // expandPoster 是海报的永久身份回调，读当时在播的歌走 ref，不进依赖。
+    const currentSongKeyRef = useRef<string | null>(null);
     const [bounds, setBounds] = useState<Bounds>(() => getWorldBounds(cameraRef.current, viewportRef.current));
     // Nothing is drawn until the field reports its size: the seeded camera and the default
     // viewport would otherwise place the entering wave, and the playing song, off centre.
@@ -109,6 +115,38 @@ export default function PosterWall({
     const geometry = useMemo(() => getLatticeGeometry(tiles.length, METRICS), [tiles.length]);
     const [activePoster, setActivePoster] = useLatticePosterSelection(tiles, geometry, METRICS);
 
+    // 播放吸附的锚点：入场 / 换曲 / 手动聚焦居中的那一张副本（instanceId 是永久身份）。墙按周期
+    // 平铺，同一首歌有许多副本，检查只认这张。吸附看「离开过」：用户滚动/拖动期间它只要离开过
+    // 「完整在屏」（被边缘裁掉或出屏），停下时又完整在屏，就吸回正中一次；全程都完整在屏的浏览
+    // 不吸（否则每次停稳都被拉回去，滚动没法用）。
+    const playbackAnchorRef = useRef<{ songKey: string; instanceId: string } | null>(null);
+    const anchorLeftFullViewRef = useRef(false);
+    // 跟踪与停稳检查共用的场景数据。layout 随展开/收起每渲染重建，而跟踪挂在每帧镜头上，
+    // 走 ref 不进依赖，免得 applyCamera 跟着重建。
+    const anchorSceneRef = useRef<{
+        geometry: LatticeGeometry;
+        tilesLength: number;
+        layout: Map<string, { x: number; y: number; width: number; height: number }> | null;
+    }>({ geometry, tilesLength: tiles.length, layout: null });
+    // 用户驱动的镜头（拖动/滚轮/触控板/惯性）每帧过一遍：锚点那张不完整在屏就记「离开过」。
+    // 按帧跟踪而不是只在停稳时采样：滚出去又滚回来中间不停顿（间隔不到 300ms 不算停稳），
+    // 采样会漏记那次「离开」，滚回来就不吸了。panTo 的程序化飞行（入场/换曲/吸附本身）不走
+    // updateCamera，不会把起飞前的裁边误记成用户浏览造成的离开。
+    const trackAnchorLeftFullView = useCallback((camera: LatticeCamera) => {
+        const anchor = playbackAnchorRef.current;
+        if (!anchor) return;
+        const { geometry: sceneGeometry, tilesLength, layout: sceneLayout } = anchorSceneRef.current;
+        const instance = locateInstanceWithId(sceneGeometry, tilesLength, anchor.instanceId, METRICS);
+        if (!instance) return;
+        const rect = sceneLayout?.get(instance.instanceId) ?? instance;
+        const view = getWorldBounds(camera, viewportRef.current);
+        if (rect.x < view.left || rect.y < view.top
+            || rect.x + rect.width > view.right || rect.y + rect.height > view.bottom) {
+            if (!anchorLeftFullViewRef.current) console.log('[snap] 逐帧：锚点离开完整在屏');
+            anchorLeftFullViewRef.current = true;
+        }
+    }, []);
+
     const publishCurrentPosterVisibility = useCallback((camera: LatticeCamera) => {
         const tracked = trackedCurrentPosterRef.current;
         const visible = !tracked.enabled || Boolean(
@@ -125,12 +163,13 @@ export default function PosterWall({
             worldRef.current.style.transform = `translate3d(${next.x}px, ${next.y}px, 0) scale(${next.scale})`;
         }
         publishCurrentPosterVisibility(next);
+        trackAnchorLeftFullView(next);
         if (!updateBounds || frameRef.current !== null) return;
         frameRef.current = requestAnimationFrame(() => {
             setBounds(getWorldBounds(cameraRef.current, viewportRef.current));
             frameRef.current = null;
         });
-    }, [publishCurrentPosterVisibility]);
+    }, [publishCurrentPosterVisibility, trackAnchorLeftFullView]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -231,6 +270,97 @@ export default function PosterWall({
         };
     }, []);
 
+    // Only the block holding the open card is re-geared; every other poster keeps its base rect.
+    const layout = useMemo(() => (
+        activePoster
+            ? layoutExpandedBlock(geometry, tiles.length, activePoster.instance, METRICS)
+            : new Map<string, { x: number; y: number; width: number; height: number }>()
+    ), [activePoster, geometry, tiles.length]);
+
+    anchorSceneRef.current = { geometry, tilesLength: tiles.length, layout };
+
+    // 播放中的卡「离开过、又完整出现就吸一次」（2026-10-15）：镜头停稳（拖动松手 / 惯性滑完 /
+    // 滚轮停下，见 useWallPointerPan 的 onPanSettle）后检查一次——绑定的那张副本
+    // （playbackAnchorRef，入场 / 换曲 / 手动聚焦居中的那张）在这次浏览里离开过「完整在屏」
+    // （trackAnchorLeftFullView 逐帧记），停下时又完整在屏，就吸回正中一次；全程都完整在屏时
+    // 不动镜头。展开别的卡看的时候不抢镜头；吸附不改展开状态：没展开就居中格子，展开着就居中
+    // 展开块。交接期间镜头被接管，不检查。
+    // [snap] 以下 console.log 均为临时诊断（真机不吸附排查），定位后整体删除。
+    const centerPlaybackPoster = useCallback(() => {
+        if (!measured || animationRef.current) {
+            console.log('[snap] 停稳但跳过：measured=%s 上一段动画还挂着=%s', measured, Boolean(animationRef.current));
+            return;
+        }
+        const container = containerRef.current;
+        if (!container || container.closest('[data-wall-handoff]')) {
+            console.log('[snap] 停稳但跳过：交接中');
+            return;
+        }
+        const songKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+        if (!songKey) {
+            console.log('[snap] 停稳但跳过：没有在播的歌');
+            return;
+        }
+        const queueIndex = tiles.findIndex(tile => tile.id === songKey);
+        if (queueIndex < 0) {
+            console.log('[snap] 停稳但跳过：在播的歌不在队列里 %s', songKey);
+            return;
+        }
+        if (activePoster && activePoster.tile.id !== songKey) {
+            console.log('[snap] 停稳但跳过：展开的是别的卡');
+            return;
+        }
+        const viewport = getWorldBounds(cameraRef.current, viewportRef.current);
+        // 锚点指向的歌不在了（换曲 / 队列重排后席位映射会漂）就当作没有锚点，重新找完整可见的最近副本。
+        const anchor = playbackAnchorRef.current;
+        const anchoredHere = anchor?.songKey === songKey
+            ? locateInstanceWithId(geometry, tiles.length, anchor.instanceId, METRICS)
+            : null;
+        const anchored = anchoredHere && anchoredHere.queueIndex === queueIndex ? anchoredHere : null;
+        const instance = anchored
+            ?? locateFullyVisibleInstance(geometry, tiles.length, queueIndex, viewport, METRICS,
+                candidate => layout.get(candidate.instanceId) ?? candidate);
+        if (!instance) {
+            console.log('[snap] 停稳但跳过：找不到完整可见的副本');
+            return;
+        }
+        const rect = layout.get(instance.instanceId) ?? instance;
+        const fullyVisible = rect.x >= viewport.left && rect.y >= viewport.top
+            && rect.x + rect.width <= viewport.right && rect.y + rect.height <= viewport.bottom;
+        if (!anchored) {
+            // 没有锚点（首次 / 换曲后没跟随的第一次停稳）：有完整可见的副本就吸这一次，并定为锚点。
+            if (!fullyVisible) {
+                console.log('[snap] 无锚点且不完整在屏：不吸');
+                return;
+            }
+            console.log('[snap] 无锚点首次停稳：吸这一次并播种 %s', instance.instanceId);
+            playbackAnchorRef.current = { songKey, instanceId: instance.instanceId };
+            anchorLeftFullViewRef.current = false;
+        } else if (!fullyVisible) {
+            // 锚点那张被裁掉或不在屏：不吸，镜头留在停下的地方；「离开过」已由每帧跟踪记下。
+            console.log('[snap] 锚点不在屏：记下离开过');
+            anchorLeftFullViewRef.current = true;
+            return;
+        } else if (!anchorLeftFullViewRef.current) {
+            // 这次浏览它全程都完整在屏：不吸，停在哪就待在哪。
+            console.log('[snap] 锚点全程完整在屏：不吸');
+            return;
+        } else {
+            // 离开过、现在又完整回来了：吸回正中一次，清掉标记。
+            console.log('[snap] 离开过又回来了：触发吸附');
+            anchorLeftFullViewRef.current = false;
+        }
+        const targetX = viewportRef.current.width / 2 - (rect.x + rect.width / 2) * cameraRef.current.scale;
+        const targetY = viewportRef.current.height / 2 - (rect.y + rect.height / 2) * cameraRef.current.scale;
+        // 已经对中就不再起动画：panTo 的落点就是这里，重跑只会白飞一次。
+        if (Math.abs(targetX - cameraRef.current.x) < 1.5 && Math.abs(targetY - cameraRef.current.y) < 1.5) {
+            console.log('[snap] 位移不足 1.5px：不吸（dx=%s dy=%s）', targetX - cameraRef.current.x, targetY - cameraRef.current.y);
+            return;
+        }
+        // 吸附用弹簧档：缓起缓收，小距离也不生硬（展开/键盘跳格的 panTo 仍走原 tween）。
+        panTo(rect, false, { spring: true });
+    }, [activePoster, currentSong, geometry, layout, measured, panTo, tiles]);
+
     const { didDragRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture } = useWallPointerPan({
         applyCamera,
         animationRef,
@@ -242,14 +372,9 @@ export default function PosterWall({
         cameraRef,
         getWorldBounds,
         viewportRef,
+        onPanSettle: centerPlaybackPoster,
+        onCameraFrame: trackAnchorLeftFullView,
     });
-
-    // Only the block holding the open card is re-geared; every other poster keeps its base rect.
-    const layout = useMemo(() => (
-        activePoster
-            ? layoutExpandedBlock(geometry, tiles.length, activePoster.instance, METRICS)
-            : new Map<string, { x: number; y: number; width: number; height: number }>()
-    ), [activePoster, geometry, tiles.length]);
 
     useEffect(() => {
         const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
@@ -296,6 +421,12 @@ export default function PosterWall({
         // Expansion reflows both the position and size of the selected slot.
         const expandedRect = layoutExpandedBlock(currentGeometry, currentTiles.length, instance, METRICS).get(instanceId);
         if (expandedRect) panTo(expandedRect);
+        // 手动展开正在播放的歌也算一次「对中」：锚点跟着走，随后的停稳检查查的就是这张。
+        if (currentSongKeyRef.current && tile.id === currentSongKeyRef.current) {
+            console.log('[snap] 手动展开在播卡：播种锚点 %s', instance.instanceId);
+            playbackAnchorRef.current = { songKey: currentSongKeyRef.current, instanceId: instance.instanceId };
+            anchorLeftFullViewRef.current = false;
+        }
     }, [panTo, setActivePoster, setFocused]);
     const collapsePoster = useCallback(() => setActivePoster(null), [setActivePoster]);
 
@@ -309,8 +440,17 @@ export default function PosterWall({
         setActivePoster,
         setFocused,
         panTo,
+        onFocusInstance: instance => {
+            // 跟随居中的那张就是吸附的锚点：之后的停稳检查从它开始，而不是任找一张完整副本。
+            if (currentSongKeyRef.current) {
+                console.log('[snap] 入场/换曲跟随：播种锚点 %s', instance.instanceId);
+                playbackAnchorRef.current = { songKey: currentSongKeyRef.current, instanceId: instance.instanceId };
+                anchorLeftFullViewRef.current = false;
+            }
+        },
     });
     const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+    currentSongKeyRef.current = currentSongKey;
     const handoff = useLatticeWallHandoff({
         containerRef,
         cameraRef,
@@ -389,6 +529,8 @@ export default function PosterWall({
                 })}
             </div>
 
+            {/* 关灯态舞台聚光（雾感版，见组件头注）：自包含 canvas，自己跟随 is-lights-out 与 .is-current，开灯时休眠。 */}
+            <LightsStageGlow />
         </div>
     );
 }

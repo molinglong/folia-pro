@@ -63,6 +63,9 @@ const mountLattice = async (mount: (id: string) => Promise<Locator>, page: Page)
 test.describe('[lattice] wheel smoothing', () => {
     test('a mouse wheel notch (pixel deltas) glides over several frames and lands exactly', async ({ mount, page }) => {
         const wall = await mountLattice(mount, page);
+        // 先把正在播放的卡沿 x 滚出屏幕：停稳后的吸附只对完整在屏里的卡生效，别让它把镜头拉回去盖住采样。
+        await page.mouse.wheel(1200, 0);
+        await page.waitForTimeout(1500);
         await startSampler(latticeWorld(wall));
         await page.mouse.wheel(120, 0);
         expectSmooth(await readSamples(page), 'x', -120);
@@ -70,6 +73,9 @@ test.describe('[lattice] wheel smoothing', () => {
 
     test('line-mode wheel deltas glide too, and consecutive notches stack onto one target', async ({ mount, page }) => {
         const wall = await mountLattice(mount, page);
+        // 同上：先把当前播放的卡沿 y 滚出屏幕，吸附就不会在采样期内把镜头拉回去。
+        await page.mouse.wheel(0, 1200);
+        await page.waitForTimeout(1500);
         await startSampler(latticeWorld(wall), 90);
         await wall.locator('.lattice-field').evaluate(node => {
             for (let notch = 0; notch < 3; notch++) {

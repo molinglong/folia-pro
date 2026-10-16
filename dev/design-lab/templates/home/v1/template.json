@@ -1,0 +1,6 @@
+{
+  "id": "home", "title": "首页与海报墙", "description": "参考 Bravais 海报与中缝结构，选择卡片查看信息；不运行无限墙引擎。",
+  "version": "v1", "sharedVersion": "v1", "createdAt": "2026-10-14", "order": 1,
+  "sourcePaths": ["src/library/suites/bravais/BravaisStage.tsx"],
+  "scenes": [{"id":"default","label":"海报墙"},{"id":"selected","label":"选中海报"}]
+}

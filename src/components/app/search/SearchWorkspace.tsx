@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Loader2, Search, X } from 'lucide-react';
+import { AlertCircle, Clock, Loader2, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { Theme, UnifiedSong } from '../../../types';
@@ -57,8 +57,10 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
         searchError,
         hasMore,
         scrollTop,
+        searchHistory,
         setSearchQuery,
         setSearchScrollTop,
+        clearSearchHistory,
     } = useSearchNavigationStore(useShallow(state => ({
         searchQuery: state.searchQuery,
         searchSourceTab: state.searchSourceTab,
@@ -69,15 +71,25 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
         searchError: state.searchError,
         hasMore: state.hasMore,
         scrollTop: state.scrollTop,
+        searchHistory: state.searchHistory,
         setSearchQuery: state.setSearchQuery,
         setSearchScrollTop: state.setSearchScrollTop,
+        clearSearchHistory: state.clearSearchHistory,
     })));
     const results = useMemo(() => {
         const raw = searchResults || [];
         return resolveTrackDisplay ? raw.map(resolveTrackDisplay) : raw;
     }, [resolveTrackDisplay, searchResults]);
     const activeOnlineProviderId = useOnlineProviderAccountStore(state => state.activeProviderId);
-    const sources = useMemo<SearchSource[]>(() => [activeOnlineProviderId, 'local', 'navidrome'], [activeOnlineProviderId]);
+    // 在线源列全（web 未配置后端的平台按 availability 自动隐藏），不再被首页激活的平台绑死；
+    // dep 沿用激活平台以便切换账号后重算。
+    const sources = useMemo<SearchSource[]>(() => [
+        ...omni.getProviderSummaries()
+            .filter(summary => summary.availability.configured !== false)
+            .map(summary => summary.providerId),
+        'local',
+        'navidrome',
+    ], [activeOnlineProviderId]);
     const hasCollection = useCollectionNavigationStore(state => Boolean(state.snapshot?.stack.length));
     const getSourceLabel = (source: SearchSource) => {
         if (source === 'local') return t('search.sourceLocal');
@@ -178,6 +190,7 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                     </header>
 
                     <div className="mx-auto mt-3 min-h-0 w-full max-w-5xl flex-1">
+                        {/* 未提交过搜索（新开浮层 / 输入未回车）时空态给最近搜索，而不是误导性的「无结果」。 */}
                         {isSearching ? (
                             <div className="flex h-full items-center justify-center">
                                 <Loader2 className="h-9 w-9 animate-spin opacity-45" />
@@ -194,6 +207,40 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                                     {t('search.retry')}
                                 </button>
                             </div>
+                        ) : searchResults === null ? (
+                            searchHistory.length > 0 ? (
+                                <div className="flex h-full flex-col overflow-y-auto pt-2 custom-scrollbar">
+                                    <div className="flex items-center justify-between pb-2">
+                                        <span className="text-xs font-semibold opacity-50">{t('search.historyTitle')}</span>
+                                        <button
+                                            type="button"
+                                            onClick={clearSearchHistory}
+                                            className="text-xs opacity-50 transition-opacity hover:opacity-90"
+                                        >
+                                            {t('search.clearHistory')}
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        {searchHistory.map(entry => (
+                                            <button
+                                                key={`${entry.sourceTab}:${entry.query}`}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSearchQuery(entry.query);
+                                                    onSubmitSearch(entry.sourceTab);
+                                                }}
+                                                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                                                    isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/10'
+                                                }`}
+                                            >
+                                                <Clock size={14} className="shrink-0 opacity-40" />
+                                                <span className="min-w-0 flex-1 truncate">{entry.query}</span>
+                                                <span className="shrink-0 text-xs opacity-40">{getSourceLabel(entry.sourceTab)}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null
                         ) : results.length === 0 ? (
                             <div className="flex h-full items-center justify-center text-sm opacity-50">
                                 {t('home.noResults')}

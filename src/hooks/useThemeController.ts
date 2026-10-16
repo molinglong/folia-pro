@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { generateThemeFromLyrics, isMissingAiApiKeyError } from '../services/gemini';
+import { polishAiDualTheme } from '../services/aiThemePolish';
 import { saveToCache } from '../services/db';
 import { DualTheme, LyricData, SongResult, StatusMessage, Theme, ThemeMode } from '../types';
 import { getCachedThemeState, getCachedThemeStateForSong, getLastDualTheme, getLastLegacyTheme, type ThemeCacheSongKey } from '../services/themeCache';
@@ -39,11 +40,13 @@ type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 export type GenerateAIThemeOptions = {
     source?: 'manual' | 'auto';
     shouldApply?: () => boolean;
+    /** Manual panel button: route to the AI provider even under the cover source. */
+    forceAi?: boolean;
 };
 
 export type GenerateAIThemeResult =
     | { status: 'generated'; applied: boolean }
-    | { status: 'skipped'; reason: 'in-flight' | 'empty-prompt' }
+    | { status: 'skipped'; reason: 'in-flight' | 'empty-prompt' | 'no-cover' }
     | { status: 'failed' };
 
 // Keeps local theme operations successful when the optional sync server is unavailable.
@@ -370,9 +373,12 @@ export function useThemeController({
             return 'restored' as const;
         }
 
+        // Only the cover source re-derives stale caches on the fly; under the AI source a cached
+        // theme must stay put or the auto path would start spending tokens on every old cache.
+        const ignoreStaleCoverThemes = themeGenerationSource === 'cover';
         const cachedTheme = typeof songOrId === 'object'
-            ? await getCachedThemeStateForSong(songOrId)
-            : await getCachedThemeState(songOrId);
+            ? await getCachedThemeStateForSong(songOrId, { ignoreStaleCoverThemes })
+            : await getCachedThemeState(songOrId, { ignoreStaleCoverThemes });
 
         if (cachedTheme.kind === 'dual') {
             setCurrentSongHasLocalAiTheme(true);
@@ -416,8 +422,18 @@ export function useThemeController({
         currentSong: SongResult | null,
         shouldApply: () => boolean,
         origin: 'chosen' | 'fallback',
+        source: 'manual' | 'auto' = 'manual',
     ): Promise<GenerateAIThemeResult> => {
         const coverColors = coverUrl ? await extractColors(coverUrl, 5) : [];
+        // Without artwork there is nothing honest to derive: an empty palette would bake the
+        // neutral fallback theme into the song's cache. Skip without caching -- a later attempt
+        // (cover resolved, manual retry) can still build the real thing.
+        if (coverColors.length === 0) {
+            if (source === 'manual' && shouldApply()) {
+                setStatusMsg({ type: 'error', text: t('status.coverThemeUnavailable') });
+            }
+            return { status: 'skipped', reason: 'no-cover' };
+        }
         const coverTheme = applyStoredAnimationIntensityToDualTheme(buildBuiltinDualTheme({ coverColors }));
 
         if (currentSong) {
@@ -431,17 +447,19 @@ export function useThemeController({
         }
 
         applyDualTheme(coverTheme);
-        setStatusMsg(origin === 'fallback'
-            ? {
-                type: 'info',
-                text: t('status.aiFallbackThemeUsed'),
-            }
-            : {
+        // Auto cover generation is ambient -- it fires on every song switch, and the palette
+        // change itself is the feedback. Keep the toast for explicit manual generation only;
+        // the AI-fallback note stays in both paths since it explains a surprise.
+        if (origin === 'fallback') {
+            setStatusMsg({ type: 'info', text: t('status.aiFallbackThemeUsed') });
+        } else if (source === 'manual') {
+            setStatusMsg({
                 type: 'success',
                 text: t('status.coverThemeApplied', {
                     themeName: getSelectedDualTheme(coverTheme, isDaylight).name,
                 }),
             });
+        }
 
         return { status: 'generated', applied: true };
     };
@@ -462,12 +480,14 @@ export function useThemeController({
         setStatusMsg({ type: 'info', text: t('status.generatingTheme') });
         try {
             // The cover source never touches the model, so it also never needs a lyric prompt:
-            // an instrumental with no title still gets a theme from its artwork.
-            if (themeGenerationSource === 'cover') {
+            // an instrumental with no title still gets a theme from its artwork. The panel
+            // button forces the AI path regardless -- "Generate AI Theme" must mean AI.
+            if (themeGenerationSource === 'cover' && !options.forceAi) {
                 return await applyCoverDerivedTheme(
                     currentSong,
                     () => options.shouldApply?.() ?? true,
                     'chosen',
+                    source,
                 );
             }
 
@@ -487,7 +507,11 @@ export function useThemeController({
                 isPureMusic,
                 songTitle: songTitle || undefined,
             });
-            const normalizedDualTheme = applyStoredAnimationIntensityToDualTheme(sanitizeDualTheme(dualTheme));
+            // Contrast floors and the duotone wash ride on top of whatever the model returned;
+            // cached and user-edited themes are never re-polished.
+            const normalizedDualTheme = applyStoredAnimationIntensityToDualTheme(
+                polishAiDualTheme(sanitizeDualTheme(dualTheme)),
+            );
             if (currentSong) {
                 await saveToCache(`dual_theme_${getPlaybackSongKey(currentSong)}`, normalizedDualTheme);
                 saveSyncedThemeWithoutBlocking(currentSong, normalizedDualTheme, source === 'auto' ? 'auto' : 'manual');
@@ -515,6 +539,7 @@ export function useThemeController({
                     currentSong,
                     () => options.shouldApply?.() ?? true,
                     'fallback',
+                    source,
                 );
             }
 

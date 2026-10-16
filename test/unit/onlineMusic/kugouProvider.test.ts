@@ -79,6 +79,17 @@ describe('kugouProvider', () => {
         expect(page.nextOffset).toBe(2);
     });
 
+    it('passes the raw keyword to anonymous song searches without lyric-query trimming', async () => {
+        transportState.hasAuthenticatedSearchSession = false;
+        anonymousSearchMock.mockResolvedValue({ data: { lists: [] } });
+
+        await kugouProvider.search!.searchSongs('神马乐团 - 爱河', 50, 0);
+
+        // 「歌手 - 歌名」必须原样透传：buildKugouLyricSearchQuery 是歌词匹配的去重逻辑，
+        // 截掉歌手后酷狗实际搜的词就和用户输入不一致了。
+        expect(anonymousSearchMock).toHaveBeenCalledWith('神马乐团 - 爱河', 1, 50);
+    });
+
     it('keeps authenticated searches on the provider transport', async () => {
         requestMock.mockResolvedValue({
             data: {

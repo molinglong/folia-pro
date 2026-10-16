@@ -16,6 +16,7 @@ import {
     type MonetTuning,
     type PartitaTuning,
     type PendoloTuning,
+    type RingsTuning,
     type SonnetTuning,
     type SubtitleContentMode,
     type TemperaTuning,
@@ -28,7 +29,7 @@ import type { VisualizerBackgroundConfig } from './backgrounds/definition';
 
 // src/components/visualizer/definition.ts
 // Shared contracts for discoverable visualizer modes.
-export type VisualizerTuningKind = 'none' | 'classic' | 'cadenza' | 'partita' | 'fume' | 'claddagh' | 'cappella' | 'tilt' | 'monet' | 'diorama' | 'pendolo' | 'sonnet' | 'tempera' | 'lumiere';
+export type VisualizerTuningKind = 'none' | 'classic' | 'cadenza' | 'partita' | 'fume' | 'claddagh' | 'cappella' | 'tilt' | 'monet' | 'diorama' | 'pendolo' | 'rings' | 'sonnet' | 'tempera' | 'lumiere';
 
 export interface VisualizerSharedProps {
     currentTime: MotionValue<number>;
@@ -96,6 +97,7 @@ export interface VisualizerSharedProps {
     onTemperaTuningChange?: (patch: Partial<TemperaTuning>) => void;
     lumiereTuning?: LumiereTuning;
     onLumiereTuningChange?: (patch: Partial<LumiereTuning>) => void;
+    ringsTuning?: RingsTuning;
 }
 
 export interface VisualizerSettingsPanelProps {
@@ -143,6 +145,8 @@ export interface VisualizerSettingsPanelProps {
     onTemperaTuningChange?: (patch: Partial<TemperaTuning>) => void;
     lumiereTuning?: LumiereTuning;
     onLumiereTuningChange?: (patch: Partial<LumiereTuning>) => void;
+    ringsTuning?: RingsTuning;
+    onRingsTuningChange?: (patch: Partial<RingsTuning>) => void;
     /** Mark slider drag start so onChange only updates draft. */
     onSliderPointerDown?: () => void;
     /** Commit draft values to persistent store on slider release. */
@@ -168,6 +172,8 @@ export interface VisualizerSettingsResetProps {
     setDraftSonnetTuning?: (tuning: SonnetTuning) => void;
     setDraftTemperaTuning?: (tuning: TemperaTuning) => void;
     setDraftLumiereTuning?: (tuning: LumiereTuning) => void;
+    resetRingsTuning?: () => void;
+    setDraftRingsTuning?: (tuning: RingsTuning) => void;
 }
 
 export interface VisualizerRegistryEntry {

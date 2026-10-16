@@ -1,0 +1,6 @@
+{
+  "id":"playback-quick", "title":"播放快捷浮层", "description":"贴在胶囊上方的音量、静音与示例队列洗牌浮层。",
+  "version":"v1", "sharedVersion":"v1", "createdAt":"2026-10-14", "order":7,
+  "sourcePaths":["src/components/floating-player/PlaybackQuickPanel.tsx"],
+  "scenes":[{"id":"default","label":"展开浮层"},{"id":"muted","label":"已静音"},{"id":"closed","label":"收起浮层"}]
+}

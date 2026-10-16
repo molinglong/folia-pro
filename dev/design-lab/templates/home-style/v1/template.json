@@ -1,0 +1,6 @@
+{
+  "id":"home-style", "title":"主页样式浮层", "description":"右侧样式面板、卡片外观预览与栏目开关，不写入正式偏好。",
+  "version":"v1", "sharedVersion":"v1", "createdAt":"2026-10-14", "order":9,
+  "sourcePaths":["src/components/home/HomeStylePanel.tsx"],
+  "scenes":[{"id":"default","label":"图片样式"},{"id":"card","label":"卡片样式"},{"id":"closed","label":"收起浮层"}]
+}

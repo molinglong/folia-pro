@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const requestMock = vi.hoisted(() => vi.fn());
 const clearSessionMock = vi.hoisted(() => vi.fn());
 const writeSessionValueMock = vi.hoisted(() => vi.fn());
-const searchQQLyricsMock = vi.hoisted(() => vi.fn());
+const searchQQSongsMock = vi.hoisted(() => vi.fn());
 const fetchQQLyricsMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
@@ -22,7 +22,7 @@ vi.mock('@/services/onlineMusic/providerStorage', () => ({
 }));
 
 vi.mock('@/utils/lyrics/providers/qqLyricProvider', () => ({
-    searchQQLyrics: searchQQLyricsMock,
+    searchQQSongs: searchQQSongsMock,
     fetchQQLyrics: fetchQQLyricsMock,
 }));
 
@@ -160,7 +160,7 @@ describe('qqProvider', () => {
         requestMock.mockReset();
         clearSessionMock.mockReset();
         writeSessionValueMock.mockReset();
-        searchQQLyricsMock.mockReset();
+        searchQQSongsMock.mockReset();
         fetchQQLyricsMock.mockReset();
         transportState.hasSession = true;
         resetQqProviderRuntimeCache();
@@ -661,7 +661,7 @@ describe('qqProvider', () => {
     });
 
     it('routes search and lyrics through the existing QQ modules', async () => {
-        searchQQLyricsMock.mockResolvedValue([{
+        searchQQSongsMock.mockResolvedValue([{
             id: 5105918,
             name: '海阔天空',
             artists: [{ id: 4558, name: 'Beyond' }],
@@ -672,7 +672,7 @@ describe('qqProvider', () => {
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
         const page = await qqProvider.search!.searchSongs('海阔天空', 20, 20);
-        expect(searchQQLyricsMock).toHaveBeenCalledWith('海阔天空', 2, 20);
+        expect(searchQQSongsMock).toHaveBeenCalledWith('海阔天空', 2, 20);
         expect(page).toMatchObject({ hasMore: false, nextOffset: 21 });
         expect(page.items[0]?.sourceRef).toMatchObject({ providerId: 'qq', mediaId: '003rJSwm3TechU' });
 
@@ -683,6 +683,13 @@ describe('qqProvider', () => {
             qqMid: '003rJSwm3TechU',
         }));
         expect(result).toEqual({ lyrics: { lines: [], isWordByWord: true }, isPureMusic: false });
+    });
+
+    it('propagates search failures so the overlay can offer a retry instead of reading them as no results', async () => {
+        searchQQSongsMock.mockRejectedValue(new Error('QQ Music API error: code 2001'));
+
+        await expect(qqProvider.search!.searchSongs('海阔天空', 20, 0))
+            .rejects.toThrow('QQ Music API error: code 2001');
     });
 
     it('resolves song detail and degrades authenticated playback quality until a URL exists', async () => {
@@ -1094,7 +1101,7 @@ describe('qqProvider', () => {
     // 那是数字 album id 与 singer id。搜索复用的歌词搜索接口只带出数字 id，mid 在那一层就丢了，
     // 所以点击时必须先补一次 `/getSongInfo` 才拿得到 mid。
     describe('catalog id resolution', () => {
-        // 真实 `searchQQLyrics` 的产出形状：数字 id 齐全，一个 mid 都没有。
+        // 真实 `searchQQSongs` 的产出形状：数字 id 齐全，一个 mid 都没有。
         const SEARCH_RESULT_WITHOUT_MIDS = {
             id: 5105918,
             name: '海阔天空',

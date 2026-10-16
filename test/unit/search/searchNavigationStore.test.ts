@@ -3,6 +3,7 @@ import { resolveCommandPaletteSearchSource, useSearchNavigationStore } from '@/s
 import { neteaseApi } from '@/services/netease';
 import { getNavidromeConfig, navidromeApi } from '@/services/navidromeService';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
+import type { LocalSong } from '@/types';
 
 vi.mock('@/services/netease', () => ({
     neteaseApi: {
@@ -29,6 +30,35 @@ describe('useSearchNavigationStore', () => {
         t: (_key: string, fallback?: string) => fallback || '',
     };
 
+    const makeLocalSong = (id: string, meta: { title: string; artistNames: string[]; albumName?: string }): LocalSong => ({
+        id,
+        fileName: `${id}.mp3`,
+        filePath: `/tmp/${id}.mp3`,
+        duration: 120000,
+        fileSize: 10,
+        mimeType: 'audio/mpeg',
+        addedAt: 1,
+        title: meta.title,
+        titleOrigin: 'import',
+        importedMetadata: { title: meta.title, titleSource: 'filename', artistNames: meta.artistNames, albumName: meta.albumName },
+    });
+
+    // node 环境没有 window/localStorage：历史持久化断言用内存实现 stub。
+    // 裸 localStorage 也要一并补上：i18n/config 顶层直接读全局 localStorage，
+    // 而 resetModules 重求值模块图时守卫看到 window 已定义就会走到那一行。
+    const stubWindowLocalStorage = () => {
+        const entries = new Map<string, string>();
+        const localStorageStub = {
+            getItem: (key: string) => (entries.has(key) ? entries.get(key)! : null),
+            setItem: (key: string, value: string) => { entries.set(key, String(value)); },
+            removeItem: (key: string) => { entries.delete(key); },
+            clear: () => entries.clear(),
+        };
+        vi.stubGlobal('window', { localStorage: localStorageStub });
+        vi.stubGlobal('localStorage', localStorageStub);
+        return entries;
+    };
+
     beforeEach(() => {
         cloudSearchMock.mockReset();
         getNavidromeConfigMock.mockReset();
@@ -51,6 +81,7 @@ describe('useSearchNavigationStore', () => {
             hasMore: false,
             scrollTop: 0,
             searchCache: {},
+            searchHistory: [],
         });
     });
 
@@ -96,6 +127,96 @@ describe('useSearchNavigationStore', () => {
         expect(state.searchSourceTab).toBe('local');
         expect(state.searchResults).toHaveLength(1);
         expect(state.hasMore).toBe(false);
+    });
+
+    it('matches multi-token local queries across fields', async () => {
+        await useSearchNavigationStore.getState().submitSearch({
+            query: '周杰伦 晴天',
+            sourceTab: 'local',
+            deps: {
+                ...deps,
+                localSongs: [
+                    makeLocalSong('1', { title: '晴天', artistNames: ['周杰伦'] }),
+                    makeLocalSong('2', { title: '七里香', artistNames: ['周杰伦'] }),
+                    makeLocalSong('3', { title: '夜曲', artistNames: ['周杰伦'] }),
+                ],
+            },
+        });
+
+        const results = useSearchNavigationStore.getState().searchResults;
+        expect(results?.map(song => song.name)).toEqual(['晴天']);
+    });
+
+    it('ranks local results by field hits with title matches first', async () => {
+        await useSearchNavigationStore.getState().submitSearch({
+            query: '晴天',
+            sourceTab: 'local',
+            deps: {
+                ...deps,
+                localSongs: [
+                    makeLocalSong('album-hit', { title: '晚霞', artistNames: ['独立乐队'], albumName: '晴天原声带' }),
+                    makeLocalSong('artist-hit', { title: '彩虹', artistNames: ['晴天乐队'] }),
+                    makeLocalSong('title-hit', { title: '晴天', artistNames: ['周杰伦'] }),
+                ],
+            },
+        });
+
+        const results = useSearchNavigationStore.getState().searchResults;
+        expect(results?.map(song => song.name)).toEqual(['晴天', '彩虹', '晚霞']);
+    });
+
+    it('records successful searches into history with dedupe and a cap of 10', async () => {
+        const submit = (query: string) => useSearchNavigationStore.getState().submitSearch({ query, sourceTab: 'local', deps });
+
+        await submit('world');
+        await submit('hello');
+        await submit('world');
+
+        let history = useSearchNavigationStore.getState().searchHistory;
+        expect(history.map(entry => entry.query)).toEqual(['world', 'hello']);
+
+        for (let index = 0; index < 12; index += 1) {
+            await submit(`query-${index}`);
+        }
+        history = useSearchNavigationStore.getState().searchHistory;
+        expect(history).toHaveLength(10);
+        expect(history[0]?.query).toBe('query-11');
+        expect(history[9]?.query).toBe('query-2');
+    });
+
+    it('does not record failed searches into history', async () => {
+        cloudSearchMock.mockRejectedValue(new Error('network down'));
+
+        await useSearchNavigationStore.getState().submitSearch({ query: '爱河', sourceTab: 'netease', deps });
+
+        expect(useSearchNavigationStore.getState().searchHistory).toEqual([]);
+    });
+
+    it('persists search history to localStorage when window is available', async () => {
+        const entries = stubWindowLocalStorage();
+
+        await useSearchNavigationStore.getState().submitSearch({ query: 'world', sourceTab: 'local', deps });
+
+        const persisted = JSON.parse(entries.get('search_history') || '[]');
+        expect(persisted).toHaveLength(1);
+        expect(persisted[0]).toMatchObject({ query: 'world', sourceTab: 'local' });
+        vi.unstubAllGlobals();
+    });
+
+    it('restores persisted history, dropping malformed entries, when the store module loads', async () => {
+        const entries = stubWindowLocalStorage();
+        entries.set('search_history', JSON.stringify([
+            { query: '爱河', sourceTab: 'netease', at: 1 },
+            { query: 42, sourceTab: 'qq', at: 2 },
+        ]));
+
+        try {
+            vi.resetModules();
+            const { useSearchNavigationStore: freshStore } = await import('@/stores/useSearchNavigationStore');
+            expect(freshStore.getState().searchHistory).toEqual([{ query: '爱河', sourceTab: 'netease', at: 1 }]);
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 
     it('appends more netease results when loading the next page', async () => {

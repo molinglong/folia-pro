@@ -204,6 +204,91 @@ export const locateNearestInstance = (
     return best;
 };
 
+/**
+ * Copy of one song that sits fully inside `viewport`, closest to the viewport centre. The playback
+ * centring uses it: a copy clipped at the screen edge reads as "not really on screen", so only a
+ * fully visible one may be centred. Same traversal as locateNearestInstance, widened by one repeat
+ * in every direction - the snapped copy can be the clipped one while a neighbour sits fully inside.
+ * `rectOf` lets callers hand back the as-drawn rect, so the expansion reflow counts.
+ */
+export const locateFullyVisibleInstance = (
+    geometry: LatticeGeometry,
+    totalEntries: number,
+    queueIndex: number,
+    viewport: Bounds,
+    metrics: WallMetrics,
+    rectOf: (instance: QueueInstance) => { x: number; y: number; width: number; height: number },
+): QueueInstance | null => {
+    if (totalEntries <= 0 || queueIndex < 0 || queueIndex >= totalEntries) return null;
+
+    const centreX = (viewport.left + viewport.right) / 2;
+    const centreY = (viewport.top + viewport.bottom) / 2;
+    let best: QueueInstance | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (let cellSlot = queueIndex; cellSlot < geometry.cellSlots; cellSlot += totalEntries) {
+        const blockInCell = Math.floor(cellSlot / SLOTS_PER_BLOCK);
+        const localColumn = blockInCell % geometry.blocksPerRow;
+        const localRow = Math.floor(blockInCell / geometry.blocksPerRow);
+        const slotIndex = cellSlot % SLOTS_PER_BLOCK;
+        const base = buildInstance(geometry, totalEntries, localColumn, localRow, slotIndex, metrics);
+        const repeatX = Math.round((centreX - base.x - base.width / 2) / geometry.cellWidth);
+        const repeatY = Math.round((centreY - base.y - base.height / 2) / geometry.cellHeight);
+        for (let repeatStepX = -1; repeatStepX <= 1; repeatStepX += 1) {
+            for (let repeatStepY = -1; repeatStepY <= 1; repeatStepY += 1) {
+                const candidate = buildInstance(
+                    geometry,
+                    totalEntries,
+                    (repeatX + repeatStepX) * geometry.blocksPerRow + localColumn,
+                    (repeatY + repeatStepY) * geometry.blockRows + localRow,
+                    slotIndex,
+                    metrics,
+                );
+                const rect = rectOf(candidate);
+                if (rect.x < viewport.left || rect.y < viewport.top
+                    || rect.x + rect.width > viewport.right || rect.y + rect.height > viewport.bottom) continue;
+                const distX = rect.x + rect.width / 2 - centreX;
+                const distY = rect.y + rect.height / 2 - centreY;
+                const distance = distX * distX + distY * distY;
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = candidate;
+                }
+            }
+        }
+    }
+
+    return best;
+};
+
+/**
+ * Rebuilds the instance a persistent id addresses (`cellSlot:repeatX:repeatY`). The playback
+ * centring anchors on one copy - the one the follow last centred - and has to find that exact
+ * copy again after the camera moved on, repeats included.
+ */
+export const locateInstanceWithId = (
+    geometry: LatticeGeometry,
+    totalEntries: number,
+    instanceId: string,
+    metrics: WallMetrics,
+): QueueInstance | null => {
+    const [rawSlot, rawRepeatX, rawRepeatY] = instanceId.split(':');
+    const cellSlot = Number(rawSlot);
+    const repeatX = Number(rawRepeatX);
+    const repeatY = Number(rawRepeatY);
+    if (!Number.isInteger(cellSlot) || cellSlot < 0 || cellSlot >= geometry.cellSlots
+        || !Number.isInteger(repeatX) || !Number.isInteger(repeatY)) return null;
+    const blockInCell = Math.floor(cellSlot / SLOTS_PER_BLOCK);
+    return buildInstance(
+        geometry,
+        totalEntries,
+        repeatX * geometry.blocksPerRow + blockInCell % geometry.blocksPerRow,
+        repeatY * geometry.blockRows + Math.floor(blockInCell / geometry.blocksPerRow),
+        cellSlot % SLOTS_PER_BLOCK,
+        metrics,
+    );
+};
+
 /** Posters intersecting the viewport. Cost scales with what is on screen, never with queue length. */
 export const layoutLattice = (
     geometry: LatticeGeometry,

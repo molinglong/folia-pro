@@ -187,6 +187,8 @@ const normalizeNeteaseSongFallback = (raw: unknown): UnifiedSong => {
     const rawAlbum = base.al || base.album || {};
     const duration = Number(base.durationMs ?? base.dt ?? base.duration ?? record.durationMs ?? record.duration ?? record.songLength ?? 0);
     const cloud = Number(base.t ?? record.t) === 1 || Number(base.t ?? record.t) === 2 || record.sourceType === 'cloud';
+    // `mv` is NetEase's MV id (0 = none); the video layer reads it from sourceRef.providerData.
+    const mvId = Number(base.mv ?? record.mv) || 0;
 
     return {
         id: base.id ?? record.id ?? 0,
@@ -206,6 +208,7 @@ const normalizeNeteaseSongFallback = (raw: unknown): UnifiedSong => {
             providerId: 'netease',
             mediaId: String(base.id ?? record.id ?? 0),
             ...(cloud ? { variant: 'cloud' } : {}),
+            ...(mvId > 0 ? { providerData: { mvId } } : {}),
         },
     };
 };
@@ -215,6 +218,11 @@ export const normalizeNeteaseSong = (raw: unknown): UnifiedSong => {
         ? neteaseApi.normalizeSongResult(raw)
         : normalizeNeteaseSongFallback(raw);
     const isCloud = normalized.t === 1 || normalized.t === 2 || normalized.sourceType === 'cloud';
+    // The package's normalize keeps NetEase's own field names (`t`, `mv`), so the MV id usually
+    // survives on the main path; fall back to the raw payload when it does not.
+    const rawMv = (normalized as unknown as Record<string, unknown>).mv
+        ?? (raw && typeof raw === 'object' ? (raw as Record<string, unknown>).mv : undefined);
+    const mvId = Number(rawMv) || 0;
     return {
         id: normalized.id,
         name: normalized.name,
@@ -233,6 +241,7 @@ export const normalizeNeteaseSong = (raw: unknown): UnifiedSong => {
             providerId: 'netease',
             mediaId: String(normalized.id),
             ...(isCloud ? { variant: 'cloud' } : {}),
+            ...(mvId > 0 ? { providerData: { mvId } } : {}),
         },
     };
 };
@@ -298,6 +307,7 @@ export const neteaseProvider: OnlineMusicProvider = {
         likes: true,
         userAlbums: true,
         playbackReports: true,
+        mv: true,
     },
     normalizeSong: normalizeNeteaseSong,
     normalizeUser,
@@ -351,6 +361,45 @@ export const neteaseProvider: OnlineMusicProvider = {
                 song: normalizeNeteaseSong(replacement.replacementSong),
                 label: replacement.typeDesc,
             };
+        },
+    },
+    mv: {
+        async getMvUrl(song) {
+            const sourceRef = song.sourceRef;
+            if (sourceRef?.kind !== 'online' || sourceRef.providerId !== 'netease') return null;
+            let mvId = Number(sourceRef.providerData?.mvId ?? 0);
+            if (!Number.isFinite(mvId) || mvId <= 0) {
+                // Queues/collections persisted before the mv passthrough carry no mvId. Fetch the
+                // detail once (its normalize keeps the top-level mv) instead of giving up, so
+                // restored sessions keep working without waiting for a fresh library pull.
+                try {
+                    const detail = await neteaseApi.getSongDetail(toNeteaseId(song.id));
+                    mvId = Number((detail?.songs?.[0] as { mv?: number } | undefined)?.mv) || 0;
+                } catch (error) {
+                    console.warn('[NeteaseProvider] mv:detail-fallback-failed', {
+                        songId: String(song.id),
+                        message: error instanceof Error ? error.message : String(error),
+                    });
+                    return null;
+                }
+                if (mvId <= 0) return null;
+            }
+            try {
+                const payload = await neteaseApi.getMvUrl(mvId);
+                const url = typeof payload?.url === 'string' ? payload.url.trim() : '';
+                if (!url) {
+                    // Upstream answers 200 with an empty `url` when this account cannot stream the MV.
+                    console.warn('[NeteaseProvider] mv:no-stream', { mvId });
+                    return null;
+                }
+                return { url, quality: Number(payload?.r) || undefined, fetchedAt: Date.now() };
+            } catch (error) {
+                console.warn('[NeteaseProvider] mv:lookup-failed', {
+                    mvId,
+                    message: error instanceof Error ? error.message : String(error),
+                });
+                return null;
+            }
         },
     },
     playbackReports: {

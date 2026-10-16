@@ -39,6 +39,73 @@
 .lattice-chrome button:hover, .lattice-chrome button.is-active { opacity: 1; background: color-mix(in srgb, currentColor 16%, transparent); }
 .lattice-chrome button:disabled { opacity: 0.25; cursor: default; border-color: transparent; background: transparent; }
 .lattice-chrome button:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+/* @fork 本地魔改版（2026-10-14）：「下一首」右边的内联播放快捷（静音 / 滑条 / 百分比 / 洗牌），
+   接替原来在 Lattice 里被去掉的 playback-quick 浮层入口（浮层 fixed 在胶囊位，卡片里点了会飘到屏幕右下角）。
+   wrapper 把四件包成一组：左侧竖线与前面 slot 排分隔，内部 gap 6px 紧担；静音键命中区缩到 32×32（非动作按钮），
+   洗牌保持 44×44（归 slot 同规格）。 */
+.lattice-chrome-quick {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 4px;
+    padding-left: 10px;
+    border-left: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}
+.lattice-chrome button.lattice-chrome-mute { width: 32px; height: 32px; }
+.lattice-chrome button.lattice-chrome-mute svg { width: 16px; height: 16px; }
+/* 音量滑条自定义配方：细轨道 6px + 圆 thumb 12px，跟下方 .lattice-progress 那条同语言，不再抢当前色。 */
+.lattice-chrome-volume {
+    -webkit-appearance: none;
+    appearance: none;
+    width: clamp(72px, 14%, 160px);
+    flex-shrink: 0;
+    height: 16px;         /* 命中区，比轨道高很多，拖拽不费眼 */
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.75;
+}
+.lattice-chrome-volume:hover { opacity: 1; }
+.lattice-chrome-volume:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.lattice-chrome-volume::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, currentColor 22%, transparent);
+}
+.lattice-chrome-volume::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -3px;      /* thumb 中跟轨道中心对齐：(12 − 6) / 2 */
+    border: 0;
+    border-radius: 50%;
+    background: currentColor;
+}
+.lattice-chrome-volume::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, currentColor 22%, transparent);
+}
+.lattice-chrome-volume::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    border-radius: 50%;
+    background: currentColor;
+}
+.lattice-chrome-volume-value {
+    /* 与时间戳行同族：等宽字体 + 12px + 低不透明度，确保行高不撑开 actions 行。 */
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    opacity: 0.6;
+    min-width: 32px;
+}
 /* The readouts live in the transport row, so the bar spans the chrome width, minus the padding
    that centres the arrow glyph inside its 44px button - that glyph is what the bar ends against. */
 .lattice-progress { min-width: 0; margin-right: 12px; }
@@ -59,6 +126,10 @@
     .lattice-chrome button { width: 86px; height: 86px; }
     .lattice-chrome button svg { width: 30px; height: 30px; }
     .lattice-chrome-actions { gap: 4px; }
+    /* 窄屏（≤640px）那排按钮是 86px 的触控尺寸，wrapper 内的静音 + 滑条 + 百分比放不进去（会被 actions 的 overflow:hidden 裁掉），
+       整组隐藏；洗牌是单颗按钮，保留，同时拆掉 wrapper 的分隔线与间距。 */
+    .lattice-chrome-volume, .lattice-chrome-volume-value, .lattice-chrome-mute { display: none; }
+    .lattice-chrome-quick { margin-left: 0; padding-left: 0; border-left: 0; gap: 0; }
     .lattice-chrome-transport { min-height: 86px; gap: 4px; }
     .lattice-progress input[type=range] { height: 86px; }
     .lattice-chrome-time { font-size: 20px; }

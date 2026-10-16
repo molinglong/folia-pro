@@ -38,6 +38,7 @@
 | 64+ | `src/components/command-palette/types.ts` |
 | 64+ | `src/components/visualizer/colorMix.ts` |
 | 64+ | `src/library/core/contracts/suite.ts` |
+| 64+ | `src/stores/usePlaybackStore.ts` |
 | 64+ | `src/types/ponder.ts` |
 | 64+ | `src/utils/appPlaybackGuards.ts` |
 | 32+ | `dev/probes/definition.ts` |
@@ -56,7 +57,6 @@
 | 32+ | `src/services/onlineMusic/songMetadata.ts` |
 | 32+ | `src/stores/useAppViewStore.ts` |
 | 32+ | `src/stores/useAudioSettingsStore.ts` |
-| 32+ | `src/stores/usePlaybackStore.ts` |
 | 32+ | `src/stores/useStatusMessageStore.ts` |
 | 32+ | `src/stores/useThemeSettingsStore.ts` |
 | 32+ | `src/types/localLibrary.ts` |
@@ -181,6 +181,7 @@
 - `src/components/visualizer/backgrounds/common/entry.tsx`
 - `src/components/visualizer/backgrounds/latent/entry.tsx`
 - `src/components/visualizer/backgrounds/monet/entry.tsx`
+- `src/components/visualizer/backgrounds/mv/entry.tsx`
 - `src/components/visualizer/backgrounds/nomand/entry.tsx`
 - `src/components/visualizer/backgrounds/sora/entry.tsx`
 - `src/components/visualizer/backgrounds/url/entry.tsx`
@@ -195,8 +196,10 @@
 - `src/components/visualizer/fume/entry.tsx`
 - `src/components/visualizer/lumiere/entry.tsx`
 - `src/components/visualizer/monet/entry.tsx`
+- `src/components/visualizer/paperwindow/entry.tsx`
 - `src/components/visualizer/partita/entry.tsx`
 - `src/components/visualizer/pendolo/entry.tsx`
+- `src/components/visualizer/rings/entry.tsx`
 - `src/components/visualizer/sonnet/entry.tsx`
 - `src/components/visualizer/still/entry.tsx`
 - `src/components/visualizer/tempera/entry.tsx`
@@ -214,6 +217,7 @@
 - `src/components/visualizer/monet/tuning.ts`
 - `src/components/visualizer/partita/tuning.ts`
 - `src/components/visualizer/pendolo/tuning.ts`
+- `src/components/visualizer/rings/tuning.ts`
 - `src/components/visualizer/sonnet/tuning.ts`
 - `src/components/visualizer/tempera/tuning.ts`
 - `src/components/visualizer/tilt/tuning.ts`

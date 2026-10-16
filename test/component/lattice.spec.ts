@@ -69,6 +69,137 @@ test('expanded cover drags and coasts; pressing again stops inertia', async ({ m
     await expect(wall.locator('.lattice-poster.is-expanded')).toHaveCount(1);
 });
 
+// 播放中的卡「重新出现才吸一次」：它本来就完整在屏里时，拖完停在哪就待在哪，不吸；
+// 从「被边缘裁掉」重新变成完整出现的那次停稳，才吸回正中一次。滚轮停下走同一套检查
+// （WHEEL_SETTLE_MS，回中断言见下面 trackpad 那条）。
+test('a settled drag recentres the playing card only when it re-enters fully visible', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    const before = await cameraX(wall);
+    const field = (await wall.locator('.lattice-field').boundingBox())!;
+    const cover = wall.locator('.lattice-poster.is-expanded');
+    const box = (await cover.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 3;
+    // 第一段：拖到卡右缘越过 field 右缘（被裁）再松手：停稳不吸，镜头留在松手处。
+    const clip = field.x + field.width - (box.x + box.width) + 30;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let step = 1; step <= 6; step++) {
+        await page.mouse.move(x + step * (clip / 6), y);
+        await page.waitForTimeout(90); // 步间隔超过 staleReleaseMs：松手判定为已停住，不带惯性
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(1500); // 把停稳定时器过完
+    expect(Math.abs((await cameraX(wall)) - before)).toBeGreaterThan(100);
+    // 第二段：拖回来让卡重新完整出现：这次停稳吸回正中一次（弹簧档，比 tween 慢一点，轮询等落定）。
+    const box2 = (await cover.boundingBox())!;
+    const x2 = box2.x + box2.width / 2;
+    const y2 = box2.y + box2.height / 3;
+    await page.mouse.move(x2, y2);
+    await page.mouse.down();
+    for (let step = 1; step <= 6; step++) {
+        await page.mouse.move(x2 - step * 40, y2);
+        await page.waitForTimeout(90);
+    }
+    await page.mouse.up();
+    await expect.poll(() => cameraX(wall), { timeout: 4000 }).toBeCloseTo(before, 1);
+});
+
+// 吸附的飞行必须是多帧弹簧：对象式 animate(from, to, { spring, onUpdate }) 在 motion-dom 的
+// propEffect 路径上 onUpdate 不按帧回调，吸附曾退化成 onComplete 一次写到位（一帧 250px）。
+test('the re-entry snap flies on a spring over several frames', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    const before = await cameraX(wall);
+    const field = (await wall.locator('.lattice-field').boundingBox())!;
+    // 第一段：拖到卡右缘越出 field（被裁）再松手：停稳不吸，镜头留在松手处。
+    const cover = wall.locator('.lattice-poster.is-expanded');
+    const box = (await cover.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 3;
+    const clip = field.x + field.width - (box.x + box.width) + 30;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let step = 1; step <= 6; step++) {
+        await page.mouse.move(x + step * (clip / 6), y);
+        await page.waitForTimeout(90);
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(1500);
+    // 相机已静止，开始逐帧采样，再拖回大半程（卡重新完整可见但未对中），停稳吸附弹完剩下的。
+    await wall.locator('.lattice-world').evaluate(node => {
+        const samples: number[] = [];
+        const host = window as unknown as { __snapSamples?: number[] };
+        host.__snapSamples = samples;
+        const read = () => samples.push(new DOMMatrix(getComputedStyle(node).transform).m41);
+        read();
+        const loop = () => {
+            read();
+            if (samples.length < 240 && host.__snapSamples === samples) requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
+    });
+    const box2 = (await cover.boundingBox())!;
+    const x2 = box2.x + box2.width / 2;
+    const y2 = box2.y + box2.height / 3;
+    await page.mouse.move(x2, y2);
+    await page.mouse.down();
+    for (let step = 1; step <= 6; step++) {
+        await page.mouse.move(x2 - step * 40, y2);
+        await page.waitForTimeout(90);
+    }
+    await page.mouse.up();
+    await expect.poll(() => cameraX(wall), { timeout: 4000 }).toBeCloseTo(before, 1);
+    await page.waitForTimeout(150);
+    const samples = await page.evaluate(() => (window as unknown as { __snapSamples: number[] }).__snapSamples);
+    // 最后一段连续运动就是吸附弹簧（与拖动/回滑之间隔着停稳的空帧）：至少 3 帧渐变，
+    // 且单帧增量远小于全距离（一帧跳到位只有一个 ≈ 全距离的增量）。
+    const deltas = samples.slice(1).map((value, index) => value - samples[index]);
+    // 从尾部往回数最后一段连续运动（就是吸附弹簧）：先跳过落定后的零帧，遇到停顿空帧
+    // （回滑/拖动与弹簧之间隔着停稳的空窗）就停；一帧跳到位的话这一段只有 1 帧。
+    let end = deltas.length - 1;
+    while (end >= 0 && Math.abs(deltas[end]) < 0.1) end--;
+    let frames = 0;
+    let peak = 0;
+    let idle = 0;
+    for (let index = end; index >= 0; index--) {
+        const delta = Math.abs(deltas[index]);
+        if (delta >= 0.5) {
+            frames += 1;
+            peak = Math.max(peak, delta);
+            idle = 0;
+        } else if (delta < 0.1) {
+            idle += 1;
+            if (idle >= 3) break;
+        }
+    }
+    expect(frames).toBeGreaterThanOrEqual(3);
+    expect(peak).toBeLessThan(150);
+});
+
+test('a drag that leaves the playing card clipped does not recentre', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    const before = await cameraX(wall);
+    const field = (await wall.locator('.lattice-field').boundingBox())!;
+    const cover = wall.locator('.lattice-poster.is-expanded');
+    const box = (await cover.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 3;
+    // 一直拖到卡右缘越过 field 右缘：卡被边缘裁掉，吸附不触发，镜头留在松手处。
+    const drag = field.x + field.width - (box.x + box.width) + 30;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let step = 1; step <= 6; step++) {
+        await page.mouse.move(x + step * (drag / 6), y);
+        await page.waitForTimeout(90);
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(1500); // 把停稳定时器与可能的吸附动画都过完
+    expect(Math.abs((await cameraX(wall)) - before)).toBeGreaterThan(100);
+});
+
 // 触控板式的增量（单轴小于一格、或两轴同时）照旧当帧直接写进相机；鼠标滚轮的平滑见 wallWheelSmoothing.spec.ts。
 test('trackpad-sized wheel deltas apply immediately without a tail and leave browser zoom intact', async ({ mount, page }) => {
     const wall = await mount('lattice');
@@ -86,7 +217,11 @@ test('trackpad-sized wheel deltas apply immediately without a tail and leave bro
     });
     expect(result.cancelled).toBe(true);
     expect(result.x).toBeCloseTo(before - 60, 4);
-    await page.waitForTimeout(300);
+    // 停稳定时器（300ms）还没到：确认触控板增量没有平滑尾巴。
+    await page.waitForTimeout(250);
+    expect(await cameraX(wall)).toBeCloseTo(before - 60, 0);
+    // 定时器到点后，卡本来就完整在屏（没有「被裁 → 完整出现」的转变）：不吸，镜头留在停下的地方。
+    await page.waitForTimeout(400);
     expect(await cameraX(wall)).toBeCloseTo(before - 60, 0);
     expect(await wall.locator('.lattice-field').evaluate(node => {
         const event = new WheelEvent('wheel', { ctrlKey: true, deltaY: 20, bubbles: true, cancelable: true });
@@ -101,7 +236,9 @@ test('playback buttons and seek gestures do not pan; slider arrows keep native b
     const before = await cameraX(wall);
     await wall.locator('.lattice-transport-button').click();
     await expect(wall.locator('[data-toggles]')).toHaveAttribute('data-toggles', '1');
-    const input = wall.locator('input[type=range]');
+    // @fork 2026-10-14：展开态的 details 里多了内联音量滑条（Lattice 去掉 playback-quick 浮层入口，
+    // 静音/滑条/洗牌直接放「下一首」右边），页面上不再只有一颗 range，seek 目标要限定进度条自己那颗。
+    const input = wall.locator('.lattice-progress input[type=range]');
     const box = (await input.boundingBox())!;
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
     await page.mouse.down();
@@ -186,6 +323,9 @@ test('touch swipe coasts and a secondary pointer cannot replace the gesture', as
 test('Shift and line-mode wheels pan horizontally with normalized distance', async ({ mount, page }) => {
     const wall = await mount('lattice');
     await settle(page);
+    // 先把正在播放的卡滚出屏幕：停稳后的吸附只对完整在屏里的卡生效，别让它盖住落点断言。
+    await wall.locator('.lattice-field').dispatchEvent('wheel', { shiftKey: true, deltaY: 70, deltaMode: 1 });
+    await page.waitForTimeout(1500);
     const before = await cameraX(wall);
     await wall.locator('.lattice-field').dispatchEvent('wheel', { shiftKey: true, deltaY: 3, deltaMode: 1 });
     // 按行的是鼠标滚轮：平滑地走过去，落定后正好 3 行。
@@ -372,7 +512,7 @@ test('playback follow uses the expanded card position after reflow', async ({ mo
     await poster.press('Enter');
     await expectExpandedCentered(wall);
     await wall.locator('.lattice-transport-button').click();
-    await expect(wall.locator('input[type=range]')).toBeEnabled();
+    await expect(wall.locator('.lattice-progress input[type=range]')).toBeEnabled();
     await settle(page);
     await expectExpandedCentered(wall);
 });
@@ -441,15 +581,21 @@ test('chrome has three quiet controls at rest and reveals details on hover witho
     const chrome = wall.locator('.lattice-chrome');
     await expect(chrome).not.toHaveClass(/is-revealed/);
     await expect(chrome.getByRole('button')).toHaveCount(2);
-    await expect(chrome.getByRole('slider')).toHaveCount(1);
-    const input = chrome.getByRole('slider');
+    // @fork 2026-10-14：内联音量滑条常驻挂载，页面上有两颗 slider，seek 目标限定进度条那颗。
+    await expect(chrome.locator('.lattice-progress input[type=range]')).toHaveCount(1);
+    const input = chrome.locator('.lattice-progress input[type=range]');
     const before = (await input.boundingBox())!;
     await wall.screenshot({ path: 'test-results/lattice-chrome-rest.png' });
     await wall.locator('.is-expanded').hover({ position: { x: 100, y: 80 } });
     await expect(chrome).toHaveClass(/is-revealed/);
     await expect(chrome.getByRole('button')).toHaveCount(6);
+    // 内联快捷排（@fork 2026-10-14）：playback-quick 入口被滤掉，洗牌顶在「下一首」右边；静音是 switch 不计入 button。
+    await expect(chrome.locator('.lattice-chrome-actions button').last()).toHaveAttribute('data-action', 'shuffle');
+    await expect(chrome.locator('[role=switch][aria-label="Mute"]')).toBeVisible();
+    await expect(chrome.locator('.lattice-chrome-volume')).toBeVisible();
+    // playback-quick 入口被滤掉（浮层在卡片里会飘错位置），末尾多了内联静音 + 洗牌。
     expect(await chrome.locator('.lattice-chrome-actions button').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-action'))))
-        .toEqual(['prev', 'loop', 'lyrics-timeline', 'next']);
+        .toEqual(['prev', 'loop', 'next', 'mute', 'shuffle']);
     await expect(chrome.locator('[data-action=prev]')).toBeVisible();
     await expect(chrome.locator('[data-action=next]')).toBeVisible();
     await expect(chrome.locator('[data-action=loop]')).toBeVisible();
@@ -533,7 +679,7 @@ test('expanded chrome uses the configured main-bar slot to open volume', async (
     await settle(page);
     await wall.locator('.is-expanded').hover({ position: { x: 100, y: 80 } });
     expect(await wall.locator('.lattice-chrome-actions button').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-action'))))
-        .toEqual(['prev', 'prev', 'volume', 'next']);
+        .toEqual(['prev', 'prev', 'volume', 'next', 'mute', 'shuffle']);
     await wall.locator('.lattice-chrome [data-action=volume]').click();
     await expect(wall.locator('[data-command]')).toHaveAttribute('data-command', 'playback-volume');
     await expect(wall.locator('.lattice-chrome [data-action=lyrics-timeline]')).toHaveCount(0);

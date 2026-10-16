@@ -1,0 +1,6 @@
+{
+  "id":"player", "title":"播放器与歌词", "description":"封面、原创歌词、进度与队列；使用统一模拟时钟，无真实音频。",
+  "version":"v1", "sharedVersion":"v1", "createdAt":"2026-10-14", "order":2,
+  "sourcePaths":["src/components/UnifiedPanel.tsx","src/components/panelTab/CoverTab.tsx","src/components/FloatingPlayerControls.tsx"],
+  "scenes":[{"id":"default","label":"正在聆听"},{"id":"queue","label":"展开队列"},{"id":"no-lyrics","label":"暂无歌词"}]
+}

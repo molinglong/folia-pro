@@ -1,0 +1,60 @@
+/* dev/design-lab/shared/v1/base.css：冻结的预览基础样式，只在 iframe 加载。 */
+:root { --page: #f0f0ed; --surface: #ffffff; --soft: #f4f4f3; --text: #27272b; --secondary: #6d6d75; --line: #dededc; --active: #333339; --on-active: #ffffff; --panel: #ffffffed; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; color: var(--text); background: var(--page); color-scheme: light; font-synthesis: none; }
+:root[data-theme=dark] { --page: #16171b; --surface: #222329; --soft: #2a2b31; --text: #eeedf1; --secondary: #aaaab4; --line: #3c3c45; --active: #dfdde4; --on-active: #25252b; --panel: #25262bf5; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+html, body, #root { min-height: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; }
+button:disabled { cursor: not-allowed; opacity: .4; }
+button, input, select { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--active); outline-offset: 4px; }
+input[type=range] { accent-color: var(--active); cursor: pointer; min-width: 0; }
+input[type=search], input[type=text], select { background: var(--soft); border: 1px solid var(--line); padding: 10px 14px; border-radius: 10px; }
+h1, h2, h3, p { margin-top: 0; }
+img { display: block; max-width: 100%; }
+button, a { touch-action: manipulation; }
+.eyebrow { display: block; font-size: 11px; letter-spacing: 2px; color: var(--secondary); }
+.demo-icon { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+.demo-icon:hover { background: var(--soft); }
+.demo-primary, .demo-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 12px 20px; min-height: 44px; border-radius: 24px; font-size: 13px; }
+.demo-primary { background: var(--active); color: var(--on-active); }
+.demo-secondary { background: var(--surface); border: 1px solid var(--line); }
+.demo-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-block: 16px; font-size: 14px; }
+.demo-toggle-row + .demo-toggle-row { border-top: 1px solid var(--line); }
+.demo-toggle-row small { display: block; color: var(--secondary); font-size: 12px; line-height: 1.6; margin-top: 5px; }
+.demo-toggle { width: 48px; height: 28px; position: relative; border-radius: 16px; padding: 4px; background: var(--line); flex: 0 0 48px; }
+.demo-toggle::before { content: ''; position: absolute; inset: -8px 0; }
+.demo-toggle span { width: 20px; height: 20px; display: block; border-radius: 50%; background: var(--surface); transition: transform .18s; }
+.demo-toggle[aria-checked=true] { background: var(--active); }
+.demo-toggle[aria-checked=true] span { transform: translateX(20px); background: var(--on-active); }
+.demo-choices { display: flex; padding: 4px; gap: 5px; background: var(--soft); border-radius: 10px; }
+.demo-choices button { flex: 1; min-height: 40px; padding: 9px 12px; border-radius: 7px; font-size: 12px; white-space: nowrap; }
+.demo-choices button[aria-pressed=true] { color: var(--on-active); background: var(--active); }
+.demo-panel { position: absolute; z-index: 5; width: 340px; max-width: calc(100vw - 32px); padding: 20px 24px; border: 1px solid var(--line); border-radius: 22px; background: var(--panel); box-shadow: 0 18px 60px #00000018; backdrop-filter: blur(20px); }
+.demo-panel > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.demo-panel h2 { font-size: 17px; font-weight: 550; margin: 0; }
+.demo-panel h3 { font-size: 12px; color: var(--secondary); font-weight: 500; margin: 22px 0 12px; }
+.demo-panel label { display: block; font-size: 13px; }
+.demo-notice { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); z-index: 15; border-radius: 12px; padding: 10px 16px; background: var(--active); color: var(--on-active); max-width: calc(100vw - 32px); width: max-content; font-size: 12px; line-height: 1.6; pointer-events: none; }
+.demo-notice:empty { display: none; }
+.demo-progress { display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--secondary); font-variant-numeric: tabular-nums; }
+.demo-progress input { flex: 1; height: 24px; }
+.demo-progress output { width: 34px; }
+.demo-backdrop { position: absolute; inset: 0; overflow: hidden; background: var(--page); padding: 65px 80px; }
+.backdrop-brand { font-size: 28px; letter-spacing: -.5px; font-weight: 550; }
+.backdrop-brand span { display: block; font-size: 12px; color: var(--secondary); font-weight: 400; margin-top: 6px; letter-spacing: 2px; }
+.backdrop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; max-width: 1000px; margin: 40px auto 0; opacity: .5; }
+.backdrop-grid img { width: 100%; aspect-ratio: 1; border-radius: 5px; }
+.backdrop-grid span { display: block; font-size: 12px; margin-top: 9px; }
+.backdrop-grid > div[data-selected=true] { opacity: 1; }
+.frame-error { padding: 50px; max-width: 760px; font-size: 14px; }
+.frame-error h1 { margin-top: 15px; font-size: 25px; }
+.frame-error p { color: var(--secondary); }
+.frame-error code, .frame-error pre { display: block; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--soft); padding: 15px; border-radius: 8px; }
+.frame-error button { padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.frame-loading { padding: 40px; color: var(--secondary); }
+@media (max-width: 600px) { .demo-backdrop { padding: 36px 24px; } .backdrop-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 30px; } input[type=search], input[type=text] { font-size: 16px; } .demo-panel { padding: 16px 20px; } }
+:root[data-playing=false] *, :root[data-playing=false] *::before, :root[data-playing=false] *::after { animation-play-state: paused !important; }
+:root[data-reduced-motion=true] *, :root[data-reduced-motion=true] *::before, :root[data-reduced-motion=true] *::after { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

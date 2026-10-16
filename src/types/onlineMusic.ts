@@ -50,6 +50,8 @@ export interface ProviderCapabilities {
     userAlbums?: boolean;
     /** The provider accepts a listening report for a track the user actually played. */
     playbackReports?: boolean;
+    /** The provider can resolve an official MV stream for its songs. */
+    mv?: boolean;
 }
 
 export interface ProviderAvailability {
@@ -86,6 +88,19 @@ export interface ProviderAudioSource {
     expiresAt?: number;
     quality: AudioQualityPreference;
     replayGain?: ReplayGainInfo;
+}
+
+/** A resolved MV stream for a song. Like audio sources, the URL is a temporary platform link. */
+export interface ProviderMvSource {
+    url: string;
+    /** Resolution requested from the provider (e.g. 1080), when the platform exposes one. */
+    quality?: number;
+    fetchedAt: number;
+}
+
+export interface OnlineMvProvider {
+    /** Returns null when the song has no MV or the platform issued no stream for this account. */
+    getMvUrl(song: SongResult): Promise<ProviderMvSource | null>;
 }
 
 export type ProviderSongAvailabilityState = 'playable' | 'unavailable' | 'unknown';
@@ -443,6 +458,7 @@ export interface OnlineMusicProvider {
     getSongPageUrl?(song: SongResult): string | null;
     search?: OnlineSearchProvider;
     playback?: OnlinePlaybackProvider;
+    mv?: OnlineMvProvider;
     playbackReports?: OnlinePlaybackReportProvider;
     lyrics?: OnlineLyricsProvider;
     auth?: OnlineAuthProvider;

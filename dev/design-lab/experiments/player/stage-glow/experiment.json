@@ -1,0 +1,43 @@
+{
+  "id": "stage-glow",
+  "templateId": "player",
+  "templateVersion": "v1",
+  "title": "音乐跟随舞台光效 · 三方案",
+  "createdAt": "2026-10-14",
+  "variants": [
+    {
+      "id": "a",
+      "title": "方案 A · 环绕舞台聚光",
+      "description": "canvas 逐帧：封面中心放射光刃+核心辉光+浮尘，真墙 LightsStageGlow 同款浓缩；光压在封面层之下不叠卡面。量感最足，成本最高。"
+    },
+    {
+      "id": "b",
+      "title": "方案 B · 呼吸光晕",
+      "description": "纯 CSS 两层径向晕+地面回光，包络写成 CSS 变量由渲染线程消费；无 canvas 无逐帧 DOM 查询。最便宜、最克制，适合低配机与日光态降级。"
+    },
+    {
+      "id": "c",
+      "title": "方案 C · 顶部追光",
+      "description": "纯 CSS 灯源+双层光锥+落地光斑，光锥随慢摆轻摇、随鼓点增亮；舞台追光叙事感最强，封面仍是剪影而非发光体。"
+    }
+  ],
+  "sourcePaths": [
+    "src/components/UnifiedPanel.tsx",
+    "src/components/panelTab/CoverTab.tsx",
+    "src/components/FloatingPlayerControls.tsx"
+  ],
+  "templateSnapshot": {
+    "Lyrics.tsx": "873411496415f43dff496aa38cea1f265367fc58dc8b0ff22ac38b31d26babc0",
+    "style.module.css": "49e3238cace1d0378f0db71c3bcf3ce112010d2bb52712515711de3e845b56d0",
+    "template.json": "6c5520b6dc427c4d7ec1d5a41736162e5ac31162d540eb7c9943086023b9b192",
+    "View.tsx": "95c504720b0d8b8d437bd605d2aaaadfaf2bd6ddc6ba692613f9897e503ba99b"
+  },
+  "sharedSnapshot": {
+    "Backdrop.tsx": "c2ba9c80eb58e81508079be73ccb872eae58eaaf0a5baa5897a0ea960fd73e1b",
+    "base.css": "517b0706ef11d6aa58d91701d3ae45e263784b91dcde810aa4868e183ee978bd",
+    "fixtures.ts": "8af200e1ccab2d49d87899cfcac70bf2724c4e720db23710a41b5f068cb638e4",
+    "primitives.tsx": "06816d07dc578dc32f61d26958144ca27469f9ae2464bc0a8811eb7c9c11d0b4",
+    "Progress.tsx": "41e2df5a2d0d313f7203509a095a081e425641813fe58a151ffb0c232bc3248c",
+    "settings.ts": "f5cdb9104da147f22b51c8aed92174746e82e395c9ec01ce51e67d00a308e838"
+  }
+}

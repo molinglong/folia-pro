@@ -9,6 +9,7 @@ import type {
     MonetTuning,
     PartitaTuning,
     PendoloTuning,
+    RingsTuning,
     SonnetTuning,
     TemperaTuning,
     TiltTuning,
@@ -29,6 +30,7 @@ export interface VisualizerTuningMap {
     diorama: DioramaTuning;
     monet: MonetTuning;
     pendolo: PendoloTuning;
+    rings: RingsTuning;
     sonnet: SonnetTuning;
     tempera: TemperaTuning;
     lumiere: LumiereTuning;

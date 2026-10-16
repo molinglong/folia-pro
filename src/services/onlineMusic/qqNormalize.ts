@@ -117,6 +117,10 @@ export const normalizeQqSong = (raw: unknown): UnifiedSong => {
         ?? pick(item, 'mediaMid')
         ?? pick(providerData, 'mediaMid'),
     );
+    // `mv.vid` is the new-protocol MV id; the QQ search SongResult carries it top-level as
+    // `mvVid`, raw payloads nest it under `mv`, and cached songs keep it in providerData.
+    // Legacy entries carry a numeric `mv` that cannot be exchanged for a vid, so those stay MV-less.
+    const mvVid = text(item.mv?.vid) || text(pick(item, 'mvVid')) || text(pick(providerData, 'mvVid'));
 
     const durationMs = Number(item.durationMs);
     const intervalSeconds = Number(pick(item, 'interval', 'duration'));
@@ -147,6 +151,7 @@ export const normalizeQqSong = (raw: unknown): UnifiedSong => {
                 ['songMid', songMid],
                 ['albumMid', albumMid],
                 ['mediaMid', mediaMid],
+                ['mvVid', mvVid || undefined],
             ]),
         },
     };

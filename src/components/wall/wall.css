@@ -376,3 +376,22 @@
 
 /* 降级：动效关闭时清掉涟漪延迟，只保留淡入淡出（沿用现网行为）。外发光不属于动画，保留。 */
 :root[data-reduce-motion~='lattice'] .lattice-poster-lights-out { transition: none; transition-delay: 0ms !important; }
+
+/* 舞台聚光层（2026-10-14 无形状雾感版，见 LightsStageGlow.tsx 头注）：关灯态盖在卡片之上的 canvas，
+   弥漫光雾直接铺在其他卡片封面上（screen 只提亮），仅当前播放卡由组件每帧抠穿保持卡面干净。
+   开灯时循环不绘制、层自身透明；日光下再降一档透明度。 */
+.lattice-stage-glow {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    opacity: 0;
+    transition: opacity 700ms ease;
+}
+
+.lattice-root.is-lights-out .lattice-stage-glow.is-active { opacity: 1; }
+.lattice-root.is-daylight.is-lights-out .lattice-stage-glow.is-active { opacity: 0.55; }
+

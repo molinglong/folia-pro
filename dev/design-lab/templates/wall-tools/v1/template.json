@@ -1,0 +1,6 @@
+{
+  "id":"wall-tools", "title":"墙面工具浮层", "description":"锚定在墙面角落的分组工具面板，提供选项、灯光及开关反馈。",
+  "version":"v1", "sharedVersion":"v1", "createdAt":"2026-10-14", "order":8,
+  "sourcePaths":["src/components/wall/WallToolsButton.tsx"],
+  "scenes":[{"id":"default","label":"右下展开"},{"id":"left","label":"左下展开"},{"id":"closed","label":"收起浮层"}]
+}

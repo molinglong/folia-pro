@@ -5,6 +5,7 @@ import { buildWordGraphemeTimings } from '../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontWeight } from '../../utils/fontStacks';
 import { wordGlowVariants } from './wordGlow';
 import { getGlowWordActiveEndTime, getGlowWordDisplayDuration, type GlowWordRenderProfile } from './glowWordTiming';
+import { FROST_BLUR_PX, FROST_BRIGHTNESS, FROST_OPACITY } from './glowWordFrost';
 
 // src/components/visualizer/GlowWord.tsx
 // classic / partita 共用的单词组件：每个词只持有 waiting / active / passed 三态，状态变化才 setState；
@@ -24,6 +25,8 @@ export interface GlowWordProps<TConfig extends { id: string }> {
     fontSize: string;
     /** Mode-specific spacing merged into the word's own style (e.g. marginRight, alignSelf). */
     layoutStyle: React.CSSProperties;
+    /** MV background variant: glyph-shaped frosted-glass patch rendered under glow/body; absent otherwise. */
+    frostBackdrop?: { maskUrl: string } | null;
 }
 
 export const GlowWord = <TConfig extends { id: string }>({
@@ -39,6 +42,7 @@ export const GlowWord = <TConfig extends { id: string }>({
     isChorus,
     fontSize,
     layoutStyle,
+    frostBackdrop,
 }: GlowWordProps<TConfig>) => {
     const [status, setStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
     const rippleScale = useMemo(() => 1.5 + Math.random() * 2, []);
@@ -81,6 +85,27 @@ export const GlowWord = <TConfig extends { id: string }>({
                 ...layoutStyle,
             }}
         >
+            {/* Frost Layer - MV background variant: a glyph-masked frosted patch that keeps the word
+                readable over bright video frames; the body colour simply paints over it once sung. */}
+            {frostBackdrop && (
+                <span
+                    aria-hidden="true"
+                    data-glow-word-frost=""
+                    className="absolute inset-0 z-0 block select-none pointer-events-none"
+                    style={{
+                        backdropFilter: `blur(${FROST_BLUR_PX}px) brightness(${FROST_BRIGHTNESS})`,
+                        WebkitBackdropFilter: `blur(${FROST_BLUR_PX}px) brightness(${FROST_BRIGHTNESS})`,
+                        maskImage: `url("${frostBackdrop.maskUrl}")`,
+                        WebkitMaskImage: `url("${frostBackdrop.maskUrl}")`,
+                        maskSize: '100% 100%',
+                        WebkitMaskSize: '100% 100%',
+                        maskRepeat: 'no-repeat',
+                        WebkitMaskRepeat: 'no-repeat',
+                        opacity: FROST_OPACITY,
+                    }}
+                />
+            )}
+
             {/* Glow Layer - Handles Text Shadow - Absolute Position */}
             <span
                 className="absolute inset-0 select-none pointer-events-none block"

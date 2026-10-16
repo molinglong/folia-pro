@@ -1,0 +1,41 @@
+.page { min-height: 100dvh; padding: 28px 48px; background: radial-gradient(ellipse at 20% 55%, color-mix(in srgb, var(--line) 65%, transparent), transparent 65%), var(--page); }
+.page > header { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--secondary); }
+.layout { min-height: calc(100dvh - 115px); display: grid; grid-template-columns: minmax(260px, 420px) 1fr; align-items: center; gap: 90px; max-width: 1180px; margin: auto; }
+.album > img { width: 100%; height: auto; aspect-ratio: 1; border-radius: 12px; box-shadow: 0 24px 60px #00000018; }
+.title { display: flex; align-items: center; justify-content: space-between; margin: 26px 0; }
+.title h1 { font-size: 27px; font-weight: 550; margin-bottom: 8px; }
+.title p { color: var(--secondary); font-size: 13px; margin: 0; }
+.controls { display: flex; justify-content: center; gap: 35px; margin-top: 14px; }
+.controls > button:nth-child(2) { background: var(--active); color: var(--on-active); }
+.album > small { display: block; text-align: center; font-size: 11px; color: var(--secondary); margin-top: 22px; }
+.lyrics { display: grid; gap: 26px; }
+.lyrics button, .lyrics > p { font-size: 27px; line-height: 1.9; font-weight: 550; text-align: left; color: var(--secondary); padding: 10px 0; transition: transform .2s, color .2s; }
+.lyrics button[aria-current] { color: var(--text); transform: translateX(12px); }
+.lyrics small { display: block; font-size: 14px; }
+.queue { position: fixed; z-index: 5; right: 20px; top: 80px; bottom: 25px; width: 340px; max-width: calc(100vw - 40px); border: 1px solid var(--line); border-radius: 24px; background: var(--panel); padding: 20px; overflow: auto; backdrop-filter: blur(20px); }
+.queue header { display: flex; justify-content: space-between; align-items: center; }
+.queue h2 { font-size: 17px; margin: 0; }
+.queue > button { display: flex; gap: 12px; align-items: center; text-align: left; width: 100%; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.queue img { border-radius: 5px; }
+.queue small, .queue > button > span { color: var(--secondary); font-size: 11px; display: block; margin-top: 5px; }
+@media (max-width: 1000px) { .layout { gap: 40px; grid-template-columns: minmax(240px, 340px) 1fr; } .lyrics button { font-size: 20px; } }
+@media (max-width: 600px) { .page { padding: 20px 26px 40px; } .layout { display: flex; flex-direction: column; gap: 32px; margin-top: 24px; } .album { width: 100%; } .album > img { width: 230px; margin: auto; } .title h1 { font-size: 23px; } .lyrics { gap: 5px; width: 100%; } .lyrics button { font-size: 17px; } }
+
+/* —— 方案 B · 呼吸光晕：两层径向晕 + 地面回光，全部由 --env 驱动，无 canvas —— */
+.page { position: relative; }
+.page > header, .page > .layout { position: relative; z-index: 2; }
+.coverWrap { position: relative; width: 100%; --env: 0; --sway: 0; }
+.coverWrap img { position: relative; z-index: 1; width: 100%; height: auto; aspect-ratio: 1; border-radius: 12px; box-shadow: 0 24px 60px #00000018; }
+/* 开关灯的淡入淡出由外层 .haloLayer 承担；内层只跟 --env 走，不能加 transition（会把脉冲抹平） */
+.haloLayer { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s ease; }
+.page[data-lights='out'] .haloLayer { opacity: 1; }
+.haloFar, .haloNear, .pool { position: absolute; pointer-events: none; border-radius: 50%; }
+.haloNear { inset: -18%; background: radial-gradient(closest-side, rgba(255, 150, 110, .55), rgba(255, 150, 110, 0) 72%); filter: blur(26px); transform: scale(calc(0.9 + var(--env) * 0.24)); opacity: calc(0.3 + var(--env) * 0.7); }
+.haloFar { inset: -44%; background: radial-gradient(closest-side, rgba(255, 172, 132, .22), rgba(255, 172, 132, 0) 70%); filter: blur(40px); transform: scale(calc(1 + var(--env) * 0.12)); opacity: calc(0.5 + var(--env) * 0.5); }
+.pool { left: 50%; bottom: -13%; width: 130%; height: 13%; transform: translateX(-50%) scaleX(calc(0.75 + var(--env) * 0.35)); background: radial-gradient(closest-side, rgba(255, 160, 120, .4), rgba(255, 160, 120, 0)); filter: blur(14px); opacity: calc(0.4 + var(--env) * 0.6); }
+.fxVeil { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity .6s ease; background: radial-gradient(ellipse at 30% 42%, #17141d 0%, #0b0a0e 74%); }
+.page[data-lights='out'] .fxVeil { opacity: .96; }
+.fxControls { position: fixed; z-index: 6; left: 20px; bottom: 20px; display: flex; gap: 8px; }
+.fxControls button { font-size: 12px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel, #fff); color: var(--text); cursor: pointer; }
+.fxControls button[aria-pressed='true'] { background: var(--active, #111); color: var(--on-active, #fff); }
+@media (max-width: 600px) { .coverWrap { width: 230px; margin: auto; } }
