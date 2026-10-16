@@ -102,7 +102,6 @@ const renderAccountTab = (controller: LibraryAccountController, user: ProviderUs
         onSyncData: () => {},
         isSyncing: false,
         onNavigateHome: () => {},
-        onClosePanel: () => {},
     })));
     const logoutButton = () => host.querySelector<HTMLButtonElement>('button[title="account.logout"]');
     return { host, logoutButton };

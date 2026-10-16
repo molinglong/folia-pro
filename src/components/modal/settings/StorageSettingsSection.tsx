@@ -353,6 +353,9 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                                 className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
                                 style={{ color: 'var(--text-primary)' }}
                             />
+                            <span className="block text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.r2SyncWorkerUrlHint') || 'Leave empty to use the built-in default server on every device. Remember to save.'}
+                            </span>
                         </label>
                         {/* QQ 音乐 API 地址：指向你自己部署的 qq-api，多设备共享同一登录态（docs/qq-shared-session-design.md §5.2） */}
                         <label className="block space-y-1">
@@ -385,15 +388,9 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                             </div>
 
                             {/* 登录/注册/登出交互在 AccountAuthForm（与侧栏账号页共用同一份）；
-                                地址缺失提示按存储区语境渲染为纯文案。 */}
+                                同步服务器地址有内置默认值，留空即可用，无需先配置。 */}
                             <AccountAuthForm
-                                serverConfigured={Boolean(draftSyncConfig.workerBaseUrl.trim())}
                                 errorTextColor={errorTextColor}
-                                needsServerHint={(
-                                    <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                        {t('ui.storage.accountNeedsServerUrl') || 'Set the sync server URL above first.'}
-                                    </div>
-                                )}
                             />
                         </div>
 

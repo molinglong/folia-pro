@@ -5,24 +5,18 @@ import { useAccountSessionStore } from '../../../stores/useAccountSessionStore';
 
 // src/components/modal/settings/AccountAuthForm.tsx
 // Folia 账号的登录/注册/登出交互：设置页存储区与侧栏账号页共用同一份状态机与文案。
-// 服务器地址是否就绪由宿主决定（两处对“缺地址”的提示方式不同，经插槽注入），
+// 同步服务器地址有内置默认值（syncConfig），表单不再依赖宿主注入“地址是否就绪”。
 // 登录态读写全部走 useAccountSessionStore，本组件不自持任何会话状态。
 
 type AccountAuthFormProps = {
-    /** 同步服务地址已配置才允许提交；false 时禁用提交按钮并渲染 needsServerHint。 */
-    serverConfigured: boolean;
     /** 错误文案强调色（沿用宿主 errorTextColor 配方）。 */
     errorTextColor: string;
-    /** serverConfigured 为 false 时渲染在表单底部的提示行（存储区为纯文案，账号页带跳转按钮）。 */
-    needsServerHint?: React.ReactNode;
     /** 已登录态追加在邮箱行之后的内容（账号页放同步状态与立即同步；存储区不需要）。 */
     signedInExtras?: React.ReactNode;
 };
 
 const AccountAuthForm: React.FC<AccountAuthFormProps> = ({
-    serverConfigured,
     errorTextColor,
-    needsServerHint,
     signedInExtras,
 }) => {
     const { t } = useTranslation();
@@ -126,7 +120,7 @@ const AccountAuthForm: React.FC<AccountAuthFormProps> = ({
                 <button
                     type="button"
                     onClick={() => void handleAuthSubmit()}
-                    disabled={accountSession.busy || !authEmail.trim() || !authPassword || !serverConfigured}
+                    disabled={accountSession.busy || !authEmail.trim() || !authPassword}
                     className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ color: 'var(--text-primary)' }}
                 >
@@ -146,7 +140,6 @@ const AccountAuthForm: React.FC<AccountAuthFormProps> = ({
                         : (t('ui.storage.accountSwitchToSignIn') || 'Have an account? Sign in')}
                 </button>
             </div>
-            {!serverConfigured && needsServerHint}
             {accountSession.errorCode && (
                 <div className="text-xs rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2" style={{ color: 'var(--text-secondary)' }}>
                     <span className={errorTextColor}>{authErrorCodeText(accountSession.errorCode)}</span>

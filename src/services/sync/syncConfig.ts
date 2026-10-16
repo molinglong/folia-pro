@@ -16,6 +16,9 @@ const DEFAULT_CONFIG: SyncProviderConfig = {
     authToken: '',
 };
 
+// 内置默认同步服务器：登录与同步开箱即用，不再要求先手填地址；用户显式配置始终优先。
+export const DEFAULT_SYNC_SERVER_URL = 'https://music.yuban.icu/sync';
+
 const DEFAULT_STATUS: SyncRuntimeStatus = {
     state: 'idle',
     lastSyncAt: null,
@@ -59,7 +62,9 @@ export const getSyncConfig = (): SyncProviderConfig => {
         ...DEFAULT_CONFIG,
         ...stored,
         provider: SYNC_PROVIDER,
-        workerBaseUrl: typeof stored.workerBaseUrl === 'string' ? stored.workerBaseUrl.trim() : '',
+        workerBaseUrl: (typeof stored.workerBaseUrl === 'string' && stored.workerBaseUrl.trim())
+            ? stored.workerBaseUrl.trim()
+            : DEFAULT_SYNC_SERVER_URL,
         authToken: typeof stored.authToken === 'string' ? stored.authToken.trim() : '',
         enabled: Boolean(stored.enabled),
         account,

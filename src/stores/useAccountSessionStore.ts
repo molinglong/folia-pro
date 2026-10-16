@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { AuthClientError, loginAccount, logoutAccount, registerAccount } from '../services/sync/authClient';
 import { clearCollectionSyncState } from '../services/sync/collectionSync';
-import { getActiveSession, whenSessionHydrated } from '../services/sync/syncConfig';
+import { getActiveSession, getSyncConfig, saveSyncConfig, whenSessionHydrated } from '../services/sync/syncConfig';
 import { syncNow } from '../services/sync/syncCoordinator';
 
 // src/stores/useAccountSessionStore.ts
@@ -29,8 +29,10 @@ const toAuthErrorCode = (error: unknown): string => (
     error instanceof AuthClientError ? error.code : 'network_error'
 );
 
-// 登录成功后立即做一次全量同步：云端设置/主题/收藏都拉下来，本地没推过的变更也补上去。
+// 登录成功后：先把云同步开关打开（新设备不再要求去存储区手动开启），再做一次全量同步——
+// 云端设置/主题/收藏都拉下来，本地没推过的变更也补上去。
 const syncAfterAdoptingSession = (): void => {
+    saveSyncConfig({ ...getSyncConfig(), enabled: true });
     void syncNow({ syncThemes: true, applyRemoteSettings: true, pushSettings: true });
 };
 

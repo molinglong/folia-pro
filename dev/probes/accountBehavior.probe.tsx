@@ -37,7 +37,6 @@ const AccountTabPanel: React.FC<{ account: LibraryAccountController }> = ({ acco
                 onSyncData={() => {}}
                 isSyncing={false}
                 onNavigateHome={() => {}}
-                onClosePanel={() => {}}
             />
         </div>
     );

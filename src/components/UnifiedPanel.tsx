@@ -935,7 +935,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 onToggle();
                                                 onNavigateHome();
                                             }}
-                                            onClosePanel={onToggle}
                                         />
                                     )}
                                     {currentTab === 'local' && isLocal && (
