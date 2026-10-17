@@ -108,6 +108,9 @@ type UnifiedPanelQueueProps = {
     onRemoveSong: (index: number) => void;
     onMoveSongToEnd: (index: number) => void;
     onMoveSongToNext: (index: number) => void;
+    /** Manual cross-platform source switch for a greyed-out queue song: searches the other
+     *  logged-in platforms on click and replaces/plays (or confirms) the best match. */
+    onRequestCrossPlatformReplacement: (song: SongResult, queue: SongResult[]) => void | Promise<boolean>;
     onOpenLattice?: () => void;
 };
 
@@ -214,7 +217,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         transparentPlayerBackground,
         onToggleTransparentPlayerBackground,
     } = playback;
-    const { playQueue, onPlaySong, queueScrollRef, onShuffle, onRemoveSong, onMoveSongToEnd, onMoveSongToNext } = queue;
+    const { playQueue, onPlaySong, queueScrollRef, onShuffle, onRemoveSong, onMoveSongToEnd, onMoveSongToNext, onRequestCrossPlatformReplacement } = queue;
     const {
         onSaveCurrentQueueAsPlaylist,
         onOpenCurrentLocalAlbum,
@@ -911,6 +914,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 onRemoveSong={onRemoveSong}
                                                 onMoveSongToEnd={onMoveSongToEnd}
                                                 onMoveSongToNext={onMoveSongToNext}
+                                                onRequestCrossPlatformReplacement={onRequestCrossPlatformReplacement}
                                                 onOpenLattice={queue.onOpenLattice}
                                                 // TODO: Define cross-source playlist export before enabling playlist creation for mixed queues.
                                                 canSaveLocalPlaylist={Boolean(

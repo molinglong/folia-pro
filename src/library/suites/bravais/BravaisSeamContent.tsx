@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo } from 'react';
-import { ChevronLeft, FoldHorizontal, ListFilter, ListPlus, Maximize2, Play } from 'lucide-react';
+import { ChevronLeft, FoldHorizontal, ListFilter, Maximize2, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
-import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BravaisSeamCollectionActions, BravaisSeamCollectionMeta, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
 import { BravaisSeamSpineTitle, BravaisSeamTitleArea } from './BravaisSeamTitle';
 import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { openBravaisFilter } from './useBravaisSeamFilter';
@@ -27,7 +27,11 @@ import { BravaisSeamFlipText } from './BravaisSeamFlip';
 // 元数据、播放全部 / 加入队列）、书脊（返回、竖排标题、计数、播放、展开）。排版宽度由外层按「此刻渲染的这一套」定，
 // 这里只排内容。文案都来自层描述（已翻译）与 libraryBravais 的 key。界面文案：「收起」= 收成书脊，「折叠」= 折到侧边。
 // fb10：完整信息条的面包屑行只剩 ‹ 与面包屑（拿到整行宽度）；「收起」改成点标题区域（BravaisSeamTitle，书脊上点标题
-// 展开，两边一致），「折叠」挪进「⋯ 更多」的末尾；收藏星标在播放全部 / 加入队列那一行的末尾。
+// 展开，两边一致），「折叠」挪进「⋯ 更多」的末尾；收藏星标在主操作那一行的末尾（fb12 后「加入队列」下行，见下）。
+// fb12（用户实测「四个按钮排成错位的 2×2，太丑」）：动作收进一个块（bravais-seam-actions-block，块内 8px，比缝里
+// 其它块的 14px 紧，两行读作一组）。第一行只有主操作——「播放全部」撑满整行、星标钉在行尾；第二行是次操作，按使用
+// 频率从左到右「加入队列 / 列表 / ⋯」，「⋯」收成图标钉在行尾，与上一行的星标对齐成一列。两行都占满缝宽，不再各占半边；
+// 次操作一行不配图标（图标只留给主操作与「⋯」），否则歌手页最长的文案会把「⋯」挤到第三行。
 // B9：首页窄缝 / 书脊换成 BravaisSeamHome（页签、二级切换、工具按钮、管理隐藏、账户位），另有全局搜索框（search）；
 // 首页层的面板是目录树（BravaisDirectoryPanel），集合层的面板仍是歌曲列表。
 // B10：账户的登录态 / 确认态（login / confirm）不属于任何一层，内容来自 bravaisAccountStore（BravaisSeamAccount）。
@@ -108,21 +112,25 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
             {collection && <BravaisSeamCollectionMeta collection={collection} />}
             {seam.status && <BravaisSeamFlipText as="div" flipKey={seam.status} className="bravais-seam-status" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
             {collection?.status && <BravaisSeamStatusLine status={collection.status} />}
-            <div className="bravais-seam-actions is-scope">
-                {seam.onPlayScope && (
-                    <button type="button" className="bravais-chrome-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
-                        <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
-                    </button>
-                )}
-                {seam.onEnqueueScope && (
-                    <button type="button" className="bravais-chrome-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
-                        <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}
-                    </button>
-                )}
-                {/* fb10：收藏星标是这一排动作的最后一个（图标按钮，靠右），不再在描述下面单独占一行。 */}
-                {collection?.subscribe && <BravaisSeamStar subscribe={collection.subscribe} />}
+            {/* fb12：两行动作是一组——主操作独占一行（撑满），星标钉在这一行的末尾（图标按钮，靠右）；
+                「加入队列」「列表」是纯文字，与图标状的「⋯ 更多」同处下一行（BravaisSeamCollectionActions，菜单悬浮在这行上方）。 */}
+            <div className="bravais-seam-actions-block">
+                <div className="bravais-seam-actions is-scope">
+                    {seam.onPlayScope && (
+                        <button type="button" className="bravais-chrome-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
+                            <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
+                        </button>
+                    )}
+                    {collection?.subscribe && <BravaisSeamStar subscribe={collection.subscribe} />}
+                </div>
+                <BravaisSeamCollectionActions
+                    collection={collection}
+                    onOpenList={actions.openList}
+                    fold={fold}
+                    enqueue={seam.onEnqueueScope
+                        && { label: seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll'), run: seam.onEnqueueScope }}
+                />
             </div>
-            <BravaisSeamCollectionMenu collection={collection} onOpenList={actions.openList} fold={fold} />
         </div>
     );
 };

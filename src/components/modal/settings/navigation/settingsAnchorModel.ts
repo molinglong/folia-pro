@@ -37,6 +37,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     // PlaybackSettingsSubview (TransitionSettingsSection renders inside it)
     queueSettings: { section: 'playback', labelKey: 'options.queueSettings' },
     scrobbleSettings: { section: 'playback', labelKey: 'options.scrobbleSettings' },
+    crossReplaceSettings: { section: 'playback', labelKey: 'options.crossReplaceSettings' },
     transitionSettings: { section: 'playback', labelKey: 'options.transitionSettings' },
     replayGainSettings: { section: 'playback', labelKey: 'options.replayGainSettings' },
     lyrics: { section: 'playback', labelKey: 'options.lyrics' },

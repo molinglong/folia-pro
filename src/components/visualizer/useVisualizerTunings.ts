@@ -9,6 +9,7 @@ import { useVisualizerSettingsStore } from '../../stores/useVisualizerSettingsSt
 
 export const useVisualizerTunings = () => useVisualizerSettingsStore(useShallow(state => ({
     classic: state.classicTuning,
+    classic2: state.classicTuning,
     cadenza: state.cadenzaTuning,
     partita: state.partitaTuning,
     fume: state.fumeTuning,

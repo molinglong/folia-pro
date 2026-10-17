@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import type { HomeViewTab, LocalSong, SongResult, UnifiedSong } from '../types';
-import type { OnlineProviderId } from '../types/onlineMusic';
+import { OnlineProviderError, type OnlineProviderId } from '../types/onlineMusic';
 import {
     applyLocalLibraryEntityDisplay,
     buildUnifiedLocalSong,
@@ -16,6 +16,17 @@ const SEARCH_HISTORY_LIMIT = 10;
 const DEFAULT_SEARCH_LIMIT = 30;
 export type SearchSource = OnlineProviderId | 'local' | 'navidrome';
 export type SearchReturnView = 'home' | 'player';
+
+// 上游风控拒答（QQ 回 request.code 2001 这类）的归一化标记：SearchWorkspace 据此把
+// 「平台暂时拒了这次搜索」和普通搜索失败分开展示。技术详情仍进 console。
+export const SEARCH_ERROR_RATE_LIMITED = 'rate-limited';
+
+const normalizeSearchError = (error: unknown): string => {
+    if (error instanceof OnlineProviderError && error.code === 'rate-limited') {
+        return SEARCH_ERROR_RATE_LIMITED;
+    }
+    return error instanceof Error ? error.message : 'search_failed';
+};
 
 export type SearchHistoryEntry = {
     query: string;
@@ -391,7 +402,7 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
                 hasMore: false,
                 offset: 0,
                 isSearching: false,
-                searchError: error instanceof Error ? error.message : 'search_failed',
+                searchError: normalizeSearchError(error),
             });
             return true;
         }
@@ -450,7 +461,7 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
             if (get().requestId === requestId) {
                 set({
                     isLoadingMore: false,
-                    searchError: error instanceof Error ? error.message : 'search_failed',
+                    searchError: normalizeSearchError(error),
                 });
             }
         }

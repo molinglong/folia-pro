@@ -41,7 +41,7 @@ const BravaisSeamCrumbs: React.FC<BravaisSeamCrumbsProps> = ({ layer, panelLabel
     const isHomeLayer = layer.surface === 'home';
     const rootLabel = navigation.origin === 'search'
         ? t('libraryBravais.crumbSearch')
-        : navigation.origin === 'player' ? t('libraryBravais.crumbPlayer') : t('libraryBravais.homeTitle');
+        : navigation.origin === 'player' ? t('libraryBravais.crumbPlayer') : t('libraryBravais.crumbHome');
     const crumbs = useMemo(() => {
         const built = buildBravaisCrumbs({
             rootLabel,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AudioLines, ChevronRight, ListFilter, Monitor, PlayCircle, Radio, RefreshCw, Settings2, Timer } from 'lucide-react';
+import { AudioLines, ChevronRight, Globe, ListFilter, Monitor, PlayCircle, Radio, RefreshCw, Settings2, Timer } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { LocalLyricsPriority, QueueAddBehavior, ReplayGainMode, Theme } from '../../../types';
@@ -14,6 +14,7 @@ import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import { useLyricSettingsStore } from '../../../stores/useLyricSettingsStore';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
+import { useOnlineMusicSettingsStore } from '../../../stores/useOnlineMusicSettingsStore';
 import { isNeteaseScrobbleReady } from '../../../services/onlineMusic/playbackReportGate';
 
 // src/components/modal/settings/PlaybackSettingsSubview.tsx
@@ -73,6 +74,11 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
     // two can never disagree about whether the toggle may be flipped.
     useOnlineProviderAccountStore(state => state.accounts.netease?.status);
     const canReportNeteasePlayback = isNeteaseScrobbleReady();
+    // Cross-platform replacement switch (useOnlineMusicSettingsStore): on, a high-confidence
+    // same-song match on another logged-in platform replaces an unplayable track by itself;
+    // off, every match waits for confirmation in the replacement dialog first.
+    const autoCrossReplace = useOnlineMusicSettingsStore(state => state.autoCrossReplace);
+    const setAutoCrossReplace = useOnlineMusicSettingsStore(state => state.setAutoCrossReplace);
     const {
         autoUseBestLyric,
         preferredAlternativeLyricSource,
@@ -244,6 +250,23 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
                             () => onToggleNeteaseScrobble(!neteaseScrobbleEnabled),
                             !canReportNeteasePlayback,
                         )}
+                    </div>
+                </div>
+            </SettingsAnchor>
+
+            <SettingsAnchor anchorId="crossReplaceSettings" label={t('options.crossReplaceSettings')}>
+                <SettingsSectionHeading icon={Globe} label={t('options.crossReplaceSettings')} />
+                <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                {t('options.autoCrossReplace')}
+                            </div>
+                            <div className="text-[11px] opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.autoCrossReplaceDesc')}
+                            </div>
+                        </div>
+                        {renderToggle(autoCrossReplace, () => setAutoCrossReplace(!autoCrossReplace))}
                     </div>
                 </div>
             </SettingsAnchor>

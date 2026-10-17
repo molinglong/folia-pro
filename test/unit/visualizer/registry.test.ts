@@ -17,6 +17,7 @@ describe('visualizer registry', () => {
             'lumiere',
             'paperwindow',
             'classic',
+            'classic2',
             'cadenza',
             'partita',
             'fume',

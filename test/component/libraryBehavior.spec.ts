@@ -2026,7 +2026,7 @@ test.describe('[bravais-only] collection page', () => {
         await expect(menu).toHaveCount(0);
     });
 
-    test('the star sits at the end of the play / enqueue row instead of a row of its own', async ({ mount, page }) => {
+    test('the star sits at the end of the primary action row instead of a row of its own', async ({ mount, page }) => {
         await openPublic(mount, page);
         const row = seamOf(page).locator('.bravais-seam-full .bravais-seam-actions.is-scope');
         const star = row.locator('[data-bravais-seam-action="subscribe"]');
@@ -2048,6 +2048,34 @@ test.describe('[bravais-only] collection page', () => {
         await expect.poll(() => requests(page, 'subscribePlaylist')).toHaveLength(1);
         await expect(star).toHaveAttribute('aria-pressed', 'true');
         await expect(star).toHaveAccessibleName('Unsubscribe Playlist');
+    });
+
+    // fb12（用户实测「四个按钮排成错位的 2×2，太丑」）：动作两行是一组——主操作撑满第一行，次操作一行按频率排
+    // 「加入队列 / 列表 / ⋯」，「⋯」收成图标、与上一行的星标右缘对齐成一列，行间距是块内的 8px 而不是块间的 14px。
+    test('the actions are two full-width rows: primary stretched, secondary ordered, the ⋯ under the star', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const primaryRow = await boxOf(page, '.bravais-seam-full .bravais-seam-actions.is-scope');
+        const secondaryRow = await boxOf(page, '.bravais-seam-full .bravais-seam-actions.is-secondary');
+        const primary = await boxOf(page, '.bravais-seam-full .bravais-seam-actions.is-scope .bravais-chrome-button.is-primary');
+        const star = await boxOf(page, '.bravais-seam-full [data-bravais-seam-action="subscribe"]');
+        const more = await boxOf(page, '.bravais-seam-full [data-bravais-seam-action="more"]');
+        // 两行各自占满缝宽（主操作那一行除了行尾的星标那一格都是它的）。
+        expect(primary.width).toBeGreaterThan(primaryRow.width * 0.6);
+        expect(secondaryRow.width).toBe(primaryRow.width);
+        // 次操作一行的顺序与归属：加入队列、列表、⋯（「更多」只剩图标，文案在 title 与可访问名里）。
+        expect(await seamOf(page).locator('.bravais-seam-full .bravais-seam-actions.is-secondary button')
+            .evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.bravaisSeamAction)))
+            .toEqual(['enqueue-scope', 'list', 'more']);
+        expect(more).toHaveProperty('width', 36);
+        // 文案不再写在按钮上，而是进 title 与可访问名。只判在不在：探针偶尔在 i18n 资源落地前就把层描述算完，
+        // 文案会停在空串，判具体字符串等于把这条用例绑在探针的 i18n 时序上。
+        const moreButton = seamOf(page).locator('.bravais-seam-full [data-bravais-seam-action="more"]');
+        await expect(moreButton).toHaveAttribute('title', /.*/);
+        await expect(moreButton).toHaveAttribute('aria-label', /.*/);
+        await expect(moreButton).toHaveText('');
+        // ⋯ 与星标对齐成一列；两行是一组（行间距 8px）。
+        expect(Math.abs(more.x + more.width - (star.x + star.width))).toBeLessThanOrEqual(1);
+        expect(secondaryRow.y - (primaryRow.y + primaryRow.height)).toBeLessThanOrEqual(9);
     });
 });
 

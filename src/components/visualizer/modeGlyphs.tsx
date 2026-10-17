@@ -38,6 +38,13 @@ const VISUALIZER_MODE_GLYPHS: Record<string, React.ReactNode> = {
             <path d="M3 12h8" />
         </>
     ),
+    // 流光-2：复制自流光，暂用同款字形
+    classic2: (
+        <>
+            <path d="M3 12h18" opacity="0.35" />
+            <path d="M3 12h8" />
+        </>
+    ),
     // 心象：字符散落成云，焦点字被光圈套住
     cadenza: (
         <>

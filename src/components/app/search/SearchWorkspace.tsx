@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { Theme, UnifiedSong } from '../../../types';
 import type { MediaId } from '../../../types/onlineMusic';
 import {
+    SEARCH_ERROR_RATE_LIMITED,
     type SearchSource,
     useSearchNavigationStore,
 } from '../../../stores/useSearchNavigationStore';
@@ -96,6 +97,8 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
         if (source === 'navidrome') return t('search.sourceNavidrome');
         return omni.getProviderLabel(source);
     };
+    // 风控拒答和普通失败文案分开：前者等一会儿再搜就行，后者多半是配置/网络问题。
+    const errorLabel = searchError === SEARCH_ERROR_RATE_LIMITED ? t('search.rateLimited') : t('search.error');
 
     useEffect(() => {
         if (!isSearchOpen || hasCollection) return;
@@ -198,7 +201,7 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                         ) : searchError && results.length === 0 ? (
                             <div className="flex h-full flex-col items-center justify-center gap-3 text-center opacity-65">
                                 <AlertCircle size={32} />
-                                <p>{t('search.error')}</p>
+                                <p>{errorLabel}</p>
                                 <button
                                     type="button"
                                     onClick={() => onSubmitSearch()}
@@ -261,7 +264,7 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                                 </div>
                                 {searchError ? (
                                     <div className="flex shrink-0 items-center justify-center gap-3 py-3 text-sm">
-                                        <span className="opacity-60">{t('search.error')}</span>
+                                        <span className="opacity-60">{errorLabel}</span>
                                         <button
                                             type="button"
                                             disabled={isLoadingMore}

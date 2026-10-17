@@ -200,6 +200,8 @@ export type CommandPaletteNavigationContext = {
     setHomeViewTab: (tab: HomeViewTab) => void;
     toggleBrowserFullscreen: () => Promise<boolean>;
     toggleRemoteControlWindow: () => Promise<boolean>;
+    /** 打开遥控窗口并请求它切到导出面板（「录制歌词视频」）；非 Electron 返回 false。 */
+    openRemoteControlForExport: () => Promise<boolean>;
     toggleMainWindowAlwaysOnTop: () => Promise<boolean>;
     /** Window-level toggles (fullscreen, always-on-top) are meaningless in wallpaper mode. */
     isWallpaperMode: boolean;

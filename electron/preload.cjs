@@ -255,7 +255,7 @@ contextBridge.exposeInMainWorld('electron', {
     getMainWindowCaptureSource: () => ipcRenderer.invoke('video-export-get-main-window-source'),
     prepareVideoExportWindow: (size) => ipcRenderer.invoke('video-export-prepare-window', size),
     restoreVideoExportWindow: () => ipcRenderer.invoke('video-export-restore-window'),
-    writeVideoExportFile: (filePath, data) => ipcRenderer.invoke('video-export-write-file', filePath, data),
+    writeVideoExportFile: (filePath, data, recordedSeconds) => ipcRenderer.invoke('video-export-write-file', filePath, data, recordedSeconds),
     getStageStatus: () => ipcRenderer.invoke('stage-get-status'),
     setStageEnabled: (enabled) => ipcRenderer.invoke('stage-set-enabled', enabled),
     regenerateStageToken: () => ipcRenderer.invoke('stage-regenerate-token'),

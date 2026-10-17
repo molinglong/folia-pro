@@ -142,7 +142,7 @@ import { selectAudioSettingsSnapshot, useAudioSettingsStore } from './stores/use
 import { useSettingsModalStore } from './stores/useSettingsModalStore';
 import { audioBands, audioPower, bass, currentTime, lowMid, lyricCurrentTime, mid, spectrum, treble, vocal } from './stores/motionSignals';
 import { useAppChromeStore } from './stores/useAppChromeStore';
-import { useAppViewStore } from './stores/useAppViewStore';
+import { useAppViewStore, requestRemoteExportPanel } from './stores/useAppViewStore';
 import { selectDisplayCoverUrl, selectDisplayDuration, selectDisplayLyrics, selectDisplayPlayerState, selectDisplaySong, selectIsShowingTail, usePlaybackStore } from './stores/usePlaybackStore';
 import { useLibraryStore } from './stores/useLibraryStore';
 import { selectLibraryOccludesPlayer, selectLibraryPlayerBackdrop, useLibraryPlayerOcclusionStore } from './stores/useLibraryPlayerOcclusionStore';
@@ -1028,6 +1028,7 @@ export default function App() {
         handleSearchResultPlay,
         handleSearchResultAddToQueue,
         handleUnavailableReplacementConfirm,
+        requestCrossPlatformReplacement,
         handleNextTrack,
         handlePrevTrack,
         skipAfterPlaybackFailure,
@@ -1722,6 +1723,16 @@ export default function App() {
 
         return window.electron.toggleRemoteControl();
     }, []);
+    // 录制歌词视频：先把一次「切到导出面板」的请求发出去（跟着远程快照送达），再确保遥控窗口开着。
+    // 导出控件只能住在遥控窗口里 —— 主窗口是被摄体，任何进度 UI 都会被录进成品。
+    const openRemoteControlForExport = useCallback(async () => {
+        if (!window.electron?.openRemoteControl) {
+            return false;
+        }
+
+        requestRemoteExportPanel();
+        return window.electron.openRemoteControl();
+    }, []);
     const toggleMainWindowAlwaysOnTop = useCallback(async () => {
         if (!window.electron?.getMainWindowAlwaysOnTop || !window.electron?.setMainWindowAlwaysOnTop) {
             return false;
@@ -1781,6 +1792,7 @@ export default function App() {
         navigateToLattice,
         toggleBrowserFullscreen,
         toggleRemoteControlWindow,
+        openRemoteControlForExport,
         toggleMainWindowAlwaysOnTop,
 
 
@@ -2274,6 +2286,7 @@ export default function App() {
         removeQueueSong,
         moveQueueSongToEnd,
         moveQueueSongToNext,
+        requestCrossPlatformReplacement,
         saveCurrentQueueAsLocalPlaylist,
         user,
         accountController,

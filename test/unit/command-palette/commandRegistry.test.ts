@@ -74,6 +74,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setHomeViewTab: vi.fn(),
             toggleBrowserFullscreen: vi.fn(async () => true),
             toggleRemoteControlWindow: vi.fn(async () => true),
+            openRemoteControlForExport: vi.fn(async () => true),
             toggleMainWindowAlwaysOnTop: vi.fn(async () => true),
             isWallpaperMode: false,
         },
@@ -815,6 +816,20 @@ describe('command palette registry', () => {
             expect(topMatch.command.id).toBe('desktop-toggle-main-window-always-on-top');
             await topMatch.command.execute('', context);
             expect(context.navigation.toggleMainWindowAlwaysOnTop).toHaveBeenCalled();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it('matches and executes the record lyric video command', async () => {
+        vi.stubGlobal('window', { electron: {} });
+
+        try {
+            const context = createContext();
+            const [match] = getCommandPaletteMatches('录制歌词视频', context);
+            expect(match.command.id).toBe('record-lyric-video');
+            await match.command.execute('', context);
+            expect(context.navigation.openRemoteControlForExport).toHaveBeenCalled();
         } finally {
             vi.unstubAllGlobals();
         }

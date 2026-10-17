@@ -1,10 +1,17 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '@/types';
 import { qrcDecrypt } from '@/utils/lyrics/providers/qrcDecrypt';
-import { fetchQQLyrics, searchQQLyrics } from '@/utils/lyrics/providers/qqLyricProvider';
+import {
+    fetchQQLyrics,
+    QQUpstreamRejectedError,
+    searchQQLyrics,
+    searchQQSongs,
+} from '@/utils/lyrics/providers/qqLyricProvider';
 
 // test/unit/lyrics/qqLyricProvider.test.ts
-// Verifies QQ's anonymous lyric request parses the optional romanization track.
+// Verifies QQ's anonymous lyric request parses the optional romanization track,
+// and the egress selection (direct / backend lyric-proxy / fallback) behind it.
 
 vi.mock('@/utils/lyrics/providers/qrcDecrypt', () => ({
     qrcDecrypt: vi.fn(),
@@ -23,6 +30,8 @@ describe('QQ lyric provider', () => {
     afterEach(() => {
         vi.unstubAllGlobals();
         vi.clearAllMocks();
+        delete (window as any).electron;
+        window.localStorage.removeItem('folia_qq_api_base_url_v1');
     });
 
     it('fetches and parses QQ romanization anonymously', async () => {
@@ -95,5 +104,63 @@ describe('QQ lyric provider', () => {
                 coverUrl: 'https://y.gtimg.cn/music/photo_new/T002M000album-mid.jpg?max_age=2592000',
             },
         });
+    });
+
+    // 出口选择：配了 QQ API 后端地址就改走它的同源 lyric-proxy（把出口 IP 换到服务器），
+    // 没配继续直连；代理走不通回落直连，不能把搜索彻底打死。
+    const QQ_UPSTREAM = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
+    const emptySearchResponse = () => new Response(JSON.stringify({
+        code: 0,
+        request: { code: 0, data: { body: { item_song: [] } } },
+    }));
+
+    it('sends Electron anonymous requests through the configured backend lyric-proxy', async () => {
+        (window as any).electron = {};
+        window.localStorage.setItem('folia_qq_api_base_url_v1', 'https://music.example.test/qq');
+        const fetchMock = vi.fn().mockResolvedValue(emptySearchResponse());
+        vi.stubGlobal('fetch', fetchMock);
+
+        await searchQQSongs('test');
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            `https://music.example.test/api/lyric-proxy?url=${encodeURIComponent(QQ_UPSTREAM)}`,
+            expect.anything(),
+        );
+    });
+
+    it('keeps Electron direct when no backend address is configured', async () => {
+        (window as any).electron = {};
+        const fetchMock = vi.fn().mockResolvedValue(emptySearchResponse());
+        vi.stubGlobal('fetch', fetchMock);
+
+        await searchQQSongs('test');
+
+        expect(fetchMock).toHaveBeenCalledWith(QQ_UPSTREAM, expect.anything());
+    });
+
+    it('falls back to direct egress when the configured proxy fails', async () => {
+        (window as any).electron = {};
+        window.localStorage.setItem('folia_qq_api_base_url_v1', 'https://music.example.test/qq');
+        const fetchMock = vi.fn()
+            .mockRejectedValueOnce(new TypeError('proxy unreachable'))
+            .mockResolvedValueOnce(emptySearchResponse());
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(searchQQSongs('test')).resolves.toEqual([]);
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(String(fetchMock.mock.calls[1]?.[0])).toBe(QQ_UPSTREAM);
+    });
+
+    it('surfaces risk-control rejections (request.code 2001) on the song-search path only', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            code: 0,
+            request: { code: 2001, data: { body: { item_song: [] } } },
+        })));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(searchQQSongs('test')).rejects.toBeInstanceOf(QQUpstreamRejectedError);
+        // 歌词匹配路径维持吞错回空，后端抖动不能阻断自动匹配。
+        await expect(searchQQLyrics('test')).resolves.toEqual([]);
     });
 });

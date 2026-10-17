@@ -97,6 +97,7 @@ const emptySnapshot: RemoteControlSnapshot = {
     playerChromeHidden: false,
     playerChromeVisibilityMode: 'auto-hide',
     exportState: idleVideoExportState(),
+    exportPanelRequest: 0,
     isDaylight: false,
     lyrics: null,
     isLiked: false,
@@ -349,6 +350,19 @@ const RemoteControlApp: React.FC = () => {
         }
         lastStatusRef.current = exportState.status;
     }, [exportState.status]);
+
+    // 主窗口「录制歌词视频」按下时，快照里会带一个待发序号；切到导出面板后回发
+    // export-panel-seen 销账，重新打开窗口不会被旧请求劫持。
+    const lastExportPanelRequestRef = useRef(0);
+    useEffect(() => {
+        const request = snapshot.exportPanelRequest ?? 0;
+        if (request <= lastExportPanelRequestRef.current) {
+            return;
+        }
+        lastExportPanelRequestRef.current = request;
+        setActivePanel('export');
+        sendCommand({ type: 'export-panel-seen', seq: request });
+    }, [snapshot.exportPanelRequest]);
 
     const noDragStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
     const dragStyle = { WebkitAppRegion: 'drag' } as React.CSSProperties;

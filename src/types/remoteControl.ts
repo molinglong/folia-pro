@@ -30,6 +30,8 @@ export type RemoteControlCommand =
     | { type: 'disable-transparent-mode' }
     | { type: 'cycle-player-chrome-visibility-mode' }
     | { type: 'open-export' }
+    /** 遥控窗口确认已处理某次「切到导出面板」请求，主窗口据此不再重发它。 */
+    | { type: 'export-panel-seen'; seq: number }
     | { type: 'start-export'; preset: VideoExportPreset; startMode: VideoExportStartMode }
     | { type: 'stop-export' }
     | { type: 'cancel-export' }
@@ -67,6 +69,11 @@ export interface RemoteControlSnapshot {
     playerChromeHidden: boolean;
     playerChromeVisibilityMode: PlayerChromeVisibilityMode;
     exportState: VideoExportState;
+    /**
+     * 待处理的「切到导出面板」请求序号（「录制歌词视频」命令按下时递增）；0 = 无请求。
+     * 遥控窗口切换后回发 export-panel-seen 销账，重新打开窗口不会被旧请求劫持。
+     */
+    exportPanelRequest?: number;
     isDaylight?: boolean;
     lyrics?: LyricData | null;
     lyricOffsetMs?: number;

@@ -246,7 +246,10 @@ export const useElectronVideoExportController = ({
                 elapsed: exportDuration,
             }));
             const blob = new Blob(chunks, { type: exportFormat.mimeType });
-            await electron.writeVideoExportFile(saveResult.filePath, await toArrayBuffer(blob));
+            // MediaRecorder's fragmented MP4 never carries a runtime in its header (players show
+            // 0:00), so hand the main process the measured seconds to stamp into the mvhd box.
+            const recordedSeconds = Math.max(0, audioElement.currentTime - exportStartTime);
+            await electron.writeVideoExportFile(saveResult.filePath, await toArrayBuffer(blob), recordedSeconds);
             setExportState(prev => ({
                 ...prev,
                 status: 'done',

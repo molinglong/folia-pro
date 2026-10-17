@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ChevronLeft, ChevronRight, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, Star } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Inbox, Loader2, MoreHorizontal, RefreshCw, SearchX, Star } from 'lucide-react';
 import type {
     BravaisSeamCollection as BravaisSeamCollectionModel,
     BravaisSeamStatus,
@@ -18,8 +18,9 @@ import './bravaisCollection.css';
 // （过滤输入位每面墙都有，在 BravaisSeamFilterField。）
 // - 收藏星标（subscribing 时转圈；fb10 起在按钮行末尾）；元数据行的补页进度（中断时整行是「续传」）；每日推荐的日期步进；
 // - 状态行：加载中、错误（重试）、空、过滤无结果（清除过滤）——图标与文案各不相同；
-// - 高频动作之外的「列表」与「⋯ 更多」（低频的集合动作，内联展开，不弹浮层）；fb10：「⋯ 更多」末尾是「折叠信息条」
-//   （原来面包屑行右侧的「折叠」按钮挪进来，歌手页没有集合动作时菜单里只有它）；
+// - 高频动作之外的次操作一行：「加入队列」「列表」与「⋯ 更多」（低频的集合动作，内联展开，不弹浮层）；fb10：「⋯ 更多」
+//   末尾是「折叠信息条」（原来面包屑行右侧的「折叠」按钮挪进来，歌手页没有集合动作时菜单里只有它）；fb12：「⋯」收成
+//   图标（与主操作行的星标对齐成一列），「加入队列」从主操作那一行挪下来排在行首；
 // - 缝底的结果提示（几秒后由 surface 撤掉，不走 toast）。
 // 动效（设计稿 §7「缝内的过渡」）：状态行、日期换了，新的一行翻进来；「⋯ 更多」是弹出（从按钮下方长出来），结果提示淡入 / 淡出。
 
@@ -47,7 +48,7 @@ export const BravaisSeamStatusLine: React.FC<{ status: BravaisSeamStatus }> = ({
 };
 
 /**
- * 收藏星标（订阅 / 取消订阅；subscribing 时转圈、禁用）。fb10：不再在描述下面单独占一行，挪到「播放全部 / 加入队列」
+ * 收藏星标（订阅 / 取消订阅；subscribing 时转圈、禁用）。fb10：不再在描述下面单独占一行，挪到主操作（「播放全部」）
  * 那一行的末尾（BravaisSeamContent），是那一排动作里的一个图标按钮。
  */
 export const BravaisSeamStar: React.FC<{ subscribe: BravaisSeamSubscribe }> = ({ subscribe }) => (
@@ -108,13 +109,17 @@ export const BravaisSeamCollectionMeta: React.FC<{ collection: BravaisSeamCollec
 /** 「⋯ 更多」末尾的开口动作（折叠信息条）。 */
 export type BravaisSeamMenuFold = { label: string; run: () => void };
 
-/** 「列表」与「⋯ 更多」；以及缝底的结果提示。`fold` 排在菜单最后，与集合动作之间一道分隔线。
+/** 次操作一行（fb12）：「加入队列」「列表」与「⋯ 更多」；以及缝底的结果提示。`fold` 排在菜单最后，与集合动作之间一道分隔线。
+ *  这一行是纯文字按钮，「⋯」只有图标（文案进 title 与可访问名），钉在行尾——图标留给主操作与「⋯」：带上图标时，
+ *  歌手页最长的文案（「热门歌曲加入队列」/ "Queue top songs"）就把「⋯」挤到第二行，右对齐的列就散了（实测 268px > 256px）。
  *  菜单悬浮在按钮行上方（绝对定位，不推挤缝里的其它内容，实测反馈）；点别处或 Esc 收起。 */
-export const BravaisSeamCollectionMenu: React.FC<{
+export const BravaisSeamCollectionActions: React.FC<{
     collection?: BravaisSeamCollectionModel;
     onOpenList?: () => void;
     fold?: BravaisSeamMenuFold;
-}> = ({ collection, onOpenList, fold }) => {
+    /** 加入当前范围（与「播放全部」成对，文案跟着范围走：歌手页是「热门歌曲加入队列」）；不给就不画。 */
+    enqueue?: { label: string; run: () => void } | null;
+}> = ({ collection, onOpenList, fold, enqueue }) => {
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const reduced = useBravaisReducedTransitions();
@@ -123,6 +128,9 @@ export const BravaisSeamCollectionMenu: React.FC<{
     const reveal = bravaisRevealMotion(reduced);
     const items = collection?.menu ?? [];
     const hasMenu = items.length > 0 || Boolean(fold);
+    const listLabel = collection?.listLabel;
+    const showList = Boolean(listLabel && onOpenList);
+    const moreLabel = collection?.moreLabel ?? t('libraryBravaisCollection.more');
 
     // 菜单开着时点别处收起（缝里、墙上都算）。
     useEffect(() => {
@@ -144,17 +152,23 @@ export const BravaisSeamCollectionMenu: React.FC<{
 
     return (
         <>
+            {(enqueue || showList || hasMenu) && (
             <div ref={anchorRef} className="bravais-seam-more-anchor" onKeyDown={onKeyDown}>
-            <div className="bravais-seam-actions">
-                {collection?.listLabel && onOpenList && (
+            <div className="bravais-seam-actions is-secondary">
+                {enqueue && (
+                    <button type="button" className="bravais-chrome-button" data-bravais-seam-action="enqueue-scope" onClick={enqueue.run}>
+                        {enqueue.label}
+                    </button>
+                )}
+                {showList && onOpenList && (
                     <button type="button" className="bravais-chrome-button" data-bravais-seam-action="list" onClick={onOpenList}>
-                        <List aria-hidden />{collection.listLabel}
+                        {listLabel}
                     </button>
                 )}
                 {hasMenu && (
-                    <button type="button" className="bravais-chrome-button" data-bravais-seam-action="more" aria-expanded={isOpen}
-                        onClick={() => setIsOpen(open => !open)}>
-                        <MoreHorizontal aria-hidden />{collection?.moreLabel ?? t('libraryBravaisCollection.more')}
+                    <button type="button" className="bravais-seam-icon" data-bravais-seam-action="more" aria-expanded={isOpen}
+                        aria-label={moreLabel} title={moreLabel} onClick={() => setIsOpen(open => !open)}>
+                        <MoreHorizontal aria-hidden />
                     </button>
                 )}
             </div>
@@ -195,6 +209,7 @@ export const BravaisSeamCollectionMenu: React.FC<{
                 )}
             </AnimatePresence>
             </div>
+            )}
             <AnimatePresence initial={false}>
                 {collection?.notice && (
                     <motion.div key="notice" className={`bravais-seam-notice is-${collection.notice.tone}`} role="status"

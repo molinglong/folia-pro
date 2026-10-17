@@ -1,4 +1,5 @@
 import type { CommandPaletteCommand } from '../types';
+import { Video } from 'lucide-react';
 import { defineCommand, createToggleCommand, createHomeTabCommand } from '../commandFactories';
 
 // src/components/command-palette/commands/navigationCommands.ts
@@ -44,6 +45,17 @@ export const navigationCommands: CommandPaletteCommand[] = [
         description: 'Open or close the remote control window',
         keywords: ['remote control', 'remote window', 'toggle remote', '遥控窗口', '切换遥控窗口', '打开遥控'],
         execute: (_input, context) => context.navigation.toggleRemoteControlWindow(),
+    },
+    // 录制歌词视频：遥控窗口弹出并直达导出面板。导出控件只能住在那里 —— 主窗口是被摄体。
+    {
+        id: 'record-lyric-video',
+        platform: ['electron'],
+        group: 'navigation',
+        title: 'Record lyric video',
+        description: 'Open the remote control window on the video export panel',
+        icon: Video,
+        keywords: ['record video', 'lyric video', 'export video', '录制歌词视频', '导出歌词视频', '录制视频', '背景视频'],
+        execute: (_input, context) => context.navigation.openRemoteControlForExport(),
     },
     {
         id: 'desktop-toggle-main-window-always-on-top',

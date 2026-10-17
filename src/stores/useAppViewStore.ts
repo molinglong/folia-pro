@@ -84,6 +84,13 @@ type AppViewState = {
      * what makes two identical requests in a row both land.
      */
     commandPaletteRequest: CommandPaletteRequest;
+    /**
+     * 递增计数：请求遥控窗口切到导出面板（「录制歌词视频」）。它跟着远程快照每 500ms 重发一次，
+     * 窗口切换后回发 export-panel-seen 把 seen 追平，待发归零；重新打开窗口不会被旧请求劫持。
+     */
+    remoteExportPanelSeq: number;
+    /** 遥控窗口已确认处理到的序号，永不超过 remoteExportPanelSeq。 */
+    remoteExportPanelSeenSeq: number;
 
     /** Written only by useAppNavigation, which owns the history transitions. */
     setView: (view: AppView) => void;
@@ -95,6 +102,8 @@ type AppViewState = {
     setIsCommandFilterOpen: (isOpen: boolean) => void;
     requestCommandPalette: (kind: 'filter' | 'dismiss-filter' | 'root') => void;
     requestCommandPaletteCommand: (commandId: string) => void;
+    requestRemoteExportPanel: () => void;
+    noteRemoteExportPanelSeen: (seq: number) => void;
 };
 
 const resolve = <T,>(next: React.SetStateAction<T>, previous: T): T => (
@@ -109,6 +118,8 @@ export const useAppViewStore = create<AppViewState>((set, get) => ({
     commandFilter: null,
     isCommandFilterOpen: false,
     commandPaletteRequest: { seq: 0, kind: 'filter' },
+    remoteExportPanelSeq: 0,
+    remoteExportPanelSeenSeq: 0,
 
     setView: (view) => set({ view }),
     setIsPanelOpen: (next) => set({ isPanelOpen: resolve(next, get().isPanelOpen) }),
@@ -129,6 +140,8 @@ export const useAppViewStore = create<AppViewState>((set, get) => ({
     requestCommandPaletteCommand: (commandId) => set({
         commandPaletteRequest: { seq: get().commandPaletteRequest.seq + 1, kind: 'command', commandId },
     }),
+    requestRemoteExportPanel: () => set({ remoteExportPanelSeq: get().remoteExportPanelSeq + 1 }),
+    noteRemoteExportPanelSeen: (seq) => set({ remoteExportPanelSeenSeq: Math.min(seq, get().remoteExportPanelSeq) }),
 }));
 
 // Module-level handles for the assembly layer: these are actions, so they need no subscription.
@@ -147,3 +160,7 @@ export const openCommandPalette = () => useAppViewStore.getState().requestComman
 export const openCommandPaletteCommand = (commandId: string) => (
     useAppViewStore.getState().requestCommandPaletteCommand(commandId)
 );
+/** Ask the remote control window to show its export panel (the 录制歌词视频 entry). */
+export const requestRemoteExportPanel = () => useAppViewStore.getState().requestRemoteExportPanel();
+/** The remote window switched; retire the pending request so a later reopen is not hijacked. */
+export const noteRemoteExportPanelSeen = (seq: number) => useAppViewStore.getState().noteRemoteExportPanelSeen(seq);

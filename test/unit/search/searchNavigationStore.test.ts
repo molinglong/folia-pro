@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveCommandPaletteSearchSource, useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
+import { resolveCommandPaletteSearchSource, SEARCH_ERROR_RATE_LIMITED, useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
+import { OnlineProviderError } from '@/types/onlineMusic';
 import { neteaseApi } from '@/services/netease';
 import { getNavidromeConfig, navidromeApi } from '@/services/navidromeService';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
@@ -189,6 +190,15 @@ describe('useSearchNavigationStore', () => {
 
         await useSearchNavigationStore.getState().submitSearch({ query: '爱河', sourceTab: 'netease', deps });
 
+        expect(useSearchNavigationStore.getState().searchHistory).toEqual([]);
+    });
+
+    it('normalizes upstream rate-limit rejections into the marker the overlay relabels', async () => {
+        cloudSearchMock.mockRejectedValue(new OnlineProviderError('rate-limited', 'search rejected by upstream risk control', 'netease'));
+
+        await useSearchNavigationStore.getState().submitSearch({ query: '薛之谦', sourceTab: 'netease', deps });
+
+        expect(useSearchNavigationStore.getState().searchError).toBe(SEARCH_ERROR_RATE_LIMITED);
         expect(useSearchNavigationStore.getState().searchHistory).toEqual([]);
     });
 

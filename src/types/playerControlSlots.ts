@@ -15,6 +15,7 @@ export type PlayerControlSlotActionId =
     | 'playback-quick'
     | 'queue'
     | 'song-wall'
+    | 'record-video'
     | 'sleep-timer';
 
 export const PLAYER_CONTROL_SLOT_ACTION_IDS: readonly PlayerControlSlotActionId[] = [
@@ -28,6 +29,7 @@ export const PLAYER_CONTROL_SLOT_ACTION_IDS: readonly PlayerControlSlotActionId[
     'playback-quick',
     'queue',
     'song-wall',
+    'record-video',
     'sleep-timer',
 ];
 

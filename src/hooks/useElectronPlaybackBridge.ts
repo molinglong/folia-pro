@@ -25,6 +25,7 @@ import { subscribeToTransitionCue } from '../services/automix/transitionCue';
 import { useStableActionSurface } from './useStableCallbacks';
 import { selectDisplayCoverUrl, selectDisplayDuration, selectDisplayLyrics, selectDisplayPlayerState, selectDisplaySong, usePlaybackStore } from '../stores/usePlaybackStore';
 import { useAppChromeStore } from '../stores/useAppChromeStore';
+import { useAppViewStore, noteRemoteExportPanelSeen } from '../stores/useAppViewStore';
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { currentTime } from '../stores/motionSignals';
@@ -288,6 +289,11 @@ export const useElectronPlaybackBridge = ({
             ),
             canLike: canLikeCurrentSong,
             likeUnavailableProvider,
+            // 待发的「切到导出面板」请求：窗口确认后销账，旧请求不会劫持下一次打开。
+            // 命令刚按下、遥控窗口刚创建的那几拍里，它靠重发的快照送达（开启状态下每 500ms 一发）。
+            exportPanelRequest: useAppViewStore.getState().remoteExportPanelSeq > useAppViewStore.getState().remoteExportPanelSeenSeq
+                ? useAppViewStore.getState().remoteExportPanelSeq
+                : 0,
         };
     };
 
@@ -565,6 +571,11 @@ export const useElectronPlaybackBridge = ({
 
             if (command.type === 'cycle-player-chrome-visibility-mode') {
                 onRemotePlayerChromeVisibilityModeCycle?.();
+                return;
+            }
+
+            if (command.type === 'export-panel-seen') {
+                noteRemoteExportPanelSeen(command.seq);
                 return;
             }
 

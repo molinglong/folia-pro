@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { List, useListRef, type RowComponentProps } from 'react-window';
-import { ListEnd, ListPlus, PanelsTopLeft, Play, Shuffle, Trash2 } from 'lucide-react';
+import { Globe, ListEnd, ListPlus, PanelsTopLeft, Play, Shuffle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
@@ -28,6 +28,10 @@ interface QueueTabProps {
     onRemoveSong: (index: number) => void;
     onMoveSongToEnd: (index: number) => void;
     onMoveSongToNext: (index: number) => void;
+    /** Manual cross-platform switch for greyed-out rows: searches the other logged-in platforms
+     *  on click and replaces/plays (or confirms) the best match. Absent where the host has no
+     *  such action wired (stage context, palette), so the row simply does not offer it. */
+    onRequestCrossPlatformReplacement?: (song: SongResult, queue: SongResult[]) => void | Promise<boolean>;
     canSaveLocalPlaylist?: boolean;
     /** Opens the same queue as a poster wall; absent when the host has no wall to show. */
     onOpenLattice?: () => void;
@@ -43,6 +47,7 @@ type QueueRowProps = {
     previewSongKey?: string | null;
     onMoveSongToNext: QueueTabProps['onMoveSongToNext'];
     onMoveSongToEnd: QueueTabProps['onMoveSongToEnd'];
+    onRequestCrossPlatformReplacement?: QueueTabProps['onRequestCrossPlatformReplacement'];
     onRemoveSong: QueueTabProps['onRemoveSong'];
     isDaylight: boolean;
     labels: {
@@ -51,6 +56,7 @@ type QueueRowProps = {
         playNext: string;
         moveToEnd: string;
         remove: string;
+        playOnOtherPlatform: string;
     };
 };
 
@@ -66,6 +72,7 @@ const QueueRow = ({
     previewSongKey,
     onMoveSongToNext,
     onMoveSongToEnd,
+    onRequestCrossPlatformReplacement,
     onRemoveSong,
     isDaylight,
     labels,
@@ -133,6 +140,23 @@ const QueueRow = ({
                         <Icon size={13} />
                     </button>
                 ))}
+                {isUnavailable && onRequestCrossPlatformReplacement && (
+                    <button
+                        type="button"
+                        title={labels.playOnOtherPlatform}
+                        aria-label={labels.playOnOtherPlatform}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            if (event.detail > 0) {
+                                event.currentTarget.blur();
+                            }
+                            void onRequestCrossPlatformReplacement(song, playQueue);
+                        }}
+                        className={`rounded-md p-1.5 transition-colors ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'}`}
+                    >
+                        <Globe size={13} />
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -150,6 +174,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
     onRemoveSong,
     onMoveSongToEnd,
     onMoveSongToNext,
+    onRequestCrossPlatformReplacement,
     canSaveLocalPlaylist = false,
     onOpenLattice,
     onSaveCurrentQueueAsPlaylist,
@@ -185,6 +210,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
         previewSongKey,
         onMoveSongToNext,
         onMoveSongToEnd,
+        onRequestCrossPlatformReplacement,
         onRemoveSong,
         isDaylight,
         labels: {
@@ -193,12 +219,14 @@ const QueueTab: React.FC<QueueTabProps> = ({
             playNext: t('queue.playNext'),
             moveToEnd: t('queue.moveToEnd'),
             remove: t('queue.remove'),
+            playOnOtherPlatform: t('queue.playOnOtherPlatform'),
         },
     }), [
         currentSongKey,
         isDaylight,
         onMoveSongToEnd,
         onMoveSongToNext,
+        onRequestCrossPlatformReplacement,
         onPlaySong,
         onPreviewSong,
         previewSongKey,

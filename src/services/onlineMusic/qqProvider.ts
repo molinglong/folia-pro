@@ -13,7 +13,7 @@ import type {
 import { OnlineProviderError } from '../../types/onlineMusic';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
 import { toSafePlaybackUrl } from '../../utils/appPlaybackHelpers';
-import { fetchQQLyrics, searchQQSongs } from '../../utils/lyrics/providers/qqLyricProvider';
+import { fetchQQLyrics, QQUpstreamRejectedError, searchQQSongs } from '../../utils/lyrics/providers/qqLyricProvider';
 import { writeProviderSessionValue } from './providerStorage';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from './qqNormalize';
 import { clearQqSession, getQqRemoteApiBase, getQqTransportAvailability, hasQqSession, requestQq } from './qqTransport';
@@ -32,7 +32,21 @@ const errorFields = (error: unknown) => ({
 const searchSongs = async (query: string, limit: number, offset: number) => {
     // Shares the QQ lyric-search transport; unlike the lyric path, failures propagate so the
     // search overlay can show its retry UI instead of reading an outage as "no results".
-    const results = await searchQQSongs(query, Math.floor(offset / Math.max(1, limit)) + 1, limit);
+    // 上游风控（request.code 2001）单独归一化为 rate-limited，让界面能说清「是平台拒答」。
+    let results;
+    try {
+        results = await searchQQSongs(query, Math.floor(offset / Math.max(1, limit)) + 1, limit);
+    } catch (error) {
+        if (error instanceof QQUpstreamRejectedError) {
+            throw new OnlineProviderError(
+                'rate-limited',
+                `QQMusic search rejected by upstream risk control (code ${error.upstreamCode})`,
+                'qq',
+                error,
+            );
+        }
+        throw error;
+    }
     const items = results.map(normalizeQqSong);
     return { items, hasMore: items.length === limit, nextOffset: offset + items.length };
 };
@@ -232,16 +246,17 @@ const getSongDetail = async (id: MediaId) => {
 
 const qqSongDetailRequests = new Map<string, Promise<UnifiedSong | null>>();
 
-// New-protocol stream tiers live on the `filetype` field (30=1080p, 20=720p, 10=480p): the
+// New-protocol stream tiers live on the `filetype` field (50/40=4K, 30=1080p, 20=720p, 10=480p): the
 // URL suffixes use an unrelated encoding (.f9834.mp4), so tier matching by path is useless.
-// 4K (40/50) requires VIP and stays out of the preferred order.
-const MV_MP4_TIERS = [30, 20, 10];
+// 4K tiers sit on top of the order — accounts without the right membership simply never receive
+// 40/50 entries with a usable url, so the existing step-down logic keeps them at 1080p or lower.
+const MV_MP4_TIERS = [50, 40, 30, 20, 10];
 
 // https first: web deployments block http video as mixed content; Electron plays either.
 const httpsFirst = (urls: string[]): string | undefined =>
     urls.find(url => url.startsWith('https://')) ?? urls[0];
 
-const pickMvStreamUrl = (mp4: unknown): string | null => {
+const pickMvStreamUrl = (mp4: unknown): { url: string; tier: number } | null => {
     const usable = (Array.isArray(mp4) ? mp4 : [])
         .filter((item: any) => Number(item?.code) === 0 && Array.isArray(item?.freeflow_url))
         .map((item: any) => ({
@@ -251,9 +266,10 @@ const pickMvStreamUrl = (mp4: unknown): string | null => {
         .filter(item => item.urls.length > 0);
     for (const tier of MV_MP4_TIERS) {
         const hit = usable.find(item => item.filetype === tier);
-        if (hit) return httpsFirst(hit.urls) ?? null;
+        if (hit) return { url: httpsFirst(hit.urls) ?? '', tier };
     }
-    return usable.length > 0 ? httpsFirst(usable[0].urls) ?? null : null;
+    const first = usable[0];
+    return first ? { url: httpsFirst(first.urls) ?? '', tier: first.filetype } : null;
 };
 
 // 同一首歌的专辑与歌手会各触发一次解析，两次落到同一个 songmid 上，去重掉重复请求。
@@ -814,7 +830,16 @@ export const qqProvider: OnlineMusicProvider = {
                 const payload = await requestQq<any>('mv_play', { vid });
                 const root = payload?.response ?? payload;
                 const entry = root?.getMVUrl?.data?.[vid] ?? root?.data?.[vid] ?? root?.[vid];
-                const url = pickMvStreamUrl(entry?.mp4);
+                const picked = pickMvStreamUrl(entry?.mp4);
+                // Which tiers the upstream actually sent decides "还是糊" triage: no 40/50 in the
+                // list means the account/vid has no 4K at the source; a 40/50 pick with a soft
+                // picture means the stream itself is upscaled. Flat string: console overlays and
+                // copy-paste lose collapsed objects, the tier list must survive being pasted.
+                const tierList = (Array.isArray(entry?.mp4) ? entry.mp4 : [])
+                    .map((m: any) => `${m?.filetype}:${m?.code}:${(m?.freeflow_url?.length ?? 0) > 0 ? 'url' : 'empty'}`)
+                    .join(',');
+                console.info(`[QQProvider] mv:tier-report vid=${vid} tiers=[${tierList}] picked=${picked?.tier ?? 'none'}`);
+                const url = picked?.url || null;
                 if (!url) {
                     console.warn('[QQProvider] mv:no-stream', { vid });
                     return null;

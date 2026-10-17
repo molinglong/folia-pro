@@ -1,4 +1,4 @@
-import { ChartBar, Heart, ListMusic, PanelsTopLeft, Repeat, Repeat1, RepeatOff, Shuffle, SkipBack, SkipForward, Timer, Volume2, Zap } from 'lucide-react';
+import { ChartBar, Heart, ListMusic, PanelsTopLeft, Repeat, Repeat1, RepeatOff, Shuffle, SkipBack, SkipForward, Timer, Video, Volume2, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlayerControlSlotActionId } from '../../types/playerControlSlots';
 import { noteLoopButtonPress } from '../../services/ponder/loopShuffleHint';
@@ -74,6 +74,7 @@ export const PLAYER_CONTROL_SLOT_OPTIONS: readonly { id: PlayerControlSlotAction
     { id: 'playback-quick', icon: Zap, labelKey: 'options.playerControlSlotAction_playbackQuick' },
     { id: 'queue', icon: ListMusic, labelKey: 'options.playerControlSlotAction_queue' },
     { id: 'song-wall', icon: PanelsTopLeft, labelKey: 'options.playerControlSlotAction_songWall' },
+    { id: 'record-video', icon: Video, labelKey: 'options.playerControlSlotAction_recordVideo' },
     { id: 'sleep-timer', icon: Timer, labelKey: 'options.playerControlSlotAction_sleepTimer' },
 ];
 
@@ -189,6 +190,16 @@ export const resolvePlayerControlSlot = (
                 disabled: !context.canInvokeCommandById('navigate-lattice'),
                 onActivate: () => context.invokeCommandById('navigate-lattice'),
                 labelKey: 'options.playerControlSlotAction_songWall',
+            };
+        case 'record-video':
+            // 录制入口就是那条 electron 专用命令：非 Electron 平台命令自隐，这里跟着变灰。
+            return {
+                icon: Video,
+                filled: false,
+                active: false,
+                disabled: !context.canInvokeCommandById('record-lyric-video'),
+                onActivate: () => context.invokeCommandById('record-lyric-video'),
+                labelKey: 'options.playerControlSlotAction_recordVideo',
             };
         case 'sleep-timer':
             return {

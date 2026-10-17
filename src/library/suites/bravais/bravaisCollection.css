@@ -117,8 +117,25 @@
 .bravais-seam-star.is-on svg { fill: currentColor; }
 .bravais-seam-star:hover:not(:disabled) { border-color: color-mix(in srgb, currentColor 26%, transparent); }
 .bravais-seam-star:disabled { cursor: default; }
-/* fb10：星标在「播放全部 / 加入队列」那一行的末尾（靠右），不再单独占一行。 */
+/* fb10：星标在主操作（「播放全部」）那一行的末尾（靠右），不再单独占一行。 */
 .bravais-seam-actions .bravais-seam-star { margin-left: auto; }
+
+/* ---------- 动作块（fb12，用户实测「四个按钮排成错位的 2×2，太丑」）----------
+   两行读作一组：块内 8px（比缝里其它块的 14px 紧）。第一行只有主操作——「播放全部」撑满整行，星标钉在行尾；
+   第二行是次操作，按使用频率从左到右「加入队列 / 列表」，「⋯」钉在行尾，与上一行的星标对齐成一列。
+   两行各自占满缝宽（300px 的缝、256px 的内容宽），不再各占半边。次操作一行不带图标，最长的文案（歌手页
+   「热门歌曲加入队列」/ "Queue top songs"）也能一排放下（220px ≤ 256px，实测）；真挤不下还是由 .bravais-seam-actions
+   的 flex-wrap 换行——宁可换行也不截字。 */
+.bravais-seam-actions-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bravais-seam-actions .bravais-chrome-button { min-width: 0; }
+.bravais-seam-actions .bravais-chrome-button > svg { flex: none; }
+.bravais-seam-actions.is-scope .bravais-chrome-button.is-primary { flex: 1 1 auto; justify-content: center; }
+.bravais-seam-actions.is-secondary .bravais-seam-icon { margin-left: auto; }
 
 .bravais-seam .bravais-seam-sync {
     display: inline-flex;
@@ -188,7 +205,8 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent), 0 12px 32px rgb(0 0 0 / 34%);
 }
 
-/* 集合层「⋯ 更多」悬浮在按钮行上方，不占缝里的排版（打开时不推挤描述与按钮）。 */
+/* 集合层「⋯ 更多」悬浮在按钮行上方，不占缝里的排版（打开时不推挤描述与按钮）。锚在整行上（fb12 后行里还有
+   「加入队列」与「列表」），菜单因此仍是整行宽。 */
 .bravais-seam-more-anchor { position: relative; }
 .bravais-seam-more-anchor > .bravais-seam-menu {
     position: absolute;

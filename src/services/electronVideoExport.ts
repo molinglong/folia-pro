@@ -236,11 +236,12 @@ export const stopMediaStream = (stream: MediaStream | null) => {
     stream?.getTracks().forEach(track => track.stop());
 };
 
-// Forces the captured player document to stop painting cursor shapes during export.
+// Forces the captured player document to stop painting cursor shapes during export, and keeps
+// tool overlays such as the MV intro-skip capsule out of the recorded picture.
 export const installVideoExportCursorGuard = () => {
     const style = document.createElement('style');
     style.dataset.foliaVideoExportCursorGuard = 'true';
-    style.textContent = 'html, body, body * { cursor: none !important; }';
+    style.textContent = 'html, body, body * { cursor: none !important; } [data-mv-intro-offset] { display: none !important; }';
     document.head.appendChild(style);
 
     return () => {

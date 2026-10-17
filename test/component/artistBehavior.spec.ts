@@ -1000,6 +1000,26 @@ test.describe('[bravais-only] artist page wall', () => {
         await stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="edit-entity"]').dispatchEvent('click');
         await expect(page.getByRole('dialog')).toBeVisible();
     });
+
+    // fb12：歌手页的「加入队列」文案最长（「热门歌曲加入队列」/ "Queue top songs"），它跟「列表」都带图标就会把
+    // 「⋯」顶到第二行，右对齐那一列就散了。次操作一行因此是纯文字：三个按钮同一行，「⋯」钉在行尾。
+    test('the longest enqueue label still keeps the secondary actions on one row with the ⋯ at its end', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await openArtist(page, 'artist-main');
+        await waitForArtist(page, main.albumCount);
+        const row = await stageRoot(page).locator('.bravais-seam-full .bravais-seam-actions.is-secondary').boundingBox();
+        expect(row).not.toBeNull();
+        const buttons = stageRoot(page).locator('.bravais-seam-full .bravais-seam-actions.is-secondary button');
+        await expect(buttons).toHaveCount(3);
+        for (let i = 0; i < 3; i += 1) {
+            const box = await buttons.nth(i).boundingBox();
+            expect(box, String(i)).not.toBeNull();
+            expect(Math.abs(box!.y - row!.y), String(i)).toBeLessThanOrEqual(1);
+        }
+        const last = await buttons.nth(2).boundingBox();
+        expect(Math.abs(last!.x + last!.width - (row!.x + row!.width))).toBeLessThanOrEqual(1);
+        expect(last!.width).toBe(36);
+    });
 });
 
 test.describe('[grid-only] song cards and panels', () => {

@@ -239,6 +239,9 @@ export type ProviderErrorCode =
     | 'not-playable'
     | 'preview-only'
     | 'region-restricted'
+    // 上游收了请求但不回答（按 IP 的频控 / 风控，典型形态是 HTTP 200 + `request.code 2001`）。
+    // 与 `network`（根本没连上）分开：前者重试要等一会儿，后者可以立刻再试。
+    | 'rate-limited'
     | 'network'
     | 'invalid-response';
 

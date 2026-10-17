@@ -47,6 +47,7 @@ const { createModelStore } = require('./analysis/modelStore.cjs');
 const { resolveLinuxPasswordStore } = require('./linuxPasswordStore.cjs');
 const { createTranscodeService } = require('./transcode/service.cjs');
 const { TRANSCODE_PROTOCOL_SCHEME } = require('./transcode/protocol.cjs');
+const { patchMp4Duration } = require('./videoExport/mp4DurationPatch.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const {
   detectOpenAICompatibleProvider,
@@ -6528,7 +6529,7 @@ ipcMain.handle('video-export-restore-window', (event) => {
   return true;
 });
 
-ipcMain.handle('video-export-write-file', async (event, filePath, data) => {
+ipcMain.handle('video-export-write-file', async (event, filePath, data, recordedSeconds) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to write a video export file.');
   }
@@ -6537,7 +6538,18 @@ ipcMain.handle('video-export-write-file', async (event, filePath, data) => {
     throw new Error('Missing video export path.');
   }
 
-  await fsp.writeFile(filePath, Buffer.from(data));
+  const buffer = Buffer.from(data);
+  // Chromium's MediaRecorder leaves the fragmented-MP4 header without a duration, so the shell
+  // and players show 0:00 for a file that plays fine. Stamp the renderer's measured runtime
+  // into mvhd before the buffer reaches the disk (webm is skipped; its header has no mvhd).
+  if (/\.mp4$/i.test(filePath)) {
+    const patched = patchMp4Duration(buffer, Number(recordedSeconds));
+    if (!patched) {
+      console.warn('[VideoExport] mvhd duration patch skipped (unexpected box layout)');
+    }
+  }
+
+  await fsp.writeFile(filePath, buffer);
   return true;
 });
 

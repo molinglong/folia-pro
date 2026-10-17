@@ -172,7 +172,7 @@ test('fills the background with the current song MV when the MV background type 
     await expect(video).toHaveJSProperty('muted', true);
 });
 
-test('falls back to the common background when the song has no MV', async ({ page }) => {
+test('falls back to the Nomand wallpaper when the song has no MV', async ({ page }) => {
     await seedAndOpen(page, {
         open_player_on_launch: 'true',
         visualizer_mode: 'classic',
@@ -205,6 +205,33 @@ test('switches the background type to MV at runtime', async ({ page }) => {
 
     const surface = page.getByTestId('player-visual-surface');
     await expect(surface.locator('video')).toHaveAttribute('src', MV_STREAM_URL);
+});
+
+// The per-song intro skip: the capsule on the MV picture adjusts the offset live, and a song
+// back at 0 drops out of the stored table entirely.
+test('adjusts the per-song intro skip from the MV capsule', async ({ page }) => {
+    await seedAndOpen(page, {
+        open_player_on_launch: 'true',
+        visualizer_mode: 'classic',
+        static_mode: 'false',
+        visualizer_background_mode: 'mv',
+    });
+    await mockMvUrlRoute(page, MV_STREAM_URL);
+    await seedCurrentSongAndReload(page, MV_SONG);
+
+    const capsule = page.getByTestId('player-visual-surface').locator('[data-mv-intro-offset]');
+    await expect(capsule).toBeVisible();
+    await expect(capsule).toContainText('Intro skip 0s');
+
+    await capsule.getByRole('button', { name: 'Increase intro skip' }).click();
+    await expect(capsule).toContainText('Intro skip 1s');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('mv_intro_offsets')))
+        .toBe(JSON.stringify({ 'online:netease:30953009': 1 }));
+
+    await capsule.getByRole('button', { name: 'Decrease intro skip' }).click();
+    await expect(capsule).toContainText('Intro skip 0s');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('mv_intro_offsets')))
+        .toBe('{}');
 });
 
 // Lumiere renders its own dark stage over the shared background, so the MV background has to reach it

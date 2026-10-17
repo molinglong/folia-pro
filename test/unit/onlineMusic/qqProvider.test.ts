@@ -7,6 +7,13 @@ const clearSessionMock = vi.hoisted(() => vi.fn());
 const writeSessionValueMock = vi.hoisted(() => vi.fn());
 const searchQQSongsMock = vi.hoisted(() => vi.fn());
 const fetchQQLyricsMock = vi.hoisted(() => vi.fn());
+// Mirrors the real rejection shape so `instanceof` in qqProvider maps it to rate-limited.
+const QQUpstreamRejectedErrorMock = vi.hoisted(() => class QQUpstreamRejectedError extends Error {
+    constructor(public readonly upstreamCode: number, method: string) {
+        super(`QQMusic upstream rejected ${method}: code ${upstreamCode}`);
+        this.name = 'QQUpstreamRejectedError';
+    }
+});
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
 vi.mock('@/services/onlineMusic/qqTransport', () => ({
@@ -24,10 +31,12 @@ vi.mock('@/services/onlineMusic/providerStorage', () => ({
 vi.mock('@/utils/lyrics/providers/qqLyricProvider', () => ({
     searchQQSongs: searchQQSongsMock,
     fetchQQLyrics: fetchQQLyricsMock,
+    QQUpstreamRejectedError: QQUpstreamRejectedErrorMock,
 }));
 
 import { qqProvider, resetQqProviderRuntimeCache } from '@/services/onlineMusic/qqProvider';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from '@/services/onlineMusic/qqNormalize';
+import { QQUpstreamRejectedError } from '@/utils/lyrics/providers/qqLyricProvider';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 // Field shape of the verified `music.search.SearchCgiService` item consumed by the existing QQ search;
@@ -690,6 +699,16 @@ describe('qqProvider', () => {
 
         await expect(qqProvider.search!.searchSongs('海阔天空', 20, 0))
             .rejects.toThrow('QQ Music API error: code 2001');
+    });
+
+    it('maps upstream risk-control rejections to a rate-limited provider error', async () => {
+        searchQQSongsMock.mockRejectedValue(new QQUpstreamRejectedError(2001, 'DoSearchForQQMusicLite'));
+
+        await expect(qqProvider.search!.searchSongs('薛之谦', 20, 0)).rejects.toMatchObject({
+            name: 'OnlineProviderError',
+            code: 'rate-limited',
+            providerId: 'qq',
+        });
     });
 
     it('resolves song detail and degrades authenticated playback quality until a URL exists', async () => {

@@ -1,7 +1,8 @@
 import type { SongResult, StageSource } from '../../../types';
 import type { GridViewCollectionDescriptor } from './gridViewCollectionAdapters';
 import type { HomeSurfaceProps } from './homeSurfaceTypes';
-import { resolveSearchSource, type SearchSource } from '../../../stores/useSearchNavigationStore';
+import { resolveSearchSource, useSearchNavigationStore, type SearchSource } from '../../../stores/useSearchNavigationStore';
+import i18n from '../../../i18n/config';
 import type { ProviderAccountSummary } from '../../../types/onlineMusic';
 import type { LibraryAccountController } from '../../../library/core/contracts/account';
 import { openSettings } from '../../../stores/useSettingsModalStore';
@@ -139,8 +140,27 @@ export const buildHomeModel = ({
             focusedPlaylistIndex,
             setFocusedPlaylistIndex,
             onOpenSettings: openSettings,
+            // 提交即搜：导航只带词不带请求，若先跳转再让浮层自己触发，用户要在结果页再按一次回车才出结果。
+            // seam 全局搜索只有这一条路（grid 首页框自己先 submitSearch 再回调这里跳转）；同词同源自检
+            // （isSearchOpen 且 query 已收进 store）说明刚提交过，不重复发请求，缓存命中也直接跳转。
             onSearchCommitted: (query, sourceTab, replace = false) => {
-                navigateToSearch({ query, sourceTab: resolveSearchSource(sourceTab), replace });
+                const resolvedSource = resolveSearchSource(sourceTab);
+                const trimmed = query.trim();
+                const state = useSearchNavigationStore.getState();
+                if (trimmed && state.searchSourceTab === resolvedSource && state.searchQuery === trimmed && state.isSearchOpen) {
+                    navigateToSearch({ query: trimmed, sourceTab: resolvedSource, replace });
+                    return;
+                }
+                void state.submitSearch({
+                    query: trimmed,
+                    sourceTab: resolvedSource,
+                    deps: {
+                        localSongs,
+                        localLibraryCatalog,
+                        t: (key, fallback) => i18n.t(key, fallback ?? ''),
+                    },
+                });
+                navigateToSearch({ query: trimmed, sourceTab: resolvedSource, replace });
             },
             localSongs,
             localLibraryCatalog,

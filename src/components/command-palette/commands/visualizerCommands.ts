@@ -41,6 +41,7 @@ export const visualizerCommands: CommandPaletteCommand[] = [
     createVisualizerCommand('lumiere', 'Visualizer: Lumiere', 'Switch to Lumiere visualizer', ['lumiere', '绘光', '光束', '舞台光', 'stage light', 'light pv']),
     createVisualizerCommand('paperwindow', 'Visualizer: Paper Window', 'Switch to Paper Window visualizer', ['paperwindow', 'paper window', '纸窗', '透光', '影子戏', '皮影', 'shadow play']),
     createVisualizerCommand('classic', 'Visualizer: Luminous', 'Switch to classic visualizer', ['visualizer classic', 'classic', '流光']),
+    createVisualizerCommand('classic2', 'Visualizer: Luminous-2', 'Switch to classic2 visualizer', ['visualizer classic2', 'classic2', 'luminous-2', '流光-2', '流光2']),
     createVisualizerCommand('cadenza', 'Visualizer: Mindscape', 'Switch to cadenza visualizer', ['visualizer cadenza', 'cadenza', 'mindscape', '心象']),
     createVisualizerCommand('partita', 'Visualizer: Partita', 'Switch to partita visualizer', ['partita', '云阶']),
     createVisualizerCommand('fume', 'Visualizer: Fume', 'Switch to fume visualizer', ['fume', '浮名']),

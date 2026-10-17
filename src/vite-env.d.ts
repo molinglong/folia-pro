@@ -253,6 +253,7 @@ declare global {
     | { type: 'disable-transparent-mode' }
     | { type: 'cycle-player-chrome-visibility-mode' }
     | { type: 'open-export' }
+    | { type: 'export-panel-seen'; seq: number }
     | { type: 'start-export'; preset: ElectronVideoExportPreset; startMode: ElectronVideoExportStartMode }
     | { type: 'stop-export' }
     | { type: 'cancel-export' }
@@ -328,6 +329,7 @@ declare global {
     playerChromeHidden: boolean;
     playerChromeVisibilityMode: import('./types/remoteControl').PlayerChromeVisibilityMode;
     exportState: ElectronVideoExportState;
+    exportPanelRequest?: number;
     isDaylight?: boolean;
     lyrics?: import('./types').LyricData | null;
     isLiked?: boolean;
@@ -972,7 +974,7 @@ declare global {
       // Returns `false` when the resize could not be prepared, otherwise the resolved DPR.
       prepareVideoExportWindow: (size: { width: number; height: number }) => Promise<false | { success: boolean; dpr: number }>;
       restoreVideoExportWindow: () => Promise<boolean>;
-      writeVideoExportFile: (filePath: string, data: ArrayBuffer) => Promise<boolean>;
+      writeVideoExportFile: (filePath: string, data: ArrayBuffer, recordedSeconds?: number) => Promise<boolean>;
       getStageStatus: () => Promise<StageStatus>;
       setStageEnabled: (enabled: boolean) => Promise<StageStatus>;
       regenerateStageToken: () => Promise<StageStatus>;

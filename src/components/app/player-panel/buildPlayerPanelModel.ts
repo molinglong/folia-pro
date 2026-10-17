@@ -97,6 +97,7 @@ export type PlayerPanelDeps = {
     removeQueueSong: UnifiedPanelProps['queue']['onRemoveSong'];
     moveQueueSongToEnd: UnifiedPanelProps['queue']['onMoveSongToEnd'];
     moveQueueSongToNext: UnifiedPanelProps['queue']['onMoveSongToNext'];
+    requestCrossPlatformReplacement: UnifiedPanelProps['queue']['onRequestCrossPlatformReplacement'];
     saveCurrentQueueAsLocalPlaylist: UnifiedPanelProps['library']['onSaveCurrentQueueAsPlaylist'];
     user: UnifiedPanelProps['account']['user'];
     accountController: UnifiedPanelProps['account']['accountController'];
@@ -176,6 +177,7 @@ export const buildPlayerPanelModel = ({
     removeQueueSong,
     moveQueueSongToEnd,
     moveQueueSongToNext,
+    requestCrossPlatformReplacement,
     saveCurrentQueueAsLocalPlaylist,
     openCurrentLocalAlbum,
     openCurrentLocalArtist,
@@ -269,6 +271,7 @@ export const buildPlayerPanelModel = ({
             onRemoveSong: removeQueueSong,
             onMoveSongToEnd: moveQueueSongToEnd,
             onMoveSongToNext: moveQueueSongToNext,
+            onRequestCrossPlatformReplacement: requestCrossPlatformReplacement,
             onOpenLattice: navigateToLattice,
         },
         library: {

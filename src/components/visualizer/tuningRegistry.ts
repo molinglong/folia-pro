@@ -21,6 +21,7 @@ import type { VisualizerSharedProps } from './definition';
 // Pure-data registry for transporting heterogeneous visualizer tuning without importing renderers.
 export interface VisualizerTuningMap {
     classic: ClassicTuning;
+    classic2: ClassicTuning;
     cadenza: CadenzaTuning;
     partita: PartitaTuning;
     fume: FumeTuning;

@@ -12,12 +12,62 @@ import { qrcDecrypt } from './qrcDecrypt';
 import { applyDetectedChorusEffects, applyNeteaseChorusByTime } from '../chorusEffects';
 import type { NeteaseChorusRange } from '../chorusEffects';
 import { getOriginalCoverUrl } from '../../coverUrl';
+import { getQqUpstreamProxyUrl } from '../../../services/onlineMusic/qqApiConfig';
 
-const isElectron = typeof window !== 'undefined' && (window as any).electron;
+const isElectronRuntime = (): boolean => typeof window !== 'undefined' && Boolean((window as any).electron);
+
+const QQ_UPSTREAM_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
+
+/**
+ * 上游把「请求收到但不回答」表达成 HTTP 200 + request.code 2001（IP 频控 / 风控），
+ * 裹着这个错误抛出去，搜索链路才能把它说成「稍后再试」而不是「搜索失败」。
+ */
+export class QQUpstreamRejectedError extends Error {
+  constructor(public readonly upstreamCode: number, method: string) {
+    super(`QQMusic upstream rejected ${method}: code ${upstreamCode}`);
+    this.name = 'QQUpstreamRejectedError';
+  }
+}
+
+// 2001：本机请求太密，这一段时间不回答。后续档位码（2000/1000）是「档位没权限」，
+// 不是整体拒答，不能归到这里来。
+const UPSTREAM_REJECTED_CODES = new Set([2001]);
+
+/**
+ * 选出口：网页版只能走同源 lyric-proxy（浏览器直连必被 CORS 拦）；桌面版默认直连上游，
+ * 但只要配了 QQ API 后端地址，就改走那个后端的同源 lyric-proxy，把出口 IP 换到服务器。
+ */
+const resolveEgress = (): { url: string; proxied: boolean } => {
+  if (!isElectronRuntime()) {
+    return { url: `/api/lyric-proxy?url=${encodeURIComponent(QQ_UPSTREAM_URL)}`, proxied: true };
+  }
+  const proxyUrl = getQqUpstreamProxyUrl();
+  if (!proxyUrl) return { url: QQ_UPSTREAM_URL, proxied: false };
+  return { url: `${proxyUrl}?url=${encodeURIComponent(QQ_UPSTREAM_URL)}`, proxied: true };
+};
 
 /**
  * Sends a POST request to u.y.qq.com via proxy or directly in Electron.
  */
+async function postQQ(url: string, body: string): Promise<any> {
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: isElectronRuntime() ? 'omit' : 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cookie': 'tmeLoginType=-1;',
+      'User-Agent': 'okhttp/3.14.9',
+    },
+    body,
+  });
+
+  if (!response.ok) {
+    throw new Error(`QQ Music API request failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 async function requestQQ(method: string, module: string, param: any): Promise<any> {
   const payload = {
     comm: {
@@ -39,26 +89,24 @@ async function requestQQ(method: string, module: string, param: any): Promise<an
     },
   };
 
-  const targetUrl = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
-  const url = isElectron ? targetUrl : `/api/lyric-proxy?url=${encodeURIComponent(targetUrl)}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    credentials: isElectron ? 'omit' : 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      'Cookie': 'tmeLoginType=-1;',
-      'User-Agent': 'okhttp/3.14.9',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`QQ Music API request failed: ${response.status}`);
+  const body = JSON.stringify(payload);
+  const egress = resolveEgress();
+  let data: any;
+  try {
+    data = await postQQ(egress.url, body);
+  } catch (error) {
+    // 桌面端配了远端出口却走不通（那个后端版本没有 lyric-proxy、地址写错、服务器下线）时
+    // 回落到直连：配置写错不该把搜索彻底打死。网页版没有可回落的直连（必被 CORS 拦），照原样抛。
+    const canFallbackToDirect = isElectronRuntime() && egress.proxied && egress.url !== QQ_UPSTREAM_URL;
+    if (!canFallbackToDirect) throw error;
+    console.warn('[QQMusic] upstream proxy egress failed, falling back to direct:', error);
+    data = await postQQ(QQ_UPSTREAM_URL, body);
   }
 
-  const data = await response.json();
   if (data.code !== 0 || data.request?.code !== 0) {
+    if (UPSTREAM_REJECTED_CODES.has(Number(data.request?.code))) {
+      throw new QQUpstreamRejectedError(Number(data.request?.code), method);
+    }
     throw new Error(`QQ Music API error: code ${data.code || data.request?.code}`);
   }
 

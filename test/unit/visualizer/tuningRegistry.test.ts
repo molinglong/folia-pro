@@ -14,6 +14,7 @@ describe('visualizer tuning registry', () => {
             'cappella',
             'claddagh',
             'classic',
+            'classic2',
             'diorama',
             'fume',
             'lumiere',

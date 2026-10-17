@@ -193,6 +193,7 @@
 - `src/components/visualizer/cappella/entry.tsx`
 - `src/components/visualizer/claddagh/entry.tsx`
 - `src/components/visualizer/classic/entry.tsx`
+- `src/components/visualizer/classic2/entry.tsx`
 - `src/components/visualizer/diorama/entry.tsx`
 - `src/components/visualizer/fume/entry.tsx`
 - `src/components/visualizer/lumiere/entry.tsx`
@@ -212,6 +213,7 @@
 - `src/components/visualizer/cappella/tuning.ts`
 - `src/components/visualizer/claddagh/tuning.ts`
 - `src/components/visualizer/classic/tuning.ts`
+- `src/components/visualizer/classic2/tuning.ts`
 - `src/components/visualizer/diorama/tuning.ts`
 - `src/components/visualizer/fume/tuning.ts`
 - `src/components/visualizer/lumiere/tuning.ts`

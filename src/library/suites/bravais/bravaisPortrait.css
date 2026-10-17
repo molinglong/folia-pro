@@ -118,8 +118,8 @@
 
 /* ---------- 完整信息条（歌单 / 歌手页顶栏）竖屏重排 ----------
    桌面是竖缝里一行一行纵向堆叠；竖屏横带只有 196px，5 行（面包屑 / 过滤 / 标题 / 播放·队列 / 列表·更多）
-   连同 44px 的过滤条一起排会超出高度被裁、且各行紧贴（用户实测「全挤在一起」）。改成紧凑 4 行网格：
-   面包屑占一行；大标题与过滤框并排同一行（省一整行）；两组动作各占一行；次要文字块（元数据 / 简介 / 同步 /
+   连同 44px 的过滤条一起排会超出高度被裁、且各行紧贴（用户实测「全挤在一起」）。改成紧凑网格：
+   面包屑占一行；大标题与过滤框并排同一行（省一整行）；动作块（fb12：主操作行 + 次操作行）占一行；次要文字块（元数据 / 简介 / 同步 /
    状态）竖屏不画，留给列表页看。行内留白 + 垂直居中，确保不被裁也不挤。桌面（非 is-portrait）不受影响。 */
 
 .bravais-root.is-portrait .bravais-seam-full {
@@ -137,9 +137,8 @@
 .bravais-root.is-portrait .bravais-seam-title-area { grid-row: 2; grid-column: 1; min-width: 0; flex-direction: row; align-items: center; gap: 8px; flex: 0 1 auto; }
 .bravais-root.is-portrait .bravais-seam-filter-field { grid-row: 2; grid-column: 2; justify-self: end; width: clamp(120px, 40%, 170px); }
 .bravais-root.is-portrait .bravais-seam-filter-field.is-strip { height: 38px; }
-/* 两组动作各占一整行。 */
-.bravais-root.is-portrait .bravais-seam-actions.is-scope { grid-row: 3; grid-column: 1 / -1; }
-.bravais-root.is-portrait .bravais-seam-more-anchor { grid-row: 4; grid-column: 1 / -1; }
+/* fb12：两组动作合成一个块（主操作行 + 次操作行），整块占一行网格（块内 8px）。 */
+.bravais-root.is-portrait .bravais-seam-actions-block { grid-row: 3; grid-column: 1 / -1; }
 
 .bravais-root.is-portrait .bravais-seam-vtitle-wrap { flex: 1 1 auto; justify-content: flex-start; }
 .bravais-root.is-portrait .bravais-seam-vtitle {

@@ -45,7 +45,9 @@ const AppOverlays: React.FC<AppOverlaysProps> = ({ model }) => {
                         currentSong={floatingControls.currentSong as SongResult | null}
                     />)}
 
-            {nowPlayingToast && <NowPlayingToast {...nowPlayingToast} />}
+            {/* 左下角 now playing 卡片只在桌面（细指针）显示：触屏端底部已有 MobilePlayerPill，
+                再叠这张卡是重复占位。与上面浮层控件按同一条 isFinePointer 判据分流。 */}
+            {isFinePointer && nowPlayingToast && <NowPlayingToast {...nowPlayingToast} />}
         </>
     );
 };

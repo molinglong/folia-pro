@@ -312,6 +312,23 @@ const main = async () => {
     assert.equal(skipped.body, null);
   });
 
+  await section('CORS 预检放行 DELETE（platform-sessions 远端清除，实机日志曾报 remote clear failed）', async () => {
+    const env = makeEnv();
+    const preflight = await app.request('/platform-sessions/qq', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:3000',
+        'Access-Control-Request-Method': 'DELETE',
+      },
+    }, env);
+    assert.equal(preflight.status, 204);
+    const allowMethods = preflight.headers.get('access-control-allow-methods') ?? '';
+    assert.ok(
+      allowMethods.split(',').map(method => method.trim().toUpperCase()).includes('DELETE'),
+      `DELETE 应在 Access-Control-Allow-Methods 中，实际为 "${allowMethods}"`,
+    );
+  });
+
   console.log(`\nAll ${envCounter} probe environments passed.`);
 };
 

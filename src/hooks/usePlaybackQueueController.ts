@@ -3,6 +3,9 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { applyOnlineAudioSourceMetadata, loadOnlineSongAudioSource, loadOnlineSongLyrics } from '../services/onlinePlayback';
 import { getSongReplacement, isSongUnavailable } from '../services/onlineMusic/songAvailability';
+import { findCrossPlatformCandidates } from '../services/onlineMusic/crossPlatformReplacement';
+import type { CrossReplacementCandidate } from '../services/onlineMusic/crossPlatformReplacement';
+import { useOnlineMusicSettingsStore } from '../stores/useOnlineMusicSettingsStore';
 import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
 import { omni } from '../services/onlineMusic/omni';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../services/onlineMusic/resourceCache';
@@ -178,6 +181,10 @@ export function usePlaybackQueueController({
     const playbackRequestIdRef = useRef(0);
     /** Rising id per playSong call: a newer call supersedes an older one still awaiting `beforePlay`. */
     const playSongCallIdRef = useRef(0);
+    // Always points at the latest playSong. The cross-platform replacement callback is declared
+    // before playSong (they call each other at runtime), so it reaches playSong through this ref
+    // instead of reading the const while it is still in its temporal dead zone during render.
+    const playSongRef = useRef<((song: SongResult, queue?: SongResult[], isFmCall?: boolean, options?: PlaybackNavigationOptions) => Promise<void>) | null>(null);
     const pendingUnavailableSkipTimerRef = useRef<number | null>(null);
     const pendingUnavailableSkipIntervalRef = useRef<number | null>(null);
 
@@ -368,8 +375,9 @@ export function usePlaybackQueueController({
             const replacement = await getSongReplacement(song);
 
             if (!replacement || !replacement.song || isSongUnavailable(replacement.song)) {
-                setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
-                return true;
+                // No in-platform stand-in (or the platform itself is not even consulted, the netease
+                // path answered nothing): ask the other logged-in platforms for the same recording.
+                return await tryCrossPlatformReplacement(song, queue, isFmCall, options);
             }
 
             setStatusMsg(null);
@@ -390,6 +398,67 @@ export function usePlaybackQueueController({
         }
     }, [t, setIsLyricsLoading, setStatusMsg]);
 
+    // The cross-platform leg of the replacement chain: the same song on another logged-in platform.
+    // `exact` (equal title/artist, duration within 8s) plus the settings switch plays straight away -
+    // in FM and auto-advance queues a prompt per grey song would be unusable. Everything the strict
+    // matcher still calls uncertain goes through the existing replacement dialog, and no candidate
+    // returns false so the caller keeps its ordinary skip/unavailable handling.
+    const tryCrossPlatformReplacement = useCallback(async (
+        song: SongResult,
+        queue: SongResult[],
+        isFmCall: boolean,
+        options: PlaybackNavigationOptions,
+    ): Promise<boolean> => {
+        let candidates: CrossReplacementCandidate[];
+        try {
+            candidates = await findCrossPlatformCandidates(song, { validatePlayability: true });
+        } catch (error) {
+            console.error('[App] Cross-platform replacement lookup failed:', error);
+            return false;
+        }
+        const best = candidates[0];
+        if (!best || isSongUnavailable(best.song)) {
+            setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
+            return true;
+        }
+    
+        if (best.confidence === 'exact' && useOnlineMusicSettingsStore.getState().autoCrossReplace) {
+            setStatusMsg({ type: 'info', text: t('status.crossReplacing', { provider: best.providerLabel }) });
+            const replacementQueue = buildQueueWithReplacementSong(queue, song, best.song);
+            void playSongRef.current!(best.song, replacementQueue, isFmCall, options).catch((error) => {
+                console.error('[App] Cross-platform replacement playback failed:', error);
+                setStatusMsg({ type: 'error', text: t('status.playbackError') });
+            });
+            return true;
+        }
+    
+        setStatusMsg(null);
+        setPendingUnavailableReplacement({
+            originalSong: song,
+            replacementSong: best.song,
+            replacementSongId: best.song.id,
+            typeDesc: t('status.crossReplacePrompt', { provider: best.providerLabel }),
+            queue,
+            isFmCall,
+            options,
+        });
+        return true;
+    }, [t, setStatusMsg, setPendingUnavailableReplacement, buildQueueWithReplacementSong]);
+
+    // Manual entry point for the cross-platform leg: the queue row's "play on another platform"
+    // action. It runs the same lazy search on click (nothing is looked up until the user asks) and
+    // reuses tryCrossPlatformReplacement, so manual and automatic switching keep one set of rules -
+    // auto-play on a high-confidence match with the switch on, the confirmation dialog otherwise.
+    const requestCrossPlatformReplacement = useCallback(async (
+        song: SongResult,
+        queue: SongResult[] = playQueue,
+    ): Promise<boolean> => {
+        if (isSongUnavailable(song)) {
+            setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+        }
+        return await tryCrossPlatformReplacement(song, queue, false, { shouldNavigateToPlayer: true });
+    }, [playQueue, setStatusMsg, t, tryCrossPlatformReplacement]);
+    
     const showTimedSkipPrompt = useCallback((
         messageKey: SkipPromptMessageKey,
         onSkip: () => void,
@@ -579,6 +648,9 @@ export function usePlaybackQueueController({
                             ? 'status.songRegionRestricted' : 'status.loginExpired') });
                     return;
                 }
+                const crossHandled = await tryCrossPlatformReplacement(song, queueContext, isFmCall, deferredPlayOptions);
+                if (crossHandled) return;
+
                 const nextSong = getNextPlayableQueueSong(queueContext, song);
                 const canSkip = Boolean(nextSong) && skipCount < MAX_UNAVAILABLE_AUTO_SKIP_COUNT;
 
@@ -751,6 +823,8 @@ export function usePlaybackQueueController({
         t,
         userId,
     ]);
+
+    playSongRef.current = playSong;
 
     const playOnlineQueueFromStart = useCallback((songs: SongResult[]) => {
         const retainedSongs = getPlayableOnlineQueue(songs);
@@ -1336,6 +1410,7 @@ export function usePlaybackQueueController({
         handleSearchResultPlay,
         handleSearchResultAddToQueue,
         handleUnavailableReplacementConfirm,
+        requestCrossPlatformReplacement,
         handleNextTrack,
         handlePrevTrack,
         skipAfterPlaybackFailure,
