@@ -447,6 +447,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialSubview, initialTab]);
 
+    // 手机端删除帮助页：窄屏没有 Help 页签入口，若停在 help 则强制回到 options。
+    useEffect(() => {
+        if (!isWideSettingsLayout) setActiveTab((cur) => (cur === 'help' ? 'options' : cur));
+    }, [isWideSettingsLayout]);
+
     // Cache State
     const [cacheSizes, setCacheSizes] = useState({
         playlist: '0 B',
@@ -1307,7 +1312,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             transition={shellTransition}
             data-folia-keyboard-window="true"
             data-ponder-page-scope={activeTab === 'help' ? 'help-page' : 'settings-page'}
-            className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-8 sm:px-5 sm:py-12"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:px-5 md:py-12"
             style={{ backgroundColor: overlayBackground }}
             onMouseDown={handleOverlayMouseDown}
             onClick={(event) => handleBackdropClose(event, onClose)}
@@ -1315,7 +1320,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             <motion.div
                 {...panelMotion}
                 transition={shellTransition}
-                className={`${glassBg} border ${borderColor} p-6 md:p-8 rounded-3xl ${activeTab === 'options' ? 'w-full md:max-w-4xl md:w-[900px] h-[90vh] md:h-[85vh]' : 'w-full md:max-w-lg'} relative shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300`}
+                className={`${glassBg} border ${borderColor} p-5 md:p-8 rounded-none md:rounded-3xl w-full h-full max-h-none relative shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${activeTab === 'options' ? 'md:max-w-4xl md:w-[900px] md:h-[85vh] md:max-h-[90vh]' : 'md:max-w-lg md:h-auto md:max-h-[90vh]'}`}
                 onClick={(event) => event.stopPropagation()}
             >
                 {/* Decorative background blobs */}
@@ -1343,7 +1348,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     <div className="flex items-center gap-6">
                         <button
                             onClick={() => handleTabChange('help')}
-                            className={`relative text-2xl font-bold transition-colors pb-2 ${activeTab === 'help' ? 'opacity-100' : 'opacity-40 hover:opacity-80'}`}
+                            className={`relative text-2xl font-bold transition-colors pb-2 hidden md:inline-block ${activeTab === 'help' ? 'opacity-100' : 'opacity-40 hover:opacity-80'}`}
                             style={{ color: 'var(--text-primary)' }}
                         >
                             {t('help.title') || "Help"}
@@ -2134,6 +2139,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 isDaylight={isDaylight}
                 lyrics={currentLyrics}
                 lyricCurrentTime={lyricCurrentTime}
+                theme={theme}
                 onClose={() => closeSubviewOrModal(() => setShowGlobalLyricOffset(false))}
             />
         </motion.div>

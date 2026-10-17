@@ -80,6 +80,11 @@ export interface LumiereSceneTuning {
      * 铺的一整块底，每帧从这份共享 tuning 现读。
      */
     darkField: number;
+    /**
+     * MV 适配生效（背景类型为 mv，见 lumiereMv.ts）：暗场底绕过浅色主题的保底。场景不读它，
+     * 与 darkField 一样由运行时暗场层每帧现读。
+     */
+    mvDarkFieldBypassFloor: boolean;
     /** 浮尘数量倍率。 */
     moteAmount: number;
     /** 图形组（光场、线稿、浮尘）bloom 强度倍率（乘在默认的高值上）。 */
@@ -102,6 +107,18 @@ export interface LumiereSceneTuning {
     trails: boolean;
     /** 隐藏歌词径迹，字的飞行仍照常；每帧从共享 tuning 现读。 */
     hideTrails: boolean;
+    /**
+     * 垫在字后面那两团柔光的倍率（1 = 原样，0 = 不画）：每行的追字光斑 + 每个字的下光晕。平时它们是
+     * “字被光照到”的那点意思，叠在 MV 上就成了跟着歌词走的一块小背景，所以 MV 适配折到 0（见 lumiereMv.ts）。
+     * 只影响这两团：贴在笔画上的闪点、十字爆闪、径迹一律不动。每帧从共享 tuning 现读，内部字段，设置面板上没这一项。
+     */
+    textGlowScale: number;
+    /**
+     * 文字区里光被吸走多少（0..1，0 = 不吸）：光束在文字区汇聚、叠上烟与眩光，就是字后面那条亮带。
+     * 背景是 MV 时把它吸掉（见 lumiereMv.ts），字本身仍按没吸之前的光强点亮。
+     * 每帧从共享 tuning 现读，内部字段，设置面板上没这一项。
+     */
+    textRegionDim: number;
     /** 画框装饰（取景器的四角、刻度与对位十字）。 */
     overlayFrame: boolean;
     /**
@@ -122,6 +139,7 @@ export const DEFAULT_LUMIERE_SCENE_TUNING: LumiereSceneTuning = {
     audioResponse: 1,
     fogDensity: 1,
     darkField: 0.75,
+    mvDarkFieldBypassFloor: false,
     moteAmount: 1,
     bloom: 1,
     textBloom: 1,
@@ -135,6 +153,8 @@ export const DEFAULT_LUMIERE_SCENE_TUNING: LumiereSceneTuning = {
     overlayFrame: true,
     trails: false,
     hideTrails: false,
+    textGlowScale: 1,
+    textRegionDim: 0,
     textOnly: false,
     keywordColors: true,
     themeIcons: true,

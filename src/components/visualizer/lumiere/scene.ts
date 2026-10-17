@@ -454,6 +454,8 @@ export const createLumiereScene = (pixi: PixiModule, options: LumiereSceneOption
                 octaves: tuning.fogOctaves,
                 // 字排在领头光位的文字区里（整个单元一份）。
                 textRegion: lead.region,
+                // MV 特供版：在这个文字区里把光吸掉（lumiereMv.ts），每帧现读，不重建场景。
+                textDim: tuning.textRegionDim,
             });
             echo?.update({ time, beams, color: lightHex, intensity: smooth(local / 1.2) * exit });
             starfall?.update(local + starOffset, time, beams, lightHex, exit);
@@ -493,6 +495,7 @@ export const createLumiereScene = (pixi: PixiModule, options: LumiereSceneOption
             unlitAlpha: tuning.unlitOpacity,
             intensity: smooth(local / 0.6) * exit,
             hideTrails: tuning.hideTrails,
+            textGlowScale: tuning.textGlowScale,
         });
     };
 

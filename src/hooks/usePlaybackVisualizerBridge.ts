@@ -7,6 +7,7 @@ import type { AudioBands, LyricData } from '../types';
 import { setCurrentLineIndex, setPlayerState } from '../stores/usePlaybackStore';
 import { selectDisplayLyrics, usePlaybackStore } from '../stores/usePlaybackStore';
 import { audioBands, audioPower, currentTime, lyricCurrentTime } from '../stores/motionSignals';
+import { autoOutputLatencyMs } from '../services/audioOutputLatencyProber';
 
 // src/hooks/usePlaybackVisualizerBridge.ts
 
@@ -134,7 +135,9 @@ export function usePlaybackVisualizerBridge({
             const time = audioElement.currentTime;
             currentTime.set(time);
 
-            const effectiveLyricTime = time - lyricTimelineOffsetMs / 1000;
+            // 自动补偿只适用于我们自己的输出链：这里的元素就是从这台设备的输出路径发声的
+            // 那个。NowPlaying / PlayerCap 的声音在别的进程/设备里，探测值对它们无意义。
+            const effectiveLyricTime = time - (lyricTimelineOffsetMs + autoOutputLatencyMs.get()) / 1000;
             lyricCurrentTime.set(effectiveLyricTime);
 
             if (lyrics) {

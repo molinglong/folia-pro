@@ -207,6 +207,29 @@ test('switches the background type to MV at runtime', async ({ page }) => {
     await expect(surface.locator('video')).toHaveAttribute('src', MV_STREAM_URL);
 });
 
+// Lumiere renders its own dark stage over the shared background, so the MV background has to reach it
+// intact: the video mounts behind a live WebGL canvas while the runtime takes the MV adaptation path
+// (dark stage folded down, background lyric echo / line art / theme icons stepped aside).
+test('keeps the Lumiere WebGL stage alive over the MV background', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await seedAndOpen(page, {
+        open_player_on_launch: 'true',
+        visualizer_mode: 'lumiere',
+        static_mode: 'false',
+        visualizer_background_mode: 'mv',
+    });
+    await mockMvUrlRoute(page, MV_STREAM_URL);
+    await seedCurrentSongAndReload(page, MV_SONG);
+
+    const surface = page.getByTestId('player-visual-surface');
+    await expect(surface).toBeAttached();
+    await expect(surface.locator('video')).toHaveAttribute('src', MV_STREAM_URL);
+    // The Pixi canvas comes up lazily; if the MV path broke the runtime it never appears.
+    await expect(surface.locator('canvas').first()).toBeVisible();
+    expect(errors).toEqual([]);
+});
+
 // A QQ online song whose passthrough carries the MV vid; MV streams ride the backend
 // session via the /getMvPlay route (anonymous upstream answers have empty URL arrays), so
 // the test points the provider at a stub base and intercepts the route regardless of origin.

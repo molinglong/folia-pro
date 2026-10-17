@@ -4,7 +4,7 @@ import type { WallViewCenter } from '../../../components/wall/wallView';
 import type { WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS, BRAVAIS_REVEAL_PAD_PX } from './bravaisConstants';
 import { resolveFocusReflow } from './bravaisDisplay';
-import type { BravaisFrameState } from './useBravaisFrame';
+import { getBravaisFrameAxis, type BravaisFrameState } from './useBravaisFrame';
 
 // src/library/suites/bravais/useBravaisFocus.ts
 // 两个独立的状态（与 Lattice 的 is-focused / is-expanded 对应）：键盘焦点（发丝线 + 主色环）与聚焦卡（6×6 块内让位，
@@ -48,6 +48,8 @@ export const useBravaisFocus = ({
             view: frame.view,
             metrics: BRAVAIS_METRICS,
             anchorX: frame.anchorX,
+            seamAxis: getBravaisFrameAxis(frame.view),
+            anchorY: frame.anchorY,
             // 开口正在张开时按张开后的宽度让位（交接回来时缝张开与聚焦卡展开同时进行）。
             seamWidth: Math.max(frame.openWidth, frame.targetOpenWidth),
             pad: BRAVAIS_REVEAL_PAD_PX,

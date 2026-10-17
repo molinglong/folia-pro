@@ -99,6 +99,11 @@ export interface LyricWindowFrame {
     intensity: number;
     /** 隐藏全部径迹，不改变字的飞行路径；不给时保持原有效果。 */
     hideTrails?: boolean;
+    /**
+     * 垫在字后面那两团柔光的倍率（每行的追字光斑 + 每个字的下光晕）：0 = 不画（背景是 MV 时，
+     * 它们在一行字后面抹出的那块跟着走的柔光看着像一块小背景）。不给按 1。
+     */
+    textGlowScale?: number;
 }
 
 export type { GlyphFlight } from './windowLines';
@@ -212,6 +217,8 @@ export const createLyricWindow = (pixi: PixiModule, options: LyricWindowOptions)
 
     const update = (frame: LyricWindowFrame) => {
         const { time, beams, litColor, unlitColor, unlitAlpha, intensity } = frame;
+        // 字后面的柔光（追字光斑、下光晕）倍率；0 时两团的透明度算出来就是 0，下面现有的阈值直接把它们藏掉。
+        const textGlowScale = frame.textGlowScale ?? 1;
         trackLayer.visible = frame.hideTrails !== true;
         // 径迹只在行滑动时有；空着的层不再每帧 clear（clear 一个空 Graphics 也会让它重新合批）。
         if (tracksDrawn) {
@@ -282,7 +289,7 @@ export const createLyricWindow = (pixi: PixiModule, options: LyricWindowOptions)
                 glyph.glyph.tint = hexOf(mixRgb(cold, hot, lit));
 
                 // bloom 已经很强，光晕与闪点只做「局部更亮」的那一点，不能叠成一团白。
-                const haloAlpha = glyphAlpha * lit * (0.03 + 0.14 * illumination + 0.08 * flash) * (tints ? KEYWORD_HALO_GAIN : 1);
+                const haloAlpha = glyphAlpha * lit * (0.03 + 0.14 * illumination + 0.08 * flash) * (tints ? KEYWORD_HALO_GAIN : 1) * textGlowScale;
                 glyph.halo.visible = haloAlpha > 0.003;
                 if (glyph.halo.visible) {
                     glyph.halo.position.set(gx, gy);
@@ -311,7 +318,7 @@ export const createLyricWindow = (pixi: PixiModule, options: LyricWindowOptions)
             // 追字光斑：沿行内连续移动，并对过去 SPOT_WINDOW 秒的位置取平均（仍只由 t 决定），
             // 字与字之间的停顿、快慢变化都被抹平；唱前 0.3s 淡入，唱完 0.6s 淡出。
             const spotAlpha = visible
-                ? lineAlpha * smooth((time - view.singStart + 0.3) / 0.3) * (1 - smooth((time - view.singEnd) / 0.6))
+                ? lineAlpha * smooth((time - view.singStart + 0.3) / 0.3) * (1 - smooth((time - view.singEnd) / 0.6)) * textGlowScale
                 : 0;
             view.spot.visible = spotAlpha > 0.003;
             if (view.spot.visible) {

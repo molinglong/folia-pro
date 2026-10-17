@@ -54,12 +54,19 @@ export const isLeftOfAnchor = (column: number, anchorX: number | null) => (
     anchorX !== null && getBlockRect(column, 0).x < anchorX
 );
 
+/** 竖屏横缝：块在锚点（行边界）上面就进上半。 */
+export const isAboveAnchor = (row: number, anchorY: number | null) => (
+    anchorY !== null && getBlockRect(0, row).y < anchorY
+);
+
 /** 底板 SVG 的外框：向左 / 上多盖 PLATE_BLEED；缝右侧第一列向左多盖一整个 GAP。 */
-export const getPlateFrame = (column: number, row: number, anchorX: number | null): PlateRect => {
+export const getPlateFrame = (column: number, row: number, anchorX: number | null, anchorY: number | null = null): PlateRect => {
     const block = getBlockRect(column, row);
     const seamEdge = anchorX !== null && Math.abs(block.x - BRAVAIS_METRICS.gap / 2 - anchorX) < 1e-6;
+    const seamEdgeY = anchorY !== null && Math.abs(block.y - BRAVAIS_METRICS.gap / 2 - anchorY) < 1e-6;
     const left = seamEdge ? BRAVAIS_METRICS.gap : PLATE_BLEED;
-    return { x: block.x - left, y: block.y - PLATE_BLEED, width: block.width + left, height: block.height + PLATE_BLEED };
+    const top = seamEdgeY ? BRAVAIS_METRICS.gap : PLATE_BLEED;
+    return { x: block.x - left, y: block.y - top, width: block.width + left, height: block.height + top };
 };
 
 /** 已挂载的块（slot 列表里出现过的），按首次出现的顺序。 */
@@ -169,8 +176,9 @@ export const buildPlateBlock = (
     expandedSlotKey: string | null,
     reflow: ReadonlyMap<string, PlateRect>,
     anchorX: number | null,
+    anchorY: number | null = null,
 ): PlateBlock => {
-    const frame = getPlateFrame(column, row, anchorX);
+    const frame = getPlateFrame(column, row, anchorX, anchorY);
     const holes = collectBlockHoles(column, row, display, expandedSlotKey, reflow);
     return {
         key: `${column},${row}`,

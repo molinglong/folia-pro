@@ -51,6 +51,8 @@ type BravaisSeamContentProps = {
     layer: BravaisLayer | null;
     /** 导航栈深度：面包屑在首页与当前层之间折叠中间层。 */
     depth: number;
+    /** 竖屏横缝（手机）：首页页签横排、不按桌面纵向测量退让。 */
+    portrait?: boolean;
     actions: BravaisSeamActions;
 };
 
@@ -164,11 +166,11 @@ const SpineSeam: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> 
     );
 };
 
-const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer, depth, actions }) => {
+const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer, depth, portrait = false, actions }) => {
     if (!layer) return null;
     switch (variant) {
-        case 'home': return <BravaisSeamHome layer={layer} compact={false} setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
-        case 'home-spine': return <BravaisSeamHome layer={layer} compact setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
+        case 'home': return <BravaisSeamHome layer={layer} compact={false} portrait={portrait} setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
+        case 'home-spine': return <BravaisSeamHome layer={layer} compact portrait={portrait} setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
         case 'search': return <BravaisSeamSearch layer={layer} />;
         case 'full': return <FullSeam layer={layer} depth={depth} actions={actions} />;
         case 'spine': return <SpineSeam layer={layer} actions={actions} />;

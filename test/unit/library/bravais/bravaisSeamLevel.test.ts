@@ -33,12 +33,12 @@ describe('seam level', () => {
 
     it('returns to the new default only when the width crosses the threshold', () => {
         const spine = { level: 'spine' as const, restoreLevel: 'spine' as const };
-        expect(resolveSeamLevelOnResize(spine, 1280, 1100)).toBe(spine);
-        expect(resolveSeamLevelOnResize(spine, 1280, 800)).toEqual({ level: 'spine', restoreLevel: 'spine' });
-        expect(resolveSeamLevelOnResize({ level: 'full', restoreLevel: 'full' }, 1280, 800)).toEqual({ level: 'spine', restoreLevel: 'spine' });
-        expect(resolveSeamLevelOnResize({ level: 'spine', restoreLevel: 'spine' }, 800, 1280)).toEqual({ level: 'full', restoreLevel: 'full' });
+        expect(resolveSeamLevelOnResize(spine, { width: 1280, height: 800 }, { width: 1100, height: 800 })).toBe(spine);
+        expect(resolveSeamLevelOnResize(spine, { width: 1280, height: 800 }, { width: 800, height: 800 })).toEqual({ level: 'spine', restoreLevel: 'spine' });
+        expect(resolveSeamLevelOnResize({ level: 'full', restoreLevel: 'full' }, { width: 1280, height: 800 }, { width: 800, height: 800 })).toEqual({ level: 'spine', restoreLevel: 'spine' });
+        expect(resolveSeamLevelOnResize({ level: 'spine', restoreLevel: 'spine' }, { width: 800, height: 800 }, { width: 1280, height: 800 })).toEqual({ level: 'full', restoreLevel: 'full' });
         // 折叠着跨阈值：仍是折叠，恢复目标换成新宽度的默认值。
-        expect(resolveSeamLevelOnResize({ level: 'hidden', restoreLevel: 'full' }, 1280, 800)).toEqual({ level: 'hidden', restoreLevel: 'spine' });
+        expect(resolveSeamLevelOnResize({ level: 'hidden', restoreLevel: 'full' }, { width: 1280, height: 800 }, { width: 800, height: 800 })).toEqual({ level: 'hidden', restoreLevel: 'spine' });
     });
 
     it('opens 120 on the home layer, 300 on a collection, 64 as a spine and 0 folded', () => {

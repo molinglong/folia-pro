@@ -123,7 +123,7 @@ describe('plate frame', () => {
         const anchorX = getSeamBoundaryX(1, metrics);
         const view = { width: 1600, height: 900, scale: 0.76 };
         for (const openWidth of [300, 74, 16]) {
-            const frame = computeBravaisFrame({ center: { x: anchorX, y: 0 }, view, anchorX, openWidth, contentWidth: openWidth, hidden: false });
+            const frame = computeBravaisFrame({ center: { x: anchorX, y: 0 }, view, axis: 'x', anchorX, anchorY: null, openWidth, contentWidth: openWidth, hidden: false });
             const seamLeft = frame.seam.x - frame.seam.width / 2;
             const seamRight = frame.seam.x + frame.seam.width / 2;
             const left = getPlateFrame(0, 0, anchorX);

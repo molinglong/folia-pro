@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
 import { planFlip, type FlipOrigin } from '../../../components/wall/flipPlan';
-import { nearestSeamBoundaryX } from '../../../components/wall/seamPlan';
+import { nearestSeamBoundaryX, nearestSeamBoundaryY } from '../../../components/wall/seamPlan';
 import { getViewWorldBounds, type WallView, type WallViewCenter } from '../../../components/wall/wallView';
 import { getWallSlot, parseWallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
 import type { WallCameraRange } from '../../../components/wall/finiteWall';
@@ -30,6 +30,7 @@ import { maskRemovedEntries } from './bravaisRemoval';
 import { takeBravaisPendingOrigin } from './bravaisStageStore';
 import { takeBravaisRemovalOrigin } from './bravaisUiStore';
 import type { BravaisFrameState } from './useBravaisFrame';
+import { frameSeamPoint, getBravaisFrameAxis, getFrameAnchor, setFrameAnchor } from './useBravaisFrame';
 import { planWallWave, WALL_WAVE_IN_MS, WALL_WAVE_MAX_DELAY_MS } from './bravaisWallWave';
 import { isSourceOrigin, layerMatchesNavigation, resolveShiftKind, type BravaisShiftKind } from './bravaisShift';
 
@@ -68,8 +69,8 @@ export type BravaisDisplayControls = {
     reducedTransitions: boolean;
     /** 这一层此刻的开口宽度（等级、面板、表单、过滤框都算进去了）。 */
     openWidthFor: (layer: BravaisLayer) => number;
-    setAnchor: (x: number | null) => void;
-    planOpening: (center: WallViewCenter, width: number, preferAnchor: boolean) => { anchorX: number | null; center: WallViewCenter };
+    setAnchor: (anchor: number | null) => void;
+    planOpening: (center: WallViewCenter, width: number, preferAnchor: boolean) => { anchor: number | null; center: WallViewCenter };
     isAnchorOnScreen: () => boolean;
     moveTo: (center: WallViewCenter, forceRecull?: boolean) => void;
     tweenTo: (center: WallViewCenter) => void;
@@ -177,6 +178,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         writeBravaisLayout(current.layer.sessionKey, {
             center: { ...frameRef.current.center },
             anchorX: frameRef.current.anchorX,
+            anchorY: frameRef.current.anchorY,
             startSlotKey: current.startSlotKey,
             focusSlotKey: getFocusedSlotKey(),
         });
@@ -229,16 +231,17 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
      */
     const resolveFinite = useCallback((next: BravaisLayer, previous: BravaisFiniteState | null | undefined) => {
         const { frameRef, setCameraRange, openWidthFor, wallLook } = latestControls.current;
-        const { view, center, anchorX } = frameRef.current;
+        const { view, center } = frameRef.current;
+        const anchor = getFrameAnchor(frameRef.current);
         if (next.mode !== 'finite' || !view) {
             setCameraRange(null);
             return null;
         }
         const count = Math.max(next.items.length, next.wall?.planCount ?? 0);
         const reservedPerBlock = resolveReservedPerBlock(wallLook);
-        const finite = canReuseFinitePlan(previous, { anchorX, count, reservedPerBlock })
+        const finite = canReuseFinitePlan(previous, { anchor, count, reservedPerBlock })
             ? previous
-            : planBravaisFinite({ count, anchorX, center, view, reservedPerBlock });
+            : planBravaisFinite({ count, anchor, center, view, reservedPerBlock });
         setCameraRange(resolveFiniteCameraRange({ finite, itemCount: next.items.length, view, seamWidth: openWidthFor(next) }), true);
         return finite;
     }, []);
@@ -248,8 +251,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         const key = next.layer.focusedEntryKey;
         if (!key) return null;
         const { frameRef } = latestControls.current;
-        const { anchorX, center } = frameRef.current;
-        return findDisplayItemSlot(next, key, { x: anchorX ?? center.x, y: center.y })?.key ?? null;
+        return findDisplayItemSlot(next, key, frameSeamPoint(frameRef.current))?.key ?? null;
     }, []);
 
     useLayoutEffect(() => {
@@ -267,7 +269,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         // 移除的第一段还在放：等它放完。
         if (holdRef.current && previous && previous.layer.key === layer.key && !sameKeyShift) return;
         const width = controlsNow.openWidthFor(layer);
-        const seamPoint = () => ({ x: frameRef.current.anchorX ?? frameRef.current.center.x, y: frameRef.current.center.y });
+        const seamPoint = () => frameSeamPoint(frameRef.current);
         const nearestToSeam = () => findNearestSlot(slotsRef.current, seamPoint())?.key ?? null;
 
         // 第一次（stage 挂载）：按记忆摆好相机与锚点，直接画出当前层，不跑翻牌。B11：从搜索 / 播放页打开集合时
@@ -275,9 +277,13 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         if (!previous) {
             const memory = readBravaisLayout(layer.sessionKey);
             let center = memory?.center ?? frameRef.current.center;
-            frameRef.current.anchorX = memory?.anchorX ?? nearestSeamBoundaryX(center.x, BRAVAIS_METRICS);
+            const axis = getBravaisFrameAxis(controls.view);
+            const remembered = axis === 'y' ? memory?.anchorY : memory?.anchorX;
+            setFrameAnchor(frameRef.current, remembered ?? (axis === 'y'
+                ? nearestSeamBoundaryY(center.y, BRAVAIS_METRICS)
+                : nearestSeamBoundaryX(center.x, BRAVAIS_METRICS)));
             if (width > 0) center = controlsNow.planOpening(center, width, true).center;
-            controlsNow.setAnchor(frameRef.current.anchorX);
+            controlsNow.setAnchor(getFrameAnchor(frameRef.current));
             controlsNow.moveTo(center, true);
             releasePanelOnLayerChange('first', layer.key);
             const draft = createBravaisDisplay(layer, memory?.startSlotKey ?? null, undefined, wallLook);
@@ -335,7 +341,9 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             const draft = { ...createBravaisDisplay(layer, previous.startSlotKey, undefined, wallLook), finite };
             const origin: FlipOrigin = released
                 ?? (decision.kind === 'filter'
-                    ? { kind: 'seam-edges', x: frameRef.current.anchorX ?? frameRef.current.center.x }
+                    ? (getBravaisFrameAxis(frameRef.current.view) === 'y'
+                        ? { kind: 'seam-edges', x: frameRef.current.center.x, y: frameRef.current.anchorY ?? frameRef.current.center.y }
+                        : { kind: 'seam-edges', x: frameRef.current.anchorX ?? frameRef.current.center.x })
                     : pointOrigin(startPoint));
             // B11：整墙入场还在放（入场途中数据到达）：不另排翻牌，磁贴在抬起 / 落回途中直接换成新内容。
             const entering = Boolean(previous.entrance && performance.now() < previous.entrance.until);
@@ -377,7 +385,9 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         if (leaving) {
             const memory = readBravaisLayout(layer.sessionKey);
             center = memory?.center ?? center;
-            if (memory?.anchorX !== undefined && memory.anchorX !== null) frameRef.current.anchorX = memory.anchorX;
+            const axis = getBravaisFrameAxis(controls.view);
+            const remembered = axis === 'y' ? memory?.anchorY : memory?.anchorX;
+            if (remembered !== undefined && remembered !== null) setFrameAnchor(frameRef.current, remembered);
             // B8：记忆里的起点是 null（这一层第一次画时没有起点，循环偏移按 0 算）也照记忆恢复，墙回到离开时的样子；
             // 只有没有记忆时才取离缝最近的 slot（以前一律取最近的，返回到这种层时整面墙换了一种排法）。
             startSlotKey = memory ? memory.startSlotKey : nearestToSeam();
@@ -389,7 +399,9 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             // 整墙入场回到这一层上次离开时的位置（相机与缝的锚点一起，起点磁贴才在屏内）。
             if (kind === 'enter' && memory?.center) {
                 center = memory.center;
-                if (memory.anchorX !== null) frameRef.current.anchorX = memory.anchorX;
+                const axis = getBravaisFrameAxis(controls.view);
+                const remembered = axis === 'y' ? memory.anchorY : memory.anchorX;
+                if (remembered !== null) setFrameAnchor(frameRef.current, remembered);
             }
             startSlotKey = pending?.slotKey ?? memory?.startSlotKey ?? nearestToSeam();
             const start = slotFromKey(startSlotKey);
@@ -402,10 +414,10 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         if (width > 0) {
             const preferAnchor = leaving || controlsNow.isAnchorOnScreen();
             const plan = controlsNow.planOpening(center, width, preferAnchor);
-            frameRef.current.anchorX = plan.anchorX;
+            setFrameAnchor(frameRef.current, plan.anchor);
             center = plan.center;
         }
-        controlsNow.setAnchor(frameRef.current.anchorX);
+        controlsNow.setAnchor(getFrameAnchor(frameRef.current));
         // 整墙入场：相机直接就位（被点的不在墙上，没有可以跟着走的东西），波次从就位后的视口左上角量。
         if (kind === 'enter') controlsNow.moveTo(center, true);
         const draft = { ...createBravaisDisplay(layer, startSlotKey, undefined, wallLook), finite: resolveFinite(layer, null) };

@@ -39,6 +39,9 @@ const readStoredGlobalLyricTimelineOffsetMs = (): number => {
     return clampGlobalLyricTimelineOffsetMs(Number(localStorage.getItem(GLOBAL_LYRIC_TIMELINE_OFFSET_STORAGE_KEY)));
 };
 
+// 自动输出延迟补偿也是设备本地项：探测的是这台机器的音频输出路径，不参与同步。
+export const AUTO_LYRIC_LATENCY_COMPENSATION_STORAGE_KEY = 'auto_lyric_latency_compensation_enabled';
+
 const PREFERRED_LYRIC_SOURCE_STORAGE_KEY_V2 = 'preferred_alternative_lyric_source_v2';
 
 export const LOCAL_LYRICS_PRIORITY_STORAGE_KEY = 'local_lyrics_priority';
@@ -126,6 +129,7 @@ export type LyricSettingsState = {
     localLyricsPriority: LocalLyricsPriority;
     localLyricFormatOrder: LocalLyricFileFormat[];
     globalLyricTimelineOffsetMs: number;
+    autoLyricLatencyCompensationEnabled: boolean;
     lyricFilterPattern: string;
     lyricFilterEnabled: boolean;
     // 开头制作人员信息的处理策略，与上面的通用逐行过滤是两套独立机制。
@@ -138,6 +142,7 @@ export type LyricSettingsState = {
     handleSetLocalLyricsPriority: (priority: LocalLyricsPriority) => void;
     handleSetLocalLyricFormatOrder: (order: LocalLyricFileFormat[]) => void;
     handleSetGlobalLyricTimelineOffsetMs: (offsetMs: number) => void;
+    handleToggleAutoLyricLatencyCompensation: (enabled: boolean) => void;
     handleSetLyricFilterPattern: (pattern: string) => void;
     handleSetLyricFilterEnabled: (enabled: boolean) => void;
     handleSetLyricStaffPolicy: (policy: LyricStaffPolicy) => void;
@@ -154,6 +159,7 @@ export const useLyricSettingsStore = create<LyricSettingsState>((set, get) => ({
     localLyricsPriority: readStoredLocalLyricsPriority(),
     localLyricFormatOrder: readStoredLocalLyricFormatOrder(),
     globalLyricTimelineOffsetMs: readStoredGlobalLyricTimelineOffsetMs(),
+    autoLyricLatencyCompensationEnabled: getStoredBoolean(AUTO_LYRIC_LATENCY_COMPENSATION_STORAGE_KEY, true),
     lyricFilterPattern: initialLyricFilterPattern,
     lyricFilterEnabled: readStoredLyricFilterEnabled(initialLyricFilterPattern),
     lyricStaffPolicy: readStoredLyricStaffPolicy(),
@@ -197,6 +203,10 @@ export const useLyricSettingsStore = create<LyricSettingsState>((set, get) => ({
             localStorage.setItem(GLOBAL_LYRIC_TIMELINE_OFFSET_STORAGE_KEY, String(nextOffsetMs));
         }
         set({ globalLyricTimelineOffsetMs: nextOffsetMs });
+    },
+    handleToggleAutoLyricLatencyCompensation: (enabled) => {
+        setStoredBoolean(AUTO_LYRIC_LATENCY_COMPENSATION_STORAGE_KEY, enabled);
+        set({ autoLyricLatencyCompensationEnabled: enabled });
     },
     handleSetLyricFilterPattern: (pattern) => {
         const next = pattern.trim();
@@ -270,6 +280,7 @@ export const selectLyricSettingsSnapshot = (state: LyricSettingsState) => ({
     localLyricsPriority: state.localLyricsPriority,
     localLyricFormatOrder: state.localLyricFormatOrder,
     globalLyricTimelineOffsetMs: state.globalLyricTimelineOffsetMs,
+    autoLyricLatencyCompensationEnabled: state.autoLyricLatencyCompensationEnabled,
     lyricFilterPattern: state.lyricFilterPattern,
     lyricFilterEnabled: state.lyricFilterEnabled,
     lyricStaffPolicy: state.lyricStaffPolicy,

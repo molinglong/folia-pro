@@ -1,22 +1,24 @@
 import { animate } from 'framer-motion';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
-import { blockSeamPlan, getSeamGeometry } from '../../../components/wall/seamPlan';
+import { blockSeamPlan, blockSeamPlanY, getSeamGeometry, getSeamGeometryY } from '../../../components/wall/seamPlan';
 import type { WallViewCenter } from '../../../components/wall/wallView';
 import { BRAVAIS_METRICS, BRAVAIS_SEAM_TWEEN_S } from './bravaisConstants';
 import type { BravaisLayer } from './bravaisLayer';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { resolveSeamContentIdentity, resolveVariantWidth, type BravaisSeamContentVariant } from './bravaisSeamTarget';
 import { clearSeamFlipPhase, playSeamFlipIn, playSeamFlipOut } from './bravaisSeamMotion';
-import type { BravaisFrameState } from './useBravaisFrame';
+import { getBravaisFrameAxis, setFrameAnchor, type BravaisFrameState } from './useBravaisFrame';
 
 // src/library/suites/bravais/useBravaisSeam.ts
-// 缝（设计稿 §5）：锚点（块边界的世界 x，React state——墙按它分左右两半）、开口宽度的补间（只写帧状态）、
+// 缝（设计稿 §5）：锚点（块边界的世界坐标，React state——墙按它分两半）、开口尺寸的补间（只写帧状态）、
 // 缝里渲染的那套内容。换层、换等级时内容原地翻转：转到 90° 才换成新内容与新的排版宽度（翻转不重排），所以
 // 「此刻渲染的内容」是单独的 state，只在换的那一刻 setState 一次。开口变宽或恢复时，锚点还在屏内就沿用它的
 // 块边界、相机只做最小让位；不在屏内就在当前视口里另取最近的块边界（B5 的 blockSeamPlan）。
-// 缝内过渡（设计稿 §7「缝内的过渡」）：内容翻转用 bravaisSeamMotion 的半圈（与墙上磁贴同一种绕 Y 轴的翻牌），降低动效
+// 缝内过渡（设计稿 §7「缝内的过渡」）：内容翻转用 bravaisSeamMotion 的半圈（与墙上磁贴同一种翻牌），降低动效
 // （B11 的同一套判断）时换成 0.18s 淡出 → 换 → 淡入；从折叠回来时开口补间、内容随之淡入（降低动效时开口不补间，内容
 // 淡入）。过渡中内容层挂 data-bravais-seam-flip。首页换页签也整条翻（2026-10-09 起，与原型一致）。
+// 竖屏（手机）：缝轴是 y——锚点走 anchorY、几何用 seamPlan 的 Y 轴那一套、内容绕 X 轴翻（横带上下翻），
+// 对外同时给出 anchorX / anchorY（哪根轴有效由视口推导，墙与底板按它分半）。
 
 export type BravaisRenderedSeam = { variant: BravaisSeamContentVariant; layer: BravaisLayer | null };
 
@@ -52,38 +54,65 @@ export const useBravaisSeam = ({
     checkCull: (force?: boolean) => void;
 }) => {
     const level = useBravaisSeamStore(state => state.level);
-    const [anchorX, setAnchorState] = useState<number | null>(null);
+    const [anchorX, setAnchorXState] = useState<number | null>(null);
+    const [anchorY, setAnchorYState] = useState<number | null>(null);
     const targetWidth = layer ? target.width : 0;
     const targetVariant: BravaisSeamContentVariant = layer ? target.variant : 'none';
     const [rendered, setRendered] = useState<BravaisRenderedSeam>({ variant: targetVariant, layer });
     const widthAnimationRef = useRef<{ stop: () => void } | null>(null);
+    // 竖屏横缝：缝的内容绕 X 轴翻（横带上下翻），排版尺寸是高度。
+    const isPortrait = getBravaisFrameAxis(frameRef.current.view) === 'y';
+    const portraitRef = useRef(isPortrait);
+    portraitRef.current = isPortrait;
 
-    const setAnchor = useCallback((x: number | null) => {
-        frameRef.current.anchorX = x;
-        setAnchorState(x);
+    const setAnchor = useCallback((anchor: number | null) => {
+        setFrameAnchor(frameRef.current, anchor);
+        if (getBravaisFrameAxis(frameRef.current.view) === 'y') {
+            setAnchorXState(null);
+            setAnchorYState(anchor);
+        } else {
+            setAnchorXState(anchor);
+            setAnchorYState(null);
+        }
         renderFrame();
     }, [frameRef, renderFrame]);
 
     /** 缝锚点此刻在不在屏内（在就沿用它的块边界）。 */
     const isAnchorOnScreen = useCallback(() => {
-        const { anchorX: x, view, center } = frameRef.current;
-        if (x === null || !view) return false;
+        const { anchorX: x, anchorY: y, view, center } = frameRef.current;
+        if (!view) return false;
+        if (getBravaisFrameAxis(view) === 'y') {
+            if (y === null) return false;
+            const geometry = getSeamGeometryY({ anchorY: y, cameraY: center.y, openWidth: 1, view });
+            return geometry.screenY > 0 && geometry.screenY < view.height;
+        }
+        if (x === null) return false;
         const geometry = getSeamGeometry({ anchorX: x, cameraX: center.x, openWidth: 1, view });
         return geometry.screenX > 0 && geometry.screenX < view.width;
     }, [frameRef]);
 
     /** 要张开 `width` 的缝：选块边界、算相机的最小让位（相对 `center`，返回让位后的视图中心）。 */
-    const planOpening = useCallback((center: WallViewCenter, width: number, preferAnchor: boolean) => {
-        const { view, anchorX: current } = frameRef.current;
-        if (!view) return { anchorX: current, center };
+    const planOpening = useCallback((center: WallViewCenter, width: number, preferAnchor: boolean): { anchor: number | null; center: WallViewCenter } => {
+        const { view, anchorX: currentX, anchorY: currentY } = frameRef.current;
+        if (!view) return { anchor: getBravaisFrameAxis(view) === 'y' ? currentY : currentX, center };
+        if (getBravaisFrameAxis(view) === 'y') {
+            const plan = blockSeamPlanY({
+                cameraY: center.y,
+                openWidth: width,
+                view,
+                metrics: BRAVAIS_METRICS,
+                preferY: preferAnchor && currentY !== null ? currentY : undefined,
+            });
+            return { anchor: plan.y, center: { x: center.x, y: plan.cameraY } };
+        }
         const plan = blockSeamPlan({
             cameraX: center.x,
             openWidth: width,
             view,
             metrics: BRAVAIS_METRICS,
-            preferX: preferAnchor && current !== null ? current : undefined,
+            preferX: preferAnchor && currentX !== null ? currentX : undefined,
         });
-        return { anchorX: plan.x, center: { x: plan.cameraX, y: center.y } };
+        return { anchor: plan.x, center: { x: plan.cameraX, y: center.y } };
     }, [frameRef]);
 
     /** 开口补间到目标宽度（每帧只写帧状态与 DOM；途中快到裁剪边缘时补裁剪，落定时按含开口的可见范围裁剪一次）。 */
@@ -133,7 +162,7 @@ export const useBravaisSeam = ({
         if (previous.layerKey !== layerKey || previous.width === targetWidth) return;
         if (!layer || targetWidth <= 0) return;
         const plan = planOpening(frameRef.current.center, targetWidth, isAnchorOnScreen());
-        if (plan.anchorX !== frameRef.current.anchorX) setAnchor(plan.anchorX);
+        if (plan.anchor !== (getBravaisFrameAxis(frameRef.current.view) === 'y' ? frameRef.current.anchorY : frameRef.current.anchorX)) setAnchor(plan.anchor);
         tweenCamera(plan.center);
     }, [frameRef, isAnchorOnScreen, layer, layerKey, planOpening, setAnchor, targetWidth, tweenCamera]);
 
@@ -176,7 +205,7 @@ export const useBravaisSeam = ({
         inAnimationRef.current?.cancel();
         inAnimationRef.current = null;
         let swapped = false;
-        const out = playSeamFlipOut(element, 'y', reducedTransitions);
+        const out = playSeamFlipOut(element, portraitRef.current ? 'x' : 'y', reducedTransitions);
         outAnimationRef.current = out;
         out.onfinish = () => {
             swapped = true;
@@ -208,16 +237,16 @@ export const useBravaisSeam = ({
             // 再按一次 Enter 就切回去（鼠标点的不挪焦点）。
             element.querySelector<HTMLElement>('[data-bravais-seam-toggle]')?.focus({ preventScroll: true });
         }
-        inAnimationRef.current = playSeamFlipIn(element, 'y', pending.reduced || pending.fromNone, () => { inAnimationRef.current = null; });
+        inAnimationRef.current = playSeamFlipIn(element, portraitRef.current ? 'x' : 'y', pending.reduced || pending.fromNone, () => { inAnimationRef.current = null; });
     }, [contentRef, rendered]);
     useEffect(() => () => {
         inAnimationRef.current?.cancel();
         outAnimationRef.current?.cancel();
     }, []);
 
-    // 排版宽度跟着「此刻渲染的那套内容」走，不跟目标宽度走。
+    // 排版开口跟着「此刻渲染的那套内容」走，不跟目标开口走（竖屏是高度）。
     useLayoutEffect(() => {
-        frameRef.current.contentWidth = resolveVariantWidth(rendered.variant, viewportWidth);
+        frameRef.current.contentWidth = resolveVariantWidth(rendered.variant, viewportWidth, frameRef.current.view);
         renderFrame();
     }, [frameRef, renderFrame, rendered.variant, viewportWidth]);
 
@@ -227,25 +256,38 @@ export const useBravaisSeam = ({
     const reopenHere = useCallback(() => {
         if (!layer || targetWidth <= 0) return;
         const plan = planOpening(frameRef.current.center, targetWidth, false);
-        setAnchor(plan.anchorX);
+        setAnchor(plan.anchor);
         tweenWidth(targetWidth, 0);
         tweenCamera(plan.center);
     }, [frameRef, layer, planOpening, setAnchor, targetWidth, tweenCamera, tweenWidth]);
 
     /** 此刻缝本该张开却被挤到屏外收起了（边缘标签在场）。 */
     const isCollapsed = useCallback(() => {
-        const { anchorX: x, view, center, openWidth } = frameRef.current;
-        if (x === null || !view || targetWidth <= 0) return false;
-        return getSeamGeometry({ anchorX: x, cameraX: center.x, openWidth: Math.max(openWidth, targetWidth), view }).collapsed;
+        const { anchorX: x, anchorY: y, view, center, openWidth } = frameRef.current;
+        if (!view || targetWidth <= 0) return false;
+        const open = Math.max(openWidth, targetWidth);
+        if (getBravaisFrameAxis(view) === 'y') {
+            if (y === null) return false;
+            return getSeamGeometryY({ anchorY: y, cameraY: center.y, openWidth: open, view }).collapsed;
+        }
+        if (x === null) return false;
+        return getSeamGeometry({ anchorX: x, cameraX: center.x, openWidth: open, view }).collapsed;
     }, [frameRef, targetWidth]);
 
-    const contentWidth = resolveVariantWidth(rendered.variant, viewportWidth);
+    const contentWidth = resolveVariantWidth(rendered.variant, viewportWidth, frameRef.current.view);
     return {
         level,
         anchorX,
+        anchorY,
         setAnchor,
         targetWidth,
-        rendered: { variant: rendered.variant, layer: renderedLayer, width: contentWidth },
+        rendered: {
+            variant: rendered.variant,
+            layer: renderedLayer,
+            width: contentWidth,
+            /** 缝内容层的排版宽度（竖屏横带铺满视口，排版尺寸不是开口高度）。 */
+            typesetWidth: isPortrait ? viewportWidth : contentWidth,
+        },
         /** 正画着的内容正要翻走（转出的半圈、降低动效时的淡出）：缝把它藏起来，不可点、不进无障碍树。 */
         leaving: flipMode === 'flip',
         planOpening,

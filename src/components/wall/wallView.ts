@@ -12,6 +12,11 @@ export type WallView = {
     scale: number;
     /** Screen x of the seam's base line; the viewport's horizontal middle when omitted. */
     lineX?: number;
+    /**
+     * Screen y of a horizontal seam's base line (portrait wall: the opening rides on a row
+     * boundary). Omitted for the vertical seam; the y centre then stays the viewport middle.
+     */
+    lineY?: number;
 };
 
 export type WallViewCenter = { x: number; y: number };
@@ -21,14 +26,16 @@ export type WallViewCamera = { x: number; y: number; scale: number };
 
 export const getViewLineX = (view: WallView) => view.lineX ?? view.width / 2;
 
+export const getViewLineY = (view: WallView) => view.lineY ?? view.height / 2;
+
 export const viewCenterFromCamera = (camera: WallViewCamera, view: WallView): WallViewCenter => ({
     x: (getViewLineX(view) - camera.x) / camera.scale,
-    y: (view.height / 2 - camera.y) / camera.scale,
+    y: (getViewLineY(view) - camera.y) / camera.scale,
 });
 
 export const cameraFromViewCenter = (center: WallViewCenter, view: WallView): WallViewCamera => ({
     x: getViewLineX(view) - center.x * view.scale,
-    y: view.height / 2 - center.y * view.scale,
+    y: getViewLineY(view) - center.y * view.scale,
     scale: view.scale,
 });
 
@@ -39,13 +46,14 @@ export const cameraFromViewCenter = (center: WallViewCenter, view: WallView): Wa
 export const getViewWorldBounds = (
     center: WallViewCenter,
     view: WallView,
-    { seamWidth = 0, overscan = 0 }: { seamWidth?: number; overscan?: number } = {},
+    { seamWidth = 0, seamHeight = 0, overscan = 0 }: { seamWidth?: number; seamHeight?: number; overscan?: number } = {},
 ): Bounds => {
     const lineX = getViewLineX(view);
+    const lineY = getViewLineY(view);
     return {
         left: center.x - (lineX + seamWidth) / view.scale - overscan,
         right: center.x + (view.width - lineX + seamWidth) / view.scale + overscan,
-        top: center.y - view.height / 2 / view.scale - overscan,
-        bottom: center.y + view.height / 2 / view.scale + overscan,
+        top: center.y - (lineY + seamHeight) / view.scale - overscan,
+        bottom: center.y + (view.height - lineY + seamHeight) / view.scale + overscan,
     };
 };

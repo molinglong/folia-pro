@@ -8,7 +8,7 @@ import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import type { LibrarySuiteStageProps } from '../../core/contracts/suite';
-import { BRAVAIS_METRICS, BRAVAIS_OVERSCAN, BRAVAIS_SEAM_ACRYLIC_BLUR } from './bravaisConstants';
+import { BRAVAIS_METRICS, BRAVAIS_OVERSCAN, BRAVAIS_SEAM_ACRYLIC_BLUR, isBravaisPortraitView } from './bravaisConstants';
 import { WALL_REFLOW_CONTROLS_REVEAL } from '../../../components/wall/wallReflowMotion';
 import { resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
 import type { BravaisLayer } from './bravaisLayer';
@@ -22,6 +22,7 @@ import { useBravaisChromeActions } from './useBravaisChromeActions';
 import { useBravaisDisplay } from './useBravaisDisplay';
 import { useBravaisFocus } from './useBravaisFocus';
 import { useBravaisFrame } from './useBravaisFrame';
+import { frameSeamPoint } from './useBravaisFrame';
 import { bravaisSlotFromKey, useBravaisInteractions, type BravaisStagePlayback } from './useBravaisInteractions';
 import { useBravaisPlayingCard } from './useBravaisPlayingCard';
 import { useBravaisKeyboard } from './useBravaisKeyboard';
@@ -49,6 +50,7 @@ import { resolveBravaisBackStep, selectBravaisHasCurrentSong, type BravaisBackSt
 import { resolveBravaisWallHandoffState, useBravaisWallHandoff } from './useBravaisWallHandoff';
 import '../../../components/wall/wall.css';
 import './bravais.css';
+import './bravaisPortrait.css';
 import './bravaisAppearance.css';
 import './bravaisHandoff.css';
 import './bravaisSeamLooks.css';
@@ -159,6 +161,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             surface: target.surface,
             level: current.level,
             viewportWidth: frameRef.current.view?.width ?? window.innerWidth,
+            portrait: frameRef.current.view ? isBravaisPortraitView(frameRef.current.view) : false,
+            viewportHeight: frameRef.current.view?.height ?? window.innerHeight,
             formOpen: Boolean(target.seam.collection?.form),
             panelOpen: current.panelFor === target.key && Boolean(target.entries?.hasPanel),
             filterOpen: current.filterOpen,
@@ -169,6 +173,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         ? resolveStageSeamTarget({
             ...seamInputFor(layer, { level: seamLevel, panelFor, filterOpen: isFilterOpen && owned, searchOpen: isSearchOpen }),
             viewportWidth: view?.width ?? 0,
+            portrait: view ? isBravaisPortraitView(view) : false,
+            viewportHeight: view?.height ?? 0,
         }, accountVariant)
         : { width: 0, variant: 'none' as const };
     // 交接时缝合上：只把开口目标换成 0，内容不换（缝里画的仍是这一层，开口补间让它随宽度淡出 / 淡入）。
@@ -196,7 +202,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     useLayoutEffect(() => {
         if (!view) return;
         frameRef.current.view = view;
-        useBravaisSeamStore.getState().syncViewport(view.width);
+        useBravaisSeamStore.getState().syncViewport(view.width, view.height);
         camera.moveTo(frameRef.current.center, true);
     }, [camera.moveTo, frameRef, view]);
 
@@ -287,6 +293,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         expandedSlotKey: focus.expandedSlotKey,
         reflow: focus.reflow,
         anchorX: seam.anchorX,
+        anchorY: seam.anchorY,
     });
     // 聚焦卡块内让位：磁贴外框与透光底板的洞同一帧逐帧写（2026-10-09 起，不再是 CSS 过渡）。
     const platesRef = useRef(plates);
@@ -308,8 +315,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         fold: () => useBravaisSeamStore.getState().setLevel('hidden'),
         locate: itemKey => {
             const current = displayRef.current;
-            const { anchorX, center } = frameRef.current;
-            const slot = findDisplayItemSlot(current, itemKey, { x: anchorX ?? center.x, y: center.y });
+            const slot = findDisplayItemSlot(current, itemKey, frameSeamPoint(frameRef.current));
             if (!current || !slot) return;
             const item = resolveSlotItem(current, slot);
             focus.focusSlot(slot, { reveal: item?.kind !== 'track' });
@@ -414,6 +420,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const rootClassName = [
         'lattice-root',
         'bravais-root',
+        view && isBravaisPortraitView(view) ? 'is-portrait' : '',
         isDaylight ? 'is-daylight' : '',
         vignette ? 'has-vignette' : '',
         lightsOn ? '' : 'is-lights-out',
@@ -478,6 +485,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                     slots={view ? slots : []}
                     display={display}
                     anchorX={seam.anchorX}
+                    anchorY={seam.anchorY}
                     reflow={focus.reflow}
                     expandedSlotKey={focus.expandedSlotKey}
                     focusedSlotKey={focus.focusedSlotKey}
@@ -500,7 +508,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                 variant={seam.rendered.variant}
                 targetVariant={seamTarget.variant}
                 leaving={seam.leaving}
-                contentWidth={seam.rendered.width}
+                contentWidth={seam.rendered.typesetWidth}
+                portrait={view ? isBravaisPortraitView(view) : false}
                 layer={seam.rendered.layer}
                 currentLayer={layer}
                 level={seam.level}

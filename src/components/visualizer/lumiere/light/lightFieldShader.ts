@@ -65,6 +65,7 @@ uniform vec4 uWave;             // 干涉：mode, frequency, speed, strength
 uniform vec4 uWaveB;            // cx, cy, radius, separation（高度单位）
 uniform vec4 uShield;           // 文字区：cx, cy, rx, ry（高度单位）
 uniform vec4 uShieldB;          // x：文字区里条纹压暗多少
+uniform vec4 uTextDim;          // x：文字区里光被吸走多少（0 = 不吸，绘光 MV 特供版才给值）
 
 float hash11(float x) {
     float p = fract(x * 0.1031);
@@ -269,6 +270,14 @@ void main(void) {
         light += uGlareColor * (glare + streak) * uGlare.w;
     }
 
+    // 文字区里把光吸走（几何沿用上面的 uShield，就是领头光位的文字区）：绘光 MV 特供版不要
+    // 字后面那条亮带。只吸画出来的光，不碰光束本身的数学——字仍按没吸之前的光强点亮（rig.ts 的 lightAt），
+    // 所以字还是被光照着的样子，只是光不在它身后留下一块。
+    if (uTextDim.x > 0.0) {
+        vec2 q = (p - uShield.xy) / max(uShield.zw, vec2(1e-3));
+        light *= 1.0 - uTextDim.x * smoothstep(1.0, 0.35, length(q));
+    }
+
     // 保持色相的压缩：按最大通道压到 0..1，只在极亮处微微发白（逐通道压缩会把金色压成白色）。
     float peak = max(max(light.r, light.g), light.b);
     float mapped = 1.0 - exp(-peak);
@@ -302,6 +311,11 @@ export interface LightFieldFrame {
     octaves: number;
     /** 文字区（画面比例的中心与宽高），干涉条纹在这里压暗。 */
     textRegion?: { cx: number; cy: number; w: number; h: number };
+    /**
+     * 文字区里光被吸走多少（0..1，不给按 0）：绘光 MV 特供版用它抹掉字后面那条亮带。
+     * 没有文字区时不生效；不影响字有多亮（那是 CPU 侧的 lightAt）。
+     */
+    textDim?: number;
 }
 
 export interface LightField {
@@ -347,6 +361,7 @@ export const createLightField = (pixi: PixiModule, width: number, height: number
         uWaveB: { value: new Float32Array(4), type: 'vec4<f32>' },
         uShield: { value: new Float32Array(4), type: 'vec4<f32>' },
         uShieldB: { value: new Float32Array(4), type: 'vec4<f32>' },
+        uTextDim: { value: new Float32Array(4), type: 'vec4<f32>' },
     });
     const shader = new pixi.Shader({
         glProgram: pixi.GlProgram.from({ vertex, fragment, name: 'lumiere-light-field' }),
@@ -422,6 +437,8 @@ export const createLightField = (pixi: PixiModule, width: number, height: number
         u.uShield[2] = region ? (region.w * aspect) / 2 : 1;
         u.uShield[3] = region ? region.h / 2 : 1;
         u.uShieldB[0] = region && wave ? wave.shield ?? 0.45 : 0;
+        // 没文字区时 uShield 是 (0,0,1,1) 的占位值，不能拿它当遮罩，所以强度也跟着 region 走。
+        u.uTextDim[0] = region ? Math.min(1, Math.max(0, frame.textDim ?? 0)) : 0;
         uniforms.update();
     };
 

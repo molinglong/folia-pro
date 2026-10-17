@@ -1,7 +1,7 @@
 // src/components/wall/seamPlan.ts
 
 import type { WallMetrics } from './layout';
-import { getViewLineX, type WallView } from './wallView';
+import { getViewLineX, getViewLineY, type WallView } from './wallView';
 import { getBlockSize } from './wallSlots';
 
 // Where a vertical split may open and how it reacts to the camera. The split only ever opens on a
@@ -138,4 +138,109 @@ export const getSeamCameraSpan = ({
 export const getSeamSplitOffsets = (width: number, scale: number, metrics: WallMetrics) => {
     const pad = (metrics.gap / 2) * scale * Math.min(1, width / 16);
     return { left: -width / 2 - pad, right: width / 2 + pad };
+};
+
+// ---- horizontal seam (portrait wall) ----------------------------------------------------------
+// The same rules with the axis rotated: the opening rides on a block row boundary, narrows near
+// the top / bottom viewport edges and closes once it leaves; the two halves yield vertically.
+
+/** World y of the gap midline on the top edge of block `row`. */
+export const getSeamBoundaryY = (row: number, metrics: WallMetrics) => (
+    row * getBlockSize(metrics).height - metrics.gap / 2
+);
+
+export const nearestSeamBoundaryY = (y: number, metrics: WallMetrics) => (
+    getSeamBoundaryY(Math.round((y + metrics.gap / 2) / getBlockSize(metrics).height), metrics)
+);
+
+export type SeamPlanY = {
+    /** World y of the split (a block boundary unless `preferY` said otherwise). */
+    y: number;
+    /** View centre y after yielding; equals the input when the split already fits. */
+    cameraY: number;
+    /** Camera shift in screen px. */
+    shift: number;
+};
+
+export const blockSeamPlanY = ({
+    cameraY,
+    openWidth,
+    view,
+    metrics,
+    preferY,
+    edge = SEAM_EDGE_MARGIN,
+}: {
+    cameraY: number;
+    openWidth: number;
+    view: WallView;
+    metrics: WallMetrics;
+    preferY?: number;
+    edge?: number;
+}): SeamPlanY => {
+    const lineY = getViewLineY(view);
+    const need = openWidth / 2 + edge;
+    const blockHeight = getBlockSize(metrics).height;
+    const base = Math.round((cameraY + metrics.gap / 2) / blockHeight);
+    const candidates = preferY !== undefined
+        ? [preferY]
+        : [base - 1, base, base + 1].map(row => getSeamBoundaryY(row, metrics));
+
+    let best: SeamPlanY | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const y of candidates) {
+        const screenY = lineY + (y - cameraY) * view.scale;
+        const fitY = Math.max(need, Math.min(view.height - need, screenY));
+        const nextCameraY = y - (fitY - lineY) / view.scale;
+        const shift = Math.abs(nextCameraY - cameraY) * view.scale;
+        const score = shift + Math.abs(fitY - lineY) * SEAM_LINE_DISTANCE_WEIGHT;
+        if (!best || score < bestScore) {
+            best = { y, cameraY: nextCameraY, shift };
+            bestScore = score;
+        }
+    }
+    return best!;
+};
+
+export type SeamGeometryY = {
+    /** Screen y of the split's centre. */
+    screenY: number;
+    /** Rendered opening: squeezed to twice the room left before the edge margin, 0 off screen. */
+    height: number;
+    /** Meant to be open but squeezed shut - show the edge tab on `side`. */
+    collapsed: boolean;
+    side: 'top' | 'bottom';
+};
+
+export const getSeamGeometryY = ({
+    anchorY,
+    cameraY,
+    openWidth,
+    view,
+    edge = SEAM_EDGE_MARGIN,
+}: { anchorY: number; cameraY: number; openWidth: number; view: WallView; edge?: number }): SeamGeometryY => {
+    const lineY = getViewLineY(view);
+    const screenY = lineY + (anchorY - cameraY) * view.scale;
+    const room = Math.min(screenY, view.height - screenY) - edge;
+    const height = Math.max(0, Math.min(openWidth, room * 2));
+    return { screenY, height, collapsed: openWidth > 1 && height < 2, side: screenY < lineY ? 'top' : 'bottom' };
+};
+
+export const getSeamCameraSpanY = ({
+    anchorY,
+    openWidth,
+    view,
+    edge = SEAM_EDGE_MARGIN,
+}: { anchorY: number; openWidth: number; view: WallView; edge?: number }) => {
+    const lineY = getViewLineY(view);
+    const need = openWidth / 2 + edge;
+    const min = anchorY - (view.height - need - lineY) / view.scale;
+    const max = anchorY + (lineY - need) / view.scale;
+    if (min <= max) return { min, max };
+    const centred = anchorY - (view.height / 2 - lineY) / view.scale;
+    return { min: centred, max: centred };
+};
+
+export const getSeamSplitOffsetsY = (width: number, scale: number, metrics: WallMetrics) => {
+    const pad = (metrics.gap / 2) * scale * Math.min(1, width / 16);
+    return { top: -width / 2 - pad, bottom: width / 2 + pad };
 };

@@ -9,8 +9,10 @@ import { BRAVAIS_LAYOUT_STORAGE_PREFIX } from './entry';
 export type BravaisLayoutRecord = {
     /** 视图中心（缝基准线下的世界点）。 */
     center: { x: number; y: number } | null;
-    /** 缝的锚点（块边界的世界 x）。 */
+    /** 缝的锚点（块边界的世界 x，竖缝）。 */
     anchorX: number | null;
+    /** 缝的锚点（块边界的世界 y，竖屏横缝；旧记录没有它就是 null）。 */
+    anchorY: number | null;
     /** 无限拼贴的起点 slot（显示第 1 项的那个）。 */
     startSlotKey: string | null;
     /** 离开时键盘焦点所在的 slot（返回时焦点回到当初被点的那张）。 */
@@ -20,6 +22,7 @@ export type BravaisLayoutRecord = {
 export const EMPTY_BRAVAIS_LAYOUT: BravaisLayoutRecord = {
     center: null,
     anchorX: null,
+    anchorY: null,
     startSlotKey: null,
     focusSlotKey: null,
 };
@@ -45,6 +48,7 @@ export const parseBravaisLayoutRecord = (raw: string | null): BravaisLayoutRecor
         return {
             center: center && isFiniteNumber(center.x) && isFiniteNumber(center.y) ? { x: center.x, y: center.y } : null,
             anchorX: isFiniteNumber(value.anchorX) ? value.anchorX : null,
+            anchorY: isFiniteNumber(value.anchorY) ? value.anchorY : null,
             startSlotKey: asString(value.startSlotKey),
             focusSlotKey: asString(value.focusSlotKey),
         };

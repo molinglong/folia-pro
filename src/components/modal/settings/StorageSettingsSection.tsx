@@ -85,8 +85,8 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
     const [qqApiUrlDraft, setQqApiUrlDraft] = React.useState<string>(() => getQqApiBaseUrlOverride());
     const syncImportInputRef = React.useRef<HTMLInputElement | null>(null);
     const cacheRowClass = useInsetCacheRows
-        ? `flex items-center justify-between p-3 rounded-xl border ${settingsCardClass}`
-        : 'flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5';
+        ? `flex items-center justify-between gap-2 shrink-0 px-3 py-2 rounded-xl border ${settingsCardClass}`
+        : 'flex items-center justify-between gap-2 shrink-0 px-3 py-2 rounded-xl border bg-white/5 border-white/5';
     const iconClass = useInsetCacheRows && settingsIconClass
         ? `p-2 rounded-lg opacity-60 ${settingsIconClass}`
         : 'p-2 bg-white/5 rounded-lg opacity-60';
@@ -268,16 +268,16 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                     </button>
                 </h3>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 mobile-hide-scrollbar">
                     {cacheItems.map((item) => (
                         <div key={item.id} className={cacheRowClass}>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
                                 <div className={iconClass}>
                                     <item.icon size={16} />
                                 </div>
-                                <div>
-                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</div>
-                                    <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>{item.size}</div>
+                                <div className="flex items-baseline gap-1.5">
+                                    <div className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{item.label}</div>
+                                    <div className="text-xs opacity-50 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{item.size}</div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1">

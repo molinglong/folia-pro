@@ -50,7 +50,7 @@ const reserved = (slot: WallSlot, k: number) => isReservedSlot(slot.column, slot
 /** 有限态的显示：与 useBravaisDisplay 一样，用显示的每块窗数规划。 */
 const finiteDisplay = (entries: BravaisItem[], count: number, k: number): BravaisDisplay => {
     const base = createBravaisDisplay(layer(entries, 'finite'), null, undefined, partial(k));
-    const finite = planBravaisFinite({ count, anchorX: 0, center: { x: 0, y: 0 }, view, reservedPerBlock: base.reservedPerBlock });
+    const finite = planBravaisFinite({ count, anchor: 0, center: { x: 0, y: 0 }, view, reservedPerBlock: base.reservedPerBlock });
     return { ...base, finite };
 };
 
@@ -71,16 +71,16 @@ describe('finite tiling skips the structural windows', () => {
     });
 
     it('holds fewer items per block as k grows, and replans when the window count changes', () => {
-        const plan = (k: number) => planBravaisFinite({ count: 60, anchorX: 0, center: { x: 0, y: 0 }, view, reservedPerBlock: k });
+        const plan = (k: number) => planBravaisFinite({ count: 60, anchor: 0, center: { x: 0, y: 0 }, view, reservedPerBlock: k });
         const three = plan(3);
         const six = plan(6);
         const perBlock = new Map<string, number>();
         for (const slot of six.order) perBlock.set(`${slot.column},${slot.row}`, (perBlock.get(`${slot.column},${slot.row}`) ?? 0) + 1);
         expect(Math.max(...perBlock.values())).toBe(6);
         expect(six.order.some(slot => reserved(slot, 6))).toBe(false);
-        expect(canReuseFinitePlan(three, { anchorX: 0, count: 60, reservedPerBlock: 3 })).toBe(true);
-        expect(canReuseFinitePlan(three, { anchorX: 0, count: 60, reservedPerBlock: 4 })).toBe(false);
-        expect(canReuseFinitePlan(three, { anchorX: 0, count: 60 })).toBe(false);
+        expect(canReuseFinitePlan(three, { anchor: 0, count: 60, reservedPerBlock: 3 })).toBe(true);
+        expect(canReuseFinitePlan(three, { anchor: 0, count: 60, reservedPerBlock: 4 })).toBe(false);
+        expect(canReuseFinitePlan(three, { anchor: 0, count: 60 })).toBe(false);
     });
 });
 

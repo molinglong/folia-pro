@@ -86,7 +86,7 @@ describe('mixed items', () => {
     it('in the finite tiling (filtering) the top songs take the ranks nearest the seam', () => {
         const items = project(range(10, 1).map(song), range(5, 1).map(id => album(id)));
         const base = createBravaisDisplay(layer(items, 'finite'), null);
-        const finite = planBravaisFinite({ count: 140, anchorX: 0, center: { x: 0, y: 0 }, view, reservedPerBlock: 0 });
+        const finite = planBravaisFinite({ count: 140, anchor: 0, center: { x: 0, y: 0 }, view, reservedPerBlock: 0 });
         const display = { ...base, finite };
         const order = finite.order;
         order.slice(0, 10).forEach(slot => expect(resolveSlotItem(display, slot)?.kind).toBe('track'));

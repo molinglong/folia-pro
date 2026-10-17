@@ -46,7 +46,10 @@ const PlayerControlSlotButton: React.FC<PlayerControlSlotButtonProps> = ({
                 if (disabled) {
                     return;
                 }
-                slot.onActivate();
+                // @fork 2026-10-17：把按钮自己的视口矩形交给动作 —— 「播放快捷」浮层要贴着
+                // 按它的那颗按钮弹（胶囊、播放页、卡片里的槽位位置各不相同），其余动作忽略这个参数。
+                const rect = e.currentTarget.getBoundingClientRect();
+                slot.onActivate({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom });
             }}
             disabled={disabled}
             className={`rounded-full p-2 transition-colors ${stateClass} ${className}`}

@@ -51,9 +51,9 @@ const shownKeys = (display: BravaisDisplay, slots = around({ x: 0, y: 0 })) => s
 
 describe('dual mode: finite (filtering) and infinite', () => {
     const all = items('t', 60);
-    const anchorX = 0;
+    const anchor = 0;
     const center = { x: 0, y: 0 };
-    const finite = planBravaisFinite({ count: all.length, anchorX, center, view });
+    const finite = planBravaisFinite({ count: all.length, anchor, center, view });
 
     it('puts rank i on the i-th slot, never repeats, and leaves the rest as bare wall', () => {
         const matches = all.filter((_, index) => index % 7 === 0);
@@ -65,10 +65,10 @@ describe('dual mode: finite (filtering) and infinite', () => {
     });
 
     it('narrowing keeps the plan: only the count of ranks with content changes', () => {
-        expect(canReuseFinitePlan(finite, { anchorX, count: all.length })).toBe(true);
-        expect(canReuseFinitePlan(finite, { anchorX: anchorX + 1000, count: all.length })).toBe(false);
-        expect(canReuseFinitePlan(finite, { anchorX, count: finite.capacity + 1 })).toBe(false);
-        expect(canReuseFinitePlan(null, { anchorX, count: 1 })).toBe(false);
+        expect(canReuseFinitePlan(finite, { anchor, count: all.length })).toBe(true);
+        expect(canReuseFinitePlan(finite, { anchor: anchor + 1000, count: all.length })).toBe(false);
+        expect(canReuseFinitePlan(finite, { anchor, count: finite.capacity + 1 })).toBe(false);
+        expect(canReuseFinitePlan(null, { anchor, count: 1 })).toBe(false);
     });
 
     it('turns back into the infinite wall with the start tile still showing item 1', () => {
@@ -142,7 +142,7 @@ describe('finding an item on the wall', () => {
     });
 
     it('uses the rank slot on a finite wall, and nothing for a hidden or missing item', () => {
-        const finite = planBravaisFinite({ count: 20, anchorX: 0, center: { x: 0, y: 0 }, view });
+        const finite = planBravaisFinite({ count: 20, anchor: 0, center: { x: 0, y: 0 }, view });
         const display = { ...createBravaisDisplay(layer(items('t', 5)), null), finite };
         expect(findDisplayItemSlot(display, 't4', { x: 0, y: 0 })?.key).toBe(finite.order[4].key);
         expect(findDisplayItemSlot(display, 'missing', { x: 0, y: 0 })).toBeNull();
@@ -165,7 +165,7 @@ describe('remove-entry: wall first, then the ranks move up', () => {
     });
 
     it('masks the removed slot first, then shifts every later rank forward by one', () => {
-        const finite = planBravaisFinite({ count: before.length, anchorX: 0, center: { x: 0, y: 0 }, view });
+        const finite = planBravaisFinite({ count: before.length, anchor: 0, center: { x: 0, y: 0 }, view });
         const old = { ...createBravaisDisplay(layer(before), null), finite };
         const removed = detectRemovedEntries(before, before.filter(item => item.key !== 't3'))!;
         const phaseOne = maskRemovedEntries(old, removed);

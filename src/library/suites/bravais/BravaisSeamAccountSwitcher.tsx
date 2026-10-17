@@ -55,6 +55,23 @@ const placeAccountList = (entry: HTMLElement, seam: HTMLElement, host: HTMLEleme
     const hostRect = host.getBoundingClientRect();
     const seamRect = seam.getBoundingClientRect();
     const entryRect = entry.getBoundingClientRect();
+    // 竖屏横缝（axis y）：缝横贯整宽，两侧都没有放列表的空间（按桌面算法会算出负余量、把列表推到屏外看不见的地方）。
+    // 改成贴着账户按钮右对齐、夹在视口内，仍从按钮底边往上长（账户在横带右上角，上方是整面墙，够放）。
+    if (seam.dataset.bravaisSeamAxis === 'y') {
+        const pWidth = Math.max(LIST_MIN_WIDTH, Math.min(LIST_WIDTH, hostRect.width - LIST_SIDE_GAP * 2));
+        const pLeft = Math.min(
+            Math.max(LIST_SIDE_GAP, entryRect.right - hostRect.left - pWidth),
+            Math.max(LIST_SIDE_GAP, hostRect.width - LIST_SIDE_GAP - pWidth),
+        );
+        return {
+            host,
+            side: 'left',
+            left: Math.round(pLeft),
+            bottom: Math.round(hostRect.bottom - entryRect.bottom),
+            width: Math.round(pWidth),
+            maxHeight: Math.max(0, Math.floor(entryRect.bottom - hostRect.top - LIST_TOP_GAP)),
+        };
+    }
     const roomRight = hostRect.right - seamRect.right - LIST_SIDE_GAP * 2;
     const roomLeft = seamRect.left - hostRect.left - LIST_SIDE_GAP * 2;
     const side = roomRight >= LIST_WIDTH || roomRight >= roomLeft ? 'right' : 'left';

@@ -16,14 +16,38 @@ export const BRAVAIS_SEAM_SPINE_WIDTH = 64;
 /** 视口窄于它时默认收成书脊（设计稿 §5 的 NARROW_VW）。 */
 export const BRAVAIS_NARROW_VIEWPORT_PX = 900;
 
+/**
+ * 竖屏墙（手机）：视口窄于它且高大于宽时，缝转成横向——开在两行磁贴之间，墙分上下两半（桌面窄窗是竖缝收书脊，
+ * 竖屏收书脊放不下内容，所以换轴）。阈值取 700：折叠屏展开、平板竖屏仍走竖缝。
+ */
+export const BRAVAIS_PORTRAIT_MAX_WIDTH_PX = 700;
+
+export const isBravaisPortraitView = (view: { width: number; height: number }) => (
+    view.width < BRAVAIS_PORTRAIT_MAX_WIDTH_PX && view.height > view.width
+);
+
+/** 竖屏的相机缩放：128 的格缩到约 112px（与手机原型一致），一屏三列半。 */
+export const BRAVAIS_PORTRAIT_SCALE = 0.88;
+/** 竖屏缝的基准线：屏幕高度的 34% 处（缝中心停在这，上下两半让出半个开口）。 */
+export const BRAVAIS_PORTRAIT_LINE_RATIO = 0.34;
+
+/** 竖屏开口高度：首页横缝两行（页签行 + 切换 / 工具行）。 */
+export const BRAVAIS_SEAM_HOME_HEIGHT = 132;
+/** 竖屏完整信息条：面包屑 + 标题 + 操作 / 过滤三行。 */
+export const BRAVAIS_SEAM_FULL_HEIGHT = 196;
+/** 竖屏账户登录 / 确认态（要放得下二维码）。 */
+export const BRAVAIS_SEAM_ACCOUNT_HEIGHT = 320;
+
 /** 视口外多渲染的世界距离（世界单位）；翻牌也只翻这个范围以内的磁贴。 */
 export const BRAVAIS_OVERSCAN = 420;
 /** 离已渲染范围的边缘还剩这么多（世界单位）时重新裁剪。 */
 export const BRAVAIS_CULL_EDGE_MARGIN = 160;
 
-/** 相机缩放档位，与 Lattice 的 PosterWall 相同（<640: .52，<1100: .64，否则 .76）。 */
-export const getBravaisScale = (viewportWidth: number) => (
-    viewportWidth < 640 ? 0.52 : viewportWidth < 1100 ? 0.64 : 0.76
+/** 相机缩放档位，与 Lattice 的 PosterWall 相同（<640: .52，<1100: .64，否则 .76）。竖屏墙用固定档。 */
+export const getBravaisScale = (viewportWidth: number, viewportHeight?: number) => (
+    viewportHeight !== undefined && isBravaisPortraitView({ width: viewportWidth, height: viewportHeight })
+        ? BRAVAIS_PORTRAIT_SCALE
+        : viewportWidth < 640 ? 0.52 : viewportWidth < 1100 ? 0.64 : 0.76
 );
 
 /** 缝开合与相机让位的补间时长（秒）。 */

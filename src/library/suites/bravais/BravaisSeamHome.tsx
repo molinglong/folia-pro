@@ -272,10 +272,12 @@ const HomeSeamHead: React.FC<{
 const BravaisSeamHome: React.FC<{
     layer: BravaisLayer;
     compact: boolean;
+    /** 竖屏横缝（手机）：页签横排一行，不按桌面纵向测量退让（见 useBravaisSeamTabsFit 的 portrait）。 */
+    portrait?: boolean;
     setLevel: (level: BravaisSeamLevel) => void;
     /** stage 的直达入口打开（墙上找得到那张卡就以它为起点磁贴）。 */
     openShortcut?: (shortcut: BravaisHomeShortcut) => void;
-}> = ({ layer, compact, setLevel, openShortcut }) => {
+}> = ({ layer, compact, portrait = false, setLevel, openShortcut }) => {
     const { t } = useTranslation();
     const { seam } = layer;
     const home = seam.home;
@@ -293,6 +295,7 @@ const BravaisSeamHome: React.FC<{
     const jumpsRef = useRef<HTMLDivElement>(null);
     const jumpsMeasureRef = useRef<HTMLDivElement>(null);
     const fit = useBravaisSeamTabsFit({
+        portrait,
         navRef, headRef, middleRef, bodyRef, slotRef, titledHeadRef, bareHeadRef, fullSlotRef, jumpsRef, jumpsMeasureRef,
     });
     const { level, overflowing } = fit;

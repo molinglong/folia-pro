@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValueEvent } from 'framer-motion';
 import type { MotionValue } from 'framer-motion';
 import { ChevronLeft, RotateCcw } from 'lucide-react';
-import type { LyricData } from '../../../types';
+import type { LyricData, Theme } from '../../../types';
 import GlobalLyricOffsetPreview from './GlobalLyricOffsetPreview';
 import GlobalLyricOffsetRuler from './GlobalLyricOffsetRuler';
 import { useLyricSettingsStore } from '../../../stores/useLyricSettingsStore';
 import { clampGlobalLyricTimelineOffsetMs, GLOBAL_LYRIC_TIMELINE_OFFSET_LIMIT_MS } from '../../../stores/useLyricSettingsStore';
+import { autoOutputLatencyMs } from '../../../services/audioOutputLatencyProber';
 
 // src/components/modal/settings/GlobalLyricOffsetModal.tsx
 // 实验室里的“全局时间偏移”校准窗口：正在播放的歌词按草稿偏移实时推进，
@@ -18,6 +19,7 @@ type GlobalLyricOffsetModalProps = {
     isDaylight: boolean;
     lyrics: LyricData | null;
     lyricCurrentTime: MotionValue<number>;
+    theme?: Theme;
     onClose: () => void;
 };
 
@@ -34,11 +36,62 @@ const panelMotion = {
     exit: { y: 24, opacity: 0, scale: 0.985 },
 };
 
+/**
+ * 自动输出延迟补偿开关：单独成组件是为了把探测值的高频订阅（每 0.5s 一次）关在自己的
+ * 重渲染范围里，不连带打断外层窗口里未应用的草稿偏移。
+ */
+const AutoLatencyCompensationRow: React.FC<{ isDaylight: boolean; theme?: Theme }> = ({ isDaylight, theme }) => {
+    const { t } = useTranslation();
+    const enabled = useLyricSettingsStore(state => state.autoLyricLatencyCompensationEnabled);
+    const toggle = useLyricSettingsStore(state => state.handleToggleAutoLyricLatencyCompensation);
+    const manualOffsetMs = useLyricSettingsStore(state => state.globalLyricTimelineOffsetMs);
+    const [measuredMs, setMeasuredMs] = useState(autoOutputLatencyMs.get());
+    useMotionValueEvent(autoOutputLatencyMs, 'change', (latest) => {
+        // 探测循环本身只在数值变化时写入，这里再挡一道浮点抖动。
+        setMeasuredMs(previous => (previous === latest ? previous : latest));
+    });
+
+    const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
+    const offTrackClass = isDaylight ? 'bg-zinc-200' : 'bg-[#2A2D35]';
+
+    return (
+        <div className={`flex items-center justify-between gap-4 rounded-2xl border px-5 py-4 ${borderColor} ${isDaylight ? 'bg-black/[0.02]' : 'bg-white/[0.03]'}`}>
+            <div className="space-y-1 min-w-0">
+                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                    {t('globalLyricOffset.autoTitle')}
+                </div>
+                <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                    {t('globalLyricOffset.autoDesc')}
+                </div>
+                <div className="text-[11px] font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                    {t('globalLyricOffset.autoMeasured', { ms: measuredMs })}
+                </div>
+                {enabled && manualOffsetMs !== 0 && (
+                    // 两个量在同一个偏移上相加：手动值不归零就会抵掉一部分自动补偿。
+                    <div className="text-[11px]" style={{ color: 'var(--text-accent)' }}>
+                        {t('globalLyricOffset.autoStacksHint', { ms: manualOffsetMs })}
+                    </div>
+                )}
+            </div>
+            <button
+                type="button"
+                onClick={() => toggle(!enabled)}
+                aria-pressed={enabled}
+                className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${enabled ? '' : offTrackClass}`}
+                style={{ backgroundColor: enabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+            >
+                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+            </button>
+        </div>
+    );
+};
+
 const GlobalLyricOffsetModal: React.FC<GlobalLyricOffsetModalProps> = ({
     isOpen,
     isDaylight,
     lyrics,
     lyricCurrentTime,
+    theme,
     onClose,
 }) => {
     const { t } = useTranslation();
@@ -119,6 +172,8 @@ const GlobalLyricOffsetModal: React.FC<GlobalLyricOffsetModalProps> = ({
                         </div>
 
                         <div className="flex min-h-0 flex-col gap-5 overflow-y-auto px-4 py-6 sm:px-8">
+                            <AutoLatencyCompensationRow isDaylight={isDaylight} theme={theme} />
+
                             <GlobalLyricOffsetPreview
                                 lyrics={lyrics}
                                 lyricCurrentTime={lyricCurrentTime}

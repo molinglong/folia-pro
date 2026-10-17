@@ -20,7 +20,16 @@ export const FLIP_MAX_TILES = MAX_RENDERED_INSTANCES;
  */
 export type FlipOrigin =
     | { kind: 'point'; x: number; y: number }
-    | { kind: 'seam-edges'; x: number };
+    | { kind: 'seam-edges'; x: number; y?: number };
+
+/** 缝轴上的坐标：竖屏横缝（给了 y）量纵向距离，否则量横向。 */
+const originAxisValue = (slot: WallSlot, origin: FlipOrigin) => (
+    origin.kind === 'seam-edges' && origin.y !== undefined ? slot.centerY : slot.centerX
+);
+
+const originAxisLine = (origin: FlipOrigin) => (
+    origin.kind === 'seam-edges' && origin.y !== undefined ? origin.y : origin.x
+);
 
 /** Content key a slot shows before and after; null is bare wall (or a reserved slot). */
 export type FlipSlotChange = { slot: WallSlot; from: string | null; to: string | null };
@@ -45,7 +54,7 @@ export type FlipPlan = {
 const distanceFromOrigin = (slot: WallSlot, origin: FlipOrigin) => (
     origin.kind === 'point'
         ? Math.hypot(slot.centerX - origin.x, slot.centerY - origin.y)
-        : Math.abs(slot.centerX - origin.x)
+        : Math.abs(originAxisValue(slot, origin) - originAxisLine(origin))
 );
 
 export const getFlipDelay = (distance: number, metrics: WallMetrics) => (
@@ -95,7 +104,7 @@ export const planFlip = ({
         }
         const delay = getFlipDelay(distance, metrics);
         maxDelay = Math.max(maxDelay, delay);
-        flips.push({ key: change.slot.key, to: change.to, delay, direction: change.slot.centerX < origin.x ? -1 : 1 });
+        flips.push({ key: change.slot.key, to: change.to, delay, direction: originAxisValue(change.slot, origin) < originAxisLine(origin) ? -1 : 1 });
     });
 
     return { flips, swaps, unchanged, durationMs: flips.length ? maxDelay + FLIP_DURATION_MS : 0 };

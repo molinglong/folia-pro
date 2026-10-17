@@ -2,7 +2,7 @@ import { ChartBar, Heart, ListMusic, PanelsTopLeft, Repeat, Repeat1, RepeatOff, 
 import type { LucideIcon } from 'lucide-react';
 import type { PlayerControlSlotActionId } from '../../types/playerControlSlots';
 import { noteLoopButtonPress } from '../../services/ponder/loopShuffleHint';
-import { togglePlaybackQuickPanel } from '../../stores/usePlaybackQuickPanelStore';
+import { togglePlaybackQuickPanel, type PlaybackQuickAnchor } from '../../stores/usePlaybackQuickPanelStore';
 
 // src/components/floating-player/playerControlSlotActions.ts
 // 进度条胶囊右侧两个可自定义槽位的动作清单。
@@ -54,7 +54,11 @@ export type ResolvedPlayerControlSlot = {
     /** 是否处于「已开启」的高亮态（循环非 off、已喜爱）。 */
     active: boolean;
     disabled: boolean;
-    onActivate: () => void;
+    /**
+     * @fork 2026-10-17：可选的 anchor 是触发按钮的视口矩形，只给「播放快捷」浮层定位用
+     * （谁按的就贴着谁弹）；其余动作忽略它，现有的零参 handler 直接赋值仍然兼容。
+     */
+    onActivate: (anchor?: PlaybackQuickAnchor) => void;
     labelKey: string;
 };
 
@@ -157,12 +161,13 @@ export const resolvePlayerControlSlot = (
         case 'playback-quick':
             // @fork 本地魔改版（2026-10-14）：点开/收起胶囊上方的「播放快捷」二级浮层（音量 + 静音 + 洗牌）。
             // 开关住在纯 UI store，这里直接读写（同 loop 案直接 noteLoopButtonPress 的路数），不劳组装方传 handler。
+            // @fork 本地魔改版（2026-10-17）：把触发按钮的几何一并交给 store，浮层跟着按钮位置走，不再钉死底栏。
             return {
                 icon: Zap,
                 filled: false,
                 active: context.isPlaybackQuickOpen ?? false,
                 disabled: false,
-                onActivate: () => togglePlaybackQuickPanel(),
+                onActivate: (anchor) => togglePlaybackQuickPanel(anchor),
                 labelKey: 'options.playerControlSlotAction_playbackQuick',
             };
         case 'queue':

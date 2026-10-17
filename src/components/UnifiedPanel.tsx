@@ -321,8 +321,11 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const toggleButtonMotionClass = (isOpen || isGuideLineVisible || isDragging)
         ? 'translate-x-0 opacity-100'
         : supportsHover
+            // 有鼠标悬停：窄窗（<768px）默认半隐探出，悬停收回；md 起常驻齐平。
             ? 'translate-x-1/2 opacity-60 group-hover:translate-x-0 group-hover:opacity-100 md:translate-x-0 md:opacity-100 md:hover:scale-105'
-            : 'translate-x-1/2 opacity-60';
+            // @fork 本地魔改版：安卓等无 hover 触屏原本常驻 translate-x-1/2（把手探出屏幕边半格）。
+            // 与墙面工具那颗同批反馈「都别缩」，改成齐平贴边、满不透明。Tailwind v4 下 translate-x-0 走独立 translate 属性置 0，不残留位移。
+            : 'translate-x-0 opacity-100';
     const setCommandDestinationFeedback = (progress: number) => {
         const iconContainer = trackEndIconRef.current;
         if (!iconContainer) {

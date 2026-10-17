@@ -1,0 +1,195 @@
+/* src/library/suites/bravais/bravaisPortrait.css
+   竖屏墙（手机）的横缝排版覆盖。桌面是「窄竖条 + 竖排文字 + 纵向堆叠」，竖屏换成「横向铺满的矮带 + 横排文字 +
+   横向排列」。只在 .bravais-root.is-portrait 下生效，不动 bravais.css / bravaisHome.css 的桌面块。
+   缝元素的位置与开口高度由 stage 每帧写（renderFrame 的 y 轴分支：translate3d(0, y-h/2) + height），
+   这里只负责把它铺成横带、把里面的内容从竖排翻回横排。 */
+
+/* ---------- 缝：从竖条翻成横带 ---------- */
+
+.bravais-root.is-portrait .bravais-seam {
+    top: 0;
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    height: 0;
+}
+
+.bravais-root.is-portrait .bravais-seam-content {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    margin-left: 0;
+    transform-origin: 50% 50%;
+}
+
+.bravais-root.is-portrait .bravais-seam-body { height: 100%; }
+
+/* 竖排文字一律翻回横排。 */
+.bravais-root.is-portrait .bravais-seam-vtitle,
+.bravais-root.is-portrait .bravais-seam-tabs button,
+.bravais-root.is-portrait .bravais-seam-home-tab,
+.bravais-root.is-portrait .bravais-seam-vstatus,
+.bravais-root.is-portrait .bravais-seam-vcount,
+.bravais-root.is-portrait .bravais-seam-section .is-label,
+.bravais-root.is-portrait .bravais-seam-tab {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+}
+
+/* ---------- 首页横缝：页签横排一行 + 工具横排一行 ----------
+   横带只有 ~132px 高，装不下桌面的「页头 + 页签列 + 中段 + 工具列」纵向堆叠：桌面里唯一可伸缩的导航区
+   （.bravais-seam-home-nav）会被压到 0。竖屏改成两段定高：页签一行、工具一行；页头 / 中段 / 空 body 直接不画，
+   折叠与二级切换在横带里让位给页签与工具。 */
+
+.bravais-root.is-portrait .bravais-seam-home {
+    --bravais-home-pad-x: 12px;
+    --bravais-home-gap: 6px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--bravais-home-gap);
+    padding: 8px var(--bravais-home-pad-x);
+    overflow: hidden;
+}
+
+/* 导航区定高（不再可伸缩）。页头横排一行：折叠按钮 + 页签（页签在页头的 .bravais-seam-home-side 里，
+   所以不能整块隐藏页头，只隐标题行）。中段 / 空 body 不画。右侧给账户头像让位。 */
+.bravais-root.is-portrait .bravais-seam-home-nav { flex: none; padding-right: 44px; overflow: hidden; }
+.bravais-root.is-portrait .bravais-seam-home-nav-content { flex: none; align-items: stretch; }
+.bravais-root.is-portrait .bravais-seam-home-head { flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; width: 100%; }
+.bravais-root.is-portrait .bravais-seam-home-title { display: none; }
+/* side 是整行（折叠 + 页签）的横向滚动条：锚左起点，溢出往右滚（居中会把左半裁到滚不到的地方）。 */
+.bravais-root.is-portrait .bravais-seam-home-side {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.bravais-root.is-portrait .bravais-seam-home-side::-webkit-scrollbar { display: none; }
+.bravais-root.is-portrait .bravais-seam-home-middle { display: none; }
+.bravais-root.is-portrait .bravais-seam-home-body { display: none; }
+
+/* 页签横排一行；滚动交给外层 side，页签自己保持自然宽（flex:none 不被压缩）。 */
+.bravais-root.is-portrait .bravais-seam-home .bravais-seam-tabs {
+    flex: none;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+}
+.bravais-root.is-portrait .bravais-seam-home .bravais-seam-home-tab {
+    flex: none;
+    padding: 7px 12px;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+/* 工具格横排一行，贴底居中。 */
+.bravais-root.is-portrait .bravais-seam-dock { flex: none; flex-direction: row; justify-content: center; }
+.bravais-root.is-portrait .bravais-seam-tools { grid-template-columns: repeat(4, 40px); grid-auto-flow: column; gap: 8px; }
+.bravais-root.is-portrait .bravais-seam-home.is-compact .bravais-seam-tools { grid-template-columns: repeat(4, 36px); }
+.bravais-root.is-portrait .bravais-seam-tools .bravais-seam-icon.is-wide { width: auto; }
+
+/* 竖屏缝是常驻的顶部横带，工具行里的「⋯」必须一直能点：整条抬到展开卡（.bravais-tile.is-expanded z20）之上。
+   桌面缝在侧边、与居中的展开卡基本不重叠，z5 够用；竖屏横带压在墙上，展开卡一叠上来就盖住「⋯」（用户实测「被上面卡片遮挡」）。
+   对普通 / hover / focus 卡（z0/3/4）缝本就在其上，这里只是把唯一的例外（展开卡）也压到缝之下，层级一致。 */
+.bravais-root.is-portrait .bravais-seam { z-index: 30; }
+/* 「⋯」菜单：横带只有 ~132px 高且 overflow:hidden，菜单从 dock 朝上弹会被带顶裁断、露出后面的卡片。
+   菜单开着时再放开裁剪让弹层越出矮带顶，菜单限高可滚。复用桌面「菜单开着时缝豁免压暗」同一条件。 */
+.bravais-root.is-portrait .bravais-seam:has([data-bravais-seam-menu]) { overflow: visible; }
+.bravais-root.is-portrait .bravais-seam-menu.is-home { max-height: 60vh; overflow-y: auto; }
+
+/* 账户头像不单独占一行（横带装不下第三行）：钉在右上角，平台列表仍从它往下弹。 */
+.bravais-root.is-portrait .bravais-seam-home > .bravais-seam-account {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    z-index: 5;
+    width: auto;
+    margin-bottom: 0;
+}
+
+/* ---------- 完整信息条（歌单 / 歌手页顶栏）竖屏重排 ----------
+   桌面是竖缝里一行一行纵向堆叠；竖屏横带只有 196px，5 行（面包屑 / 过滤 / 标题 / 播放·队列 / 列表·更多）
+   连同 44px 的过滤条一起排会超出高度被裁、且各行紧贴（用户实测「全挤在一起」）。改成紧凑 4 行网格：
+   面包屑占一行；大标题与过滤框并排同一行（省一整行）；两组动作各占一行；次要文字块（元数据 / 简介 / 同步 /
+   状态）竖屏不画，留给列表页看。行内留白 + 垂直居中，确保不被裁也不挤。桌面（非 is-portrait）不受影响。 */
+
+.bravais-root.is-portrait .bravais-seam-full {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-auto-rows: min-content;
+    align-content: center;
+    gap: 8px 12px;
+    padding: 10px 14px;
+    overflow: hidden;
+}
+/* 面包屑：独占第一行。 */
+.bravais-root.is-portrait .bravais-seam-crumbs { grid-row: 1; grid-column: 1 / -1; }
+/* 大标题居左（可省略）、过滤框靠右，同一行。 */
+.bravais-root.is-portrait .bravais-seam-title-area { grid-row: 2; grid-column: 1; min-width: 0; flex-direction: row; align-items: center; gap: 8px; flex: 0 1 auto; }
+.bravais-root.is-portrait .bravais-seam-filter-field { grid-row: 2; grid-column: 2; justify-self: end; width: clamp(120px, 40%, 170px); }
+.bravais-root.is-portrait .bravais-seam-filter-field.is-strip { height: 38px; }
+/* 两组动作各占一整行。 */
+.bravais-root.is-portrait .bravais-seam-actions.is-scope { grid-row: 3; grid-column: 1 / -1; }
+.bravais-root.is-portrait .bravais-seam-more-anchor { grid-row: 4; grid-column: 1 / -1; }
+
+.bravais-root.is-portrait .bravais-seam-vtitle-wrap { flex: 1 1 auto; justify-content: flex-start; }
+.bravais-root.is-portrait .bravais-seam-vtitle {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 22px !important;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bravais-root.is-portrait .bravais-seam-quote { display: none; }
+/* 横带里只留“面包屑 / 标题 / 过滤 / 动作”；多余的元数据 / 简介 / 同步 / 状态行不画，避免多出几行把矮带挤爆、被裁。 */
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-meta,
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-byline,
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-blurb,
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-artist,
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-rule,
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-about,
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-sync,
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-daily,
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-status,
+.bravais-root.is-portrait .bravais-seam-full .bravais-seam-status-line { display: none; }
+
+/* ---------- 书脊：竖屏没有书脊，退化成一横排的操作条 ---------- */
+
+.bravais-root.is-portrait .bravais-seam-spine {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+}
+.bravais-root.is-portrait .bravais-seam-spine .bravais-seam-spacer { flex: 1 1 auto; min-width: 0; height: auto; }
+.bravais-root.is-portrait .bravais-seam-spine .bravais-seam-vtitle { max-width: 40vw; overflow: hidden; font-size: 18px !important; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- 边缘标签：横缝出屏收起时贴在上下边缘 ---------- */
+
+.bravais-root.is-portrait .bravais-seam-tab {
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    max-width: 60%;
+    max-height: none;
+    padding: 8px 14px;
+    transform: translateX(-50%);
+}
+.bravais-root.is-portrait .bravais-seam-tab[data-side='top'] { top: 0; border-radius: 0 0 8px 8px; }
+.bravais-root.is-portrait .bravais-seam-tab[data-side='bottom'] { bottom: 0; border-radius: 8px 8px 0 0; }
+
+@keyframes bravais-seam-tab-in-top { from { opacity: 0; transform: translate(-50%, -100%); } }
+@keyframes bravais-seam-tab-in-bottom { from { opacity: 0; transform: translate(-50%, 100%); } }
+.bravais-root.is-portrait .bravais-seam-tab[data-side='top'] { animation: bravais-seam-tab-in-top 240ms cubic-bezier(.2, .7, .25, 1); }
+.bravais-root.is-portrait .bravais-seam-tab[data-side='bottom'] { animation: bravais-seam-tab-in-bottom 240ms cubic-bezier(.2, .7, .25, 1); }

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 chthollyphile
 import type { LumiereRenderQuality, LumiereTuning } from '../../../types';
 import { snapResolutionToTexturePool } from '../pixiTextureBudget';
+import { applyLumiereMvSceneOverrides } from './lumiereMv';
 import type { LumiereProgramOptions } from './lumiereProgram';
 import type { LumiereSceneTuning } from './types';
 
@@ -73,19 +74,23 @@ export const resolveLumiereBloomLevelDrop = (renderResolution: number, graphicsR
 export interface LumiereSceneTuningContext {
     /** false 时不画歌词：背景歌词碎片也关掉（它们是歌词的字），光照照常。 */
     showText: boolean;
+    /** 背景是 MV 类型：绘光把自己当背景的那几层让位给视频（lumiereMv.ts）。 */
+    mvAdapt?: boolean;
 }
 
-/** 用户 tuning → 场景 tuning。画质档在这里折进倍频与浮尘；「仅显示歌词文字」即场景的 textOnly。 */
+/** 用户 tuning → 场景 tuning。画质档在这里折进倍频与浮尘；「仅显示歌词文字」即场景的 textOnly；
+ * MV 适配在 applyLumiereMvSceneOverrides 里折叠（暗场是每帧现读，背景歌词与线稿走防抖重建）。 */
 export const toLumiereSceneTuning = (
     tuning: LumiereTuning,
     context: LumiereSceneTuningContext,
 ): LumiereSceneTuning => {
     const profile = LUMIERE_QUALITY_PROFILES[tuning.renderQuality] ?? LUMIERE_QUALITY_PROFILES.full;
-    return {
+    return applyLumiereMvSceneOverrides({
         lightIntensity: tuning.lightIntensity,
         audioResponse: tuning.audioResponse,
         fogDensity: tuning.fogDensity,
         darkField: tuning.darkField,
+        mvDarkFieldBypassFloor: false,
         moteAmount: tuning.moteAmount * profile.moteScale,
         bloom: tuning.bloom,
         textBloom: tuning.textBloom,
@@ -98,12 +103,14 @@ export const toLumiereSceneTuning = (
         frontBokeh: tuning.frontBokeh,
         trails: tuning.trails,
         hideTrails: tuning.hideTrails,
+        textGlowScale: 1,
+        textRegionDim: 0,
         overlayFrame: tuning.overlayFrame,
         textOnly: tuning.textOnly,
         keywordColors: tuning.keywordColors,
         themeIcons: tuning.themeIcons,
         themeColorMix: tuning.themeColorMix,
-    };
+    }, context.mvAdapt === true);
 };
 
 /**
@@ -115,9 +122,12 @@ export const LUMIERE_LIVE_SCENE_KEYS = [
     'audioResponse',
     'fogDensity',
     'darkField',
+    'mvDarkFieldBypassFloor',
     'unlitOpacity',
     'fogOctaves',
     'hideTrails',
+    'textGlowScale',
+    'textRegionDim',
 ] as const satisfies readonly (keyof LumiereSceneTuning)[];
 
 /**

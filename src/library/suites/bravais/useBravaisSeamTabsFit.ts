@@ -47,6 +47,9 @@ export type BravaisSeamTabsFit = {
 
 const FITS: BravaisSeamTabsFit = { level: 'titled', shortcuts: true, overflowing: false };
 
+/** 竖屏横缝：页签保全名横排；直达入口让位进「⋯」菜单（横带一行装不下页签 + 入口）。 */
+const PORTRAIT_FITS: BravaisSeamTabsFit = { level: 'titled', shortcuts: false, overflowing: false };
+
 /**
  * 由测量值定级（纯函数）：各级所需高度只看副本，与此刻是哪一级无关。入口先于页签 / 二级切换的缩写让位（见文件头）。
  * `withShortcuts` / `withoutShortcuts` 是中段内层换成对应切换位副本后的高。
@@ -79,6 +82,7 @@ const paddingBlock = (element: HTMLElement) => {
 };
 
 export const useBravaisSeamTabsFit = ({
+    portrait = false,
     navRef,
     headRef,
     middleRef,
@@ -90,6 +94,8 @@ export const useBravaisSeamTabsFit = ({
     jumpsRef,
     jumpsMeasureRef,
 }: {
+    /** 竖屏横缝（手机）：页签横排一行，纵向测量不适用；横排放不下由 CSS 横向滚，故恒定 FITS。 */
+    portrait?: boolean;
     /** 可伸缩的导航区（flex 剩余空间，溢出时可滚）。 */
     navRef: RefObject<HTMLElement | null>;
     /** 此刻渲染的页头（标题 + 折叠 + 页签）。 */
@@ -114,6 +120,8 @@ export const useBravaisSeamTabsFit = ({
     const [fit, setFit] = useState<BravaisSeamTabsFit>(FITS);
 
     useLayoutEffect(() => {
+        // 竖屏横缝：页签横排，纵向测量在竖屏里没有意义；恒定 PORTRAIT_FITS（横排放不下交给 CSS 横向滚）。
+        if (portrait) { setFit(PORTRAIT_FITS); return undefined; }
         const nav = navRef.current;
         const head = headRef.current;
         const middle = middleRef.current;
@@ -155,7 +163,7 @@ export const useBravaisSeamTabsFit = ({
         observer.observe(jumps);
         observer.observe(jumpsMeasure);
         return () => observer.disconnect();
-    }, [bareHeadRef, bodyRef, fullSlotRef, headRef, jumpsMeasureRef, jumpsRef, middleRef, navRef, slotRef, titledHeadRef]);
+    }, [portrait, bareHeadRef, bodyRef, fullSlotRef, headRef, jumpsMeasureRef, jumpsRef, middleRef, navRef, slotRef, titledHeadRef]);
 
     return fit;
 };

@@ -4,8 +4,8 @@ import { getBlockCapacity } from './blockReservedSlots';
 import { SLOTS_PER_BLOCK } from './blockTemplates';
 import { getLatticeGeometry, type Bounds, type WallMetrics } from './layout';
 import { indexRanks, rankSlots, type WallPoint } from './rankSlots';
-import { getSeamCameraSpan } from './seamPlan';
-import { getViewLineX, getViewWorldBounds, type WallView, type WallViewCenter } from './wallView';
+import { getSeamCameraSpan, getSeamCameraSpanY } from './seamPlan';
+import { getViewLineX, getViewLineY, getViewWorldBounds, type WallView, type WallViewCenter } from './wallView';
 import { collectBlockRangeSlots, getBlockSize, type BlockRange, type WallSlot } from './wallSlots';
 
 // The finite wall: no wrapping, every item at most once, unused slots stay bare wall. Its world is
@@ -120,6 +120,7 @@ export const getFiniteCameraRange = ({
     view,
     seamWidth,
     pad = FINITE_CAMERA_PAD,
+    seamAxis = 'x',
 }: {
     contentBounds: Bounds | null;
     anchor: WallPoint;
@@ -127,23 +128,51 @@ export const getFiniteCameraRange = ({
     /** The layer's target opening (not the animated one). */
     seamWidth: number;
     pad?: number;
+    /** Portrait wall: the opening rides horizontally, so it widens the y span instead. */
+    seamAxis?: 'x' | 'y';
 }): WallCameraRange => {
     const { scale } = view;
     const lineX = getViewLineX(view);
-    const leftSpan = (lineX - seamWidth / 2) / scale;
-    const rightSpan = (view.width - lineX - seamWidth / 2) / scale;
-    const halfHeight = view.height / 2 / scale;
+    const lineY = getViewLineY(view);
     const content = contentBounds ?? { left: anchor.x, right: anchor.x, top: anchor.y, bottom: anchor.y };
 
-    let minX = content.left + leftSpan - pad;
-    let maxX = content.right - rightSpan + pad;
-    let minY = content.top + halfHeight - pad;
-    let maxY = content.bottom - halfHeight + pad;
+    let minX: number;
+    let maxX: number;
+    let minY: number;
+    let maxY: number;
+    if (seamAxis === 'y') {
+        const topSpan = (lineY - seamWidth / 2) / scale;
+        const bottomSpan = (view.height - lineY - seamWidth / 2) / scale;
+        const halfWidth = view.width / 2 / scale;
+        minX = content.left + halfWidth - pad;
+        maxX = content.right - halfWidth + pad;
+        minY = content.top + topSpan - pad;
+        maxY = content.bottom - bottomSpan + pad;
+    } else {
+        const leftSpan = (lineX - seamWidth / 2) / scale;
+        const rightSpan = (view.width - lineX - seamWidth / 2) / scale;
+        const halfHeight = view.height / 2 / scale;
+        minX = content.left + leftSpan - pad;
+        maxX = content.right - rightSpan + pad;
+        minY = content.top + halfHeight - pad;
+        maxY = content.bottom - halfHeight + pad;
+    }
     const lockedX = minX > maxX;
     const lockedY = minY > maxY;
     if (lockedX) minX = maxX = anchor.x;
     if (lockedY) minY = maxY = anchor.y;
 
+    if (seamAxis === 'y') {
+        const seam = getSeamCameraSpanY({ anchorY: anchor.y, openWidth: seamWidth, view });
+        return {
+            minX: Math.min(minX, anchor.x),
+            maxX: Math.max(maxX, anchor.x),
+            minY: Math.min(minY, seam.min),
+            maxY: Math.max(maxY, seam.max),
+            lockedX,
+            lockedY,
+        };
+    }
     const seam = getSeamCameraSpan({ anchorX: anchor.x, openWidth: seamWidth, view });
     return {
         minX: Math.min(minX, seam.min),

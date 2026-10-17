@@ -17,37 +17,37 @@ const metrics = { cellSize: 128, gap: 8 };
 
 describe('computeBravaisFrame', () => {
     it('splits the two halves around an open seam on the base line', () => {
-        const frame = computeBravaisFrame({ center: { x: 0, y: 0 }, view, anchorX: 0, openWidth: 300, contentWidth: 300, hidden: false });
+        const frame = computeBravaisFrame({ center: { x: 0, y: 0 }, view, axis: 'x', anchorX: 0, anchorY: null, openWidth: 300, contentWidth: 300, hidden: false });
         const offsets = getSeamSplitOffsets(300, view.scale, metrics);
         expect(frame.left).toEqual({ x: 600 + offsets.left, y: 400 });
         expect(frame.right).toEqual({ x: 600 + offsets.right, y: 400 });
-        expect(frame.seam).toEqual({ x: 600, width: 300, visible: true });
+        expect(frame.seam).toEqual({ x: 600, y: 0, width: 300, height: 0, visible: true });
         expect(frame.contentOpacity).toBe(1);
         expect(frame.tab.visible).toBe(false);
     });
 
     it('squeezes the seam near an edge, fades its content and collapses it off screen', () => {
-        const near = computeBravaisFrame({ center: { x: 1000, y: 0 }, view, anchorX: 0, openWidth: 300, contentWidth: 300, hidden: false });
+        const near = computeBravaisFrame({ center: { x: 1000, y: 0 }, view, axis: 'x', anchorX: 0, anchorY: null, openWidth: 300, contentWidth: 300, hidden: false });
         expect(near.seam.x).toBe(100);
         expect(near.seam.width).toBe(2 * (100 - 14));
         expect(near.contentOpacity).toBeLessThan(1);
 
-        const gone = computeBravaisFrame({ center: { x: 3000, y: 0 }, view, anchorX: 0, openWidth: 300, contentWidth: 300, hidden: false });
+        const gone = computeBravaisFrame({ center: { x: 3000, y: 0 }, view, axis: 'x', anchorX: 0, anchorY: null, openWidth: 300, contentWidth: 300, hidden: false });
         expect(gone.seam.visible).toBe(false);
         expect(gone.tab).toEqual({ visible: true, side: 'left' });
     });
 
     it('lays out against the rendered variant width, not the opening (flip without reflow)', () => {
-        const frame = computeBravaisFrame({ center: { x: 0, y: 0 }, view, anchorX: 0, openWidth: 150, contentWidth: 300, hidden: false });
+        const frame = computeBravaisFrame({ center: { x: 0, y: 0 }, view, axis: 'x', anchorX: 0, anchorY: null, openWidth: 150, contentWidth: 300, hidden: false });
         expect(frame.contentOpacity).toBeCloseTo((0.5 - 0.35) / 0.65);
     });
 
     it('shows the floating tab while folded and closes the wall without a layer', () => {
-        const folded = computeBravaisFrame({ center: { x: 0, y: 0 }, view, anchorX: 0, openWidth: 0, contentWidth: 0, hidden: true });
+        const folded = computeBravaisFrame({ center: { x: 0, y: 0 }, view, axis: 'x', anchorX: 0, anchorY: null, openWidth: 0, contentWidth: 0, hidden: true });
         expect(folded.tab.visible).toBe(true);
         expect(folded.left).toEqual(folded.right);
 
-        const none = computeBravaisFrame({ center: { x: 0, y: 0 }, view, anchorX: null, openWidth: 300, contentWidth: 300, hidden: false });
+        const none = computeBravaisFrame({ center: { x: 0, y: 0 }, view, axis: 'x', anchorX: null, anchorY: null, openWidth: 300, contentWidth: 300, hidden: false });
         expect(none.seam.visible).toBe(false);
         expect(none.left).toEqual(none.right);
     });
@@ -65,7 +65,7 @@ describe('layout memory', () => {
     });
     afterEach(() => vi.unstubAllGlobals());
 
-    const record = { center: { x: 12, y: -40 }, anchorX: -8, startSlotKey: '1,0,3', focusSlotKey: '1,0,4' };
+    const record = { center: { x: 12, y: -40 }, anchorX: -8, anchorY: null, startSlotKey: '1,0,3', focusSlotKey: '1,0,4' };
 
     it('round-trips a record per session key', () => {
         writeBravaisLayout('online:a:playlist:1', record);
@@ -88,6 +88,7 @@ describe('layout memory', () => {
         expect(parseBravaisLayoutRecord(JSON.stringify({ center: { x: 'a', y: 1 }, anchorX: Infinity, startSlotKey: 3 }))).toEqual({
             center: null,
             anchorX: null,
+            anchorY: null,
             startSlotKey: null,
             focusSlotKey: null,
         });

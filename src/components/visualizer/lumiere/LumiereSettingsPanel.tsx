@@ -136,6 +136,7 @@ const LumiereSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             <SettingsSection title={t('options.lumiereAtmosphereSection')}>
                 {ATMOSPHERE_CONTROLS.map(renderControl)}
                 {hint('options.lumiereDarkFieldHint')}
+                {hint('options.lumiereMvAdaptHint')}
             </SettingsSection>
 
             <SettingsSection title={t('options.lumiereTextSection')}>

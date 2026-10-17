@@ -8,6 +8,7 @@ import { nextWallLook, stepWindowsPerBlock } from './bravaisLook';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { useBravaisUiStore } from './bravaisUiStore';
 import type { BravaisFrameState } from './useBravaisFrame';
+import { frameSeamPoint } from './useBravaisFrame';
 
 // src/library/suites/bravais/useBravaisChromeActions.ts
 // bravais 的外观动作（B2 的 suite-chrome）：缝的三级开口（展开 / 收起成书脊 / 折叠）、在这里裂开缝、定位正在播放。
@@ -62,11 +63,10 @@ export const useBravaisChromeActions = ({
             const display = displayRef.current;
             const key = display?.layer.nowPlayingKey;
             if (!display || !key) return null;
-            const { anchorX, center } = frameRef.current;
             return findItemSlotNear(
                 display,
                 key,
-                { x: anchorX ?? center.x, y: center.y },
+                frameSeamPoint(frameRef.current),
                 getBlockSize(BRAVAIS_METRICS),
                 (column, row) => getBlockSlots(column, row, BRAVAIS_METRICS),
             );

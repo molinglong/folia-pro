@@ -16,6 +16,8 @@ type BravaisWallProps = {
     slots: readonly WallSlot[];
     display: BravaisDisplay | null;
     anchorX: number | null;
+    /** 竖屏横缝的锚点（世界 y）：给了它墙就按行分上下两半（left / right 两半即上 / 下）。 */
+    anchorY?: number | null;
     /** 聚焦卡所在块的让位矩形（slot key → 新矩形）。 */
     reflow: ReadonlyMap<string, BravaisTileRect>;
     expandedSlotKey: string | null;
@@ -36,6 +38,7 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
     slots,
     display,
     anchorX,
+    anchorY = null,
     reflow,
     expandedSlotKey,
     focusedSlotKey,
@@ -89,7 +92,8 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
                 lightsRippleDelay={computeLightsRippleDelay(rect, lightsRippleOrigin)}
             />
         );
-        (anchorX !== null && slot.x < anchorX ? left : right).push(tile);
+        const before = anchorY !== null ? slot.y < anchorY : anchorX !== null && slot.x < anchorX;
+        (before ? left : right).push(tile);
     }
     return (
         <>

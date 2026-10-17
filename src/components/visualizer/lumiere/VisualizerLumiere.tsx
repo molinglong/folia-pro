@@ -13,11 +13,12 @@ import { resolveSubtitleFontSizes } from '../subtitleFontSizes';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import type { LumierePixiRuntime, LumiereSongContext, LumiereSongMetadata } from './createLumierePixiRuntime';
+import { resolveLumiereMvAdaptActive } from './lumiereMv';
 import { compileLumiereProgram } from './lumiereProgram';
 import { resolveLumiereCompileOptions } from './lumiereRuntimeTuning';
 
 // src/components/visualizer/lumiere/VisualizerLumiere.tsx
-// 绘光的 React 外壳：挂共享 shell / 字幕层，把按需加载的 Pixi 运行时建一次，换歌、tuning、暂停都就地推给它。
+// 绘光的 React 外壳：挂共享 shell / 字幕层，把按需加载的 Pixi 运行时建一次，换歌、tuning、暂停、背景类型都就地推给它。
 // 每帧的时间只在运行时的 draw loop 里读 currentTime，不进 React state。
 const EMPTY_LUMIERE_LINES: Line[] = [];
 
@@ -52,9 +53,12 @@ const VisualizerLumiere: React.FC<VisualizerSharedProps> = (props) => {
     const hostRef = useRef<HTMLDivElement>(null);
     const [runtimeFailed, setRuntimeFailed] = useState(false);
 
+    // 背景类型是 MV：暗场让位、把画面交给视频（lumiereMv.ts）。只看用户选的背景，不探测这首歌有没有 MV。
+    const mvAdapt = resolveLumiereMvAdaptActive(props.background);
+
     // 运行时创建期间这些输入可能已经变了；create 完成后按最新值补一次。
-    const latestRef = useRef({ tuning: lumiereTuning, paused, showText, staticMode, audioPower, audioBands });
-    latestRef.current = { tuning: lumiereTuning, paused, showText, staticMode, audioPower, audioBands };
+    const latestRef = useRef({ tuning: lumiereTuning, paused, showText, staticMode, audioPower, audioBands, mvAdapt });
+    latestRef.current = { tuning: lumiereTuning, paused, showText, staticMode, audioPower, audioBands, mvAdapt };
     const metadataRef = useRef<LumiereSongMetadata>({ title: songTitle, artist: songArtist, album: songAlbum });
     metadataRef.current = { title: songTitle, artist: songArtist, album: songAlbum };
 
@@ -107,6 +111,7 @@ const VisualizerLumiere: React.FC<VisualizerSharedProps> = (props) => {
                 staticMode: latest.staticMode,
                 showText: latest.showText,
                 paused: latest.paused,
+                mvAdapt: latest.mvAdapt,
                 metadata: metadataRef.current,
                 signal,
             });
@@ -117,6 +122,7 @@ const VisualizerLumiere: React.FC<VisualizerSharedProps> = (props) => {
             runtime.setStaticMode(current.staticMode);
             runtime.setAudioSources(current.audioPower, current.audioBands);
             runtime.setPaused(current.paused);
+            runtime.setMvAdapt(current.mvAdapt);
             return runtime;
         },
         swap: (runtime, song, signal) => runtime.swapSong(song, signal),
@@ -147,6 +153,10 @@ const VisualizerLumiere: React.FC<VisualizerSharedProps> = (props) => {
     useEffect(() => {
         runtimeRef.current?.setPaused(paused);
     }, [paused, runtimeRef]);
+
+    useEffect(() => {
+        runtimeRef.current?.setMvAdapt(mvAdapt);
+    }, [mvAdapt, runtimeRef]);
 
     // 暂停时 ticker 停着，拖动进度要手动补一帧。
     useEffect(() => currentTime.on('change', () => {

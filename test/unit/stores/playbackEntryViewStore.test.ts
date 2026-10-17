@@ -12,6 +12,7 @@ import {
 // test/unit/stores/playbackEntryViewStore.test.ts
 // 「播放后进入的视图」的第三个值「留在原处」（fb3）：存储读回（旧值兼容、未知值回退 player）、持久化、显式进入播放视图时
 // stay 去播放页；三条选项命令的 isAvailable / 执行与当前值互斥。store 在 import 时读存储，所以每个用例重新 import 一份。
+// 2026-10-17：从没选过时的缺省按「竖屏窄窗 + 非细指针」分流——手机缺省 lattice，其余（桌面、宽窗）仍 player。
 
 const ENTRY_VIEW_KEY = 'playback_entry_view';
 
@@ -37,6 +38,30 @@ describe('playback entry view store', () => {
     it('defaults to the player when nothing is stored', async () => {
         const store = await loadStore();
         expect(store.getState().playbackEntryView).toBe('player');
+    });
+
+    // 缺省分流只在「从没选过」时生效：stub 的 window 没有尺寸也没有 matchMedia 时按桌面处理（上面那个用例即这条路径）。
+    // store 在 import 时就读缺省，所以桩要在 import 前挂好（loadStore 的 stubGlobal 会先把它擦掉）。
+    it('defaults to the lattice on portrait-narrow coarse-pointer devices, but never over a stored choice', async () => {
+        const phone = async (initial: Record<string, string> = {}) => {
+            vi.resetModules();
+            storage = new Map(Object.entries(initial));
+            vi.stubGlobal('window', {
+                innerWidth: 390,
+                innerHeight: 844,
+                matchMedia: () => ({ matches: false }),
+            });
+            vi.stubGlobal('localStorage', {
+                getItem: (key: string) => storage.get(key) ?? null,
+                setItem: (key: string, value: string) => { storage.set(key, value); },
+            });
+            const store = (await import('@/stores/usePlaybackEntryViewStore')).usePlaybackEntryViewStore;
+            return store.getState().playbackEntryView;
+        };
+        expect(await phone()).toBe('lattice');
+        // 选过的人（存储里有值）不因设备换形态被拉走。
+        expect(await phone({ [ENTRY_VIEW_KEY]: 'stay' })).toBe('stay');
+        expect(await phone({ [ENTRY_VIEW_KEY]: 'player' })).toBe('player');
     });
 
     it('reads back the two values stored before stay existed', async () => {

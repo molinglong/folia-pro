@@ -22,11 +22,16 @@ export interface LumiereDarkField {
     alpha: number;
 }
 
-/** 生效的暗场：深色主题 alpha = darkField；浅色主题取 max(darkField, 0.94)。颜色是主题背景色压暗。 */
-export const resolveLumiereDarkField = (theme: Pick<Theme, 'backgroundColor'>, darkField: number): LumiereDarkField => {
+/** 生效的暗场：深色主题 alpha = darkField；浅色主题取 max(darkField, 0.94)。颜色是主题背景色压暗。
+ * MV 适配生效时绕过浅色保底（lumiereMv.ts）：不然视频被整个盖死，但强度本身仍按传进来的值走。 */
+export const resolveLumiereDarkField = (
+    theme: Pick<Theme, 'backgroundColor'>,
+    darkField: number,
+    bypassBrightFloor = false,
+): LumiereDarkField => {
     const background = rgbOf(theme.backgroundColor, [0, 0, 0]);
     const strength = Number.isFinite(darkField) ? Math.min(1, Math.max(0, darkField)) : 0;
-    const bright = luminance(background) > BRIGHT_BACKGROUND_LUMINANCE;
+    const bright = !bypassBrightFloor && luminance(background) > BRIGHT_BACKGROUND_LUMINANCE;
     return {
         color: scaleRgb(background, DARK_FIELD_SHADE),
         alpha: bright ? Math.max(strength, LUMIERE_BRIGHT_DARK_FIELD_FLOOR) : strength,
@@ -39,6 +44,9 @@ export class LumiereDarkFieldLayer {
     private readonly sprite: Sprite;
     private theme: Theme | null = null;
     private darkField = Number.NaN;
+    private bypassBrightFloor = false;
+    private appliedAlpha = Number.NaN;
+    private appliedTint = Number.NaN;
     private width = 0;
     private height = 0;
 
@@ -48,14 +56,21 @@ export class LumiereDarkFieldLayer {
         this.view = this.sprite;
     }
 
-    update(theme: Theme, darkField: number, width: number, height: number) {
-        if (theme !== this.theme || darkField !== this.darkField) {
+    update(theme: Theme, darkField: number, width: number, height: number, bypassBrightFloor = false) {
+        // 只在生效值真的变了时写属性：浅色主题下 0.9 与 1 折出来是同一个 alpha，不必动 sprite。
+        if (theme !== this.theme || darkField !== this.darkField || bypassBrightFloor !== this.bypassBrightFloor) {
             this.theme = theme;
             this.darkField = darkField;
-            const field = resolveLumiereDarkField(theme, darkField);
-            this.sprite.tint = hexOf(field.color);
-            this.sprite.alpha = field.alpha;
-            this.sprite.visible = field.alpha > 0.002;
+            this.bypassBrightFloor = bypassBrightFloor;
+            const field = resolveLumiereDarkField(theme, darkField, bypassBrightFloor);
+            const tint = hexOf(field.color);
+            if (field.alpha !== this.appliedAlpha || tint !== this.appliedTint) {
+                this.appliedAlpha = field.alpha;
+                this.appliedTint = tint;
+                this.sprite.tint = tint;
+                this.sprite.alpha = field.alpha;
+                this.sprite.visible = field.alpha > 0.002;
+            }
         }
         if (width !== this.width || height !== this.height) {
             this.width = width;

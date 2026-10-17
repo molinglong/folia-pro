@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMotionValue } from 'framer-motion';
 import { DAYLIGHT_THEME, DEFAULT_THEME } from '../../src/services/baseThemes';
 import { getVisualizerRegistryEntry } from '../../src/components/visualizer/registry';
-import { selectDisplaySong, usePlaybackStore } from '../../src/stores/usePlaybackStore';
-import { DEFAULT_LUMIERE_TUNING, DEFAULT_PENDOLO_TUNING, DEFAULT_SONNET_TUNING, type Line, type LumiereRenderQuality, type SongResult, type Theme } from '../../src/types';
+import { DEFAULT_LUMIERE_TUNING, DEFAULT_PENDOLO_TUNING, DEFAULT_SONNET_TUNING, type Line, type LumiereRenderQuality, type Theme } from '../../src/types';
 import type { ProbeDefinition } from './definition';
 
 // dev/probes/visualizerMemory.probe.tsx
@@ -130,16 +129,6 @@ const COVER_URL = `data:image/svg+xml;utf8,${encodeURIComponent(
     + '</svg>',
 )}`;
 
-/** 带 mvId 的网易云在线歌：sourceRef/providerData 与真链一致，走真实 provider 解析（配合拦截 mv/url）。 */
-const FROST_PROBE_SONG: SongResult = {
-    id: '30953009',
-    name: 'Frost Song',
-    artists: [{ id: 10, name: 'Probe' }],
-    album: { id: 20, name: 'Probe Album' },
-    durationMs: 180_000,
-    sourceRef: { kind: 'online', providerId: 'netease', mediaId: '30953009', providerData: { mvId: 54321 } },
-};
-
 const params = new URLSearchParams(window.location.search);
 const MODE = params.get('vis') ?? 'pendolo';
 /** 时间轴倍速。8x 意味着每 0.375 秒过一行，几分钟就能跑完一整首歌的行切换量。 */
@@ -165,8 +154,6 @@ const HEAVY = params.get('heavy') === '1';
 const SONNET_TUNING = params.get('postprocess') === '1'
     ? { ...DEFAULT_SONNET_TUNING, postProcessEnabled: true }
     : DEFAULT_SONNET_TUNING;
-/** classic 的 MV 毛玻璃变体链路探针：注入带 MV 的在线歌并把背景切成 mv，验证词下贴片。 */
-const MV_FROST = params.get('mvfrost') === '1';
 /**
  * Pendolo 专用消融开关，用来把内存归因到具体图层：
  * - `canvas` 整个机芯 canvas 不挂载
@@ -190,6 +177,10 @@ const LUMIERE_SEAMLESS = params.get('seamless') === '1';
 const LUMIERE_TEXT_ONLY = params.get('textonly') === '1';
 /** 绘光主题色占比（0..1）；不给用默认值。 */
 const LUMIERE_THEME_MIX = params.has('mix') ? Number(params.get('mix')) : DEFAULT_LUMIERE_TUNING.themeColorMix;
+/** 模拟"背景类型 = MV"（只把 background.mode 递进去，绘光的 MV 适配据此生效；探针自渲染，底下并不真画视频）。 */
+const LUMIERE_MV_ADAPT = params.get('mvadapt') === '1';
+/** 临时诊断：把用户的线稿开关关掉，看画面里那条折线是不是线稿。 */
+const LUMIERE_NO_ART = params.get('noart') === '1';
 /** 覆盖主题色：colors=<强调>,<主>,<次>（不带 #），用来看主题色占比的效果。 */
 /** 绘光图形 / 文字辉光倍率（两者同值）；不给用默认值。bloom=0 用来排查辉光滤镜的问题。 */
 const LUMIERE_BLOOM = params.has('bloom') ? Number(params.get('bloom')) : null;
@@ -264,13 +255,6 @@ const VisualizerMemoryProbe: React.FC = () => {
         return () => window.clearInterval(id);
     }, []);
 
-    // MV 毛玻璃变体：把一首带 mvId 的在线歌放进 playback store，classic 与 MvBackground
-    // 会通过共享缓存为它解析流；流 URL 由测试拦截 mv/url 提供。
-    useEffect(() => {
-        if (!MV_FROST) return;
-        usePlaybackStore.setState({ currentSong: FROST_PROBE_SONG });
-    }, []);
-
     useEffect(() => {
         if (FREEZE) {
             currentTime.set(FREEZE_TIME_SECONDS);
@@ -332,11 +316,12 @@ const VisualizerMemoryProbe: React.FC = () => {
                     textOnly: LUMIERE_TEXT_ONLY,
                     themeColorMix: LUMIERE_THEME_MIX,
                     ...(LUMIERE_BLOOM === null ? {} : { bloom: LUMIERE_BLOOM, textBloom: LUMIERE_BLOOM }),
+                    ...(LUMIERE_NO_ART ? { lineArt: false } : {}),
                 },
                 songTitle: META ? 'Lantern Tide' : null,
                 songArtist: META ? 'Probe Ensemble' : null,
                 songAlbum: META ? 'Synthetic Nights' : null,
-                ...(MV_FROST ? { background: { mode: 'mv' as const } } : {}),
+                ...(LUMIERE_MV_ADAPT ? { background: { mode: 'mv', styles: [], randomStyle: false } } : {}),
             } as never)}
         </div>
     );
@@ -349,9 +334,9 @@ const definition: ProbeDefinition = {
         + ' 参数：vis=<mode> speed=<倍速> lines=<行数> switch=<切歌间隔秒> heavy=1 notext=1 freeze=1 ablate=canvas|gears'
         + ' tail=<秒> start=<秒> keywords=1 daylight=1 meta=1 quality=full|balanced|low（后四个给绘光这类读主题关键字 / 片尾卡 / 画质的模式）'
         + ' cjk=1（中文长短句歌词，测折行） dark=<0..1>（绘光暗场强度）'
-        + ' postprocess=1（商籁开启后处理，测滤镜纹理池缩放释放）'
+        + ' postprocess=1（商籁开启后处理，测滤镜纹理池缩放释放）mvadapt=1（模拟背景类型为 MV，驱动绘光的 MV 适配）noart=1（绘光关掉线稿开关）'
         + ' long=1（80 行约 5 分钟的中英混排长歌，带段落空隙） seamless=1（绘光轨迹过渡：整首歌一个单元） textonly=1（绘光仅显示歌词文字） mix=<0..1>（绘光主题色占比） colors=<强调>,<主>,<次>（覆盖主题色，十六进制不带 #） bloom=<0..2>（绘光辉光倍率）'
-        + ' mvfrost=1（注入带 MV 的在线歌并把背景切成 mv，验证 classic 词下毛玻璃贴片，配合拦截 mv/url）',
+        ,
     Component: VisualizerMemoryProbe,
 };
 

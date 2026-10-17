@@ -5,6 +5,7 @@ import { expect, test } from './fixtures';
 // @fork 本地魔改版（2026-10-14）：播放胶囊右槽默认动作 playback-quick 与它的二级浮层（音量 + 静音 + 洗牌）。
 // 这几项从 bravais 墙工具面板搬过来（墙面面板自此只管墙），探针见 dev/probes/playbackQuick.probe.tsx。
 // 音量读写真的 useAudioSettingsStore；洗牌可用性读真的 usePlaybackStore（队列 ≥ 2 首），点击次数落在 data-probe-shuffle-calls。
+// @fork 本地魔改版（2026-10-17）：浮层不再钉死屏幕右下（固定底栏锚点），贴着触发按钮弹 —— 新增定位回归用例。
 
 const SLOT = (page: Page) => page.getByRole('button', { name: 'Playback quick', exact: true });
 const PANEL = (page: Page) => page.getByRole('dialog', { name: 'Playback quick', exact: true });
@@ -58,6 +59,28 @@ test('the slot toggles the panel, Esc and an outside click close it', async ({ p
     // 点浮层外任意处（无全屏背板，pointerdown 监听兼容触屏）。
     await page.mouse.click(10, 10);
     await expect(PANEL(page)).toHaveCount(0);
+});
+
+test('the panel anchors to the button that opened it instead of a fixed screen corner', async ({ page }) => {
+    await expandCapsule(page);
+    await SLOT(page).click();
+    await expect(PANEL(page)).toBeVisible();
+
+    const slotBox = (await SLOT(page).boundingBox())!;
+    const gapSettled = async () => {
+        const box = await PANEL(page).boundingBox();
+        if (!box) return false;
+        const gap = slotBox.y - (box.y + box.height);
+        return gap > 9.5 && gap < 10.5;
+    };
+    // 入场有 180ms 的 y:12→0 位移，toBeVisible 不等它落定（12px 起步会扫到 1~2px 的中间态）；
+    // 轮询到间隙落进 10px 缝隙的落定窗口再量几何。
+    await expect.poll(gapSettled, { timeout: 2000 }).toBe(true);
+    const panelBox = (await PANEL(page).boundingBox())!;
+    // 卡片底边落在按钮顶边上方约 10px 的缝隙处（贴按钮上沿弹出来）。
+    expect(slotBox.y - (panelBox.y + panelBox.height)).toBeCloseTo(10, 0);
+    // 水平以按钮为中心；胶囊那颗靠屏幕中线，不会被视口边缘夹住。
+    expect(Math.abs(panelBox.x + panelBox.width / 2 - (slotBox.x + slotBox.width / 2))).toBeLessThan(20);
 });
 
 test('the volume row drives the app volume store: keys step it, the icon mutes and un-mutes', async ({ page }) => {

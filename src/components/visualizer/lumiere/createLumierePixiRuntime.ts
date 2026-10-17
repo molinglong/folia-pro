@@ -60,6 +60,8 @@ export interface LumiereRuntimeOptions {
     staticMode: boolean;
     showText: boolean;
     paused: boolean;
+    /** 背景是 MV 类型（lumiereMv.ts）：暗场压低并绕过浅色保底；外壳按 props 现算，变化时推给运行时。 */
+    mvAdapt?: boolean;
     metadata: LumiereSongMetadata;
     signal?: AbortSignal;
 }
@@ -115,7 +117,10 @@ export class LumierePixiRuntime {
         private readonly options: LumiereRuntimeOptions,
         private readonly app: import('pixi.js').Application,
     ) {
-        this.sceneTuning = toLumiereSceneTuning(options.tuning, { showText: options.showText });
+        this.sceneTuning = toLumiereSceneTuning(options.tuning, {
+            showText: options.showText,
+            mvAdapt: options.mvAdapt === true,
+        });
         this.audio = createLumiereAudioSampler({ audioPower: options.audioPower, audioBands: options.audioBands });
     }
 
@@ -223,8 +228,8 @@ export class LumierePixiRuntime {
     private drawOverlay() {
         // 画框是自建 context 的 Graphics，带 context: true 才会连 GPU 批数据一起放掉（见 lineArt 的 destroy）。
         this.overlayLayer.removeChildren().forEach(child => child.destroy({ children: true, context: true }));
-        // 仅显示歌词文字时画框也是装饰，不画。
-        if (!this.options.tuning.overlayFrame || this.options.tuning.textOnly || this.width === 0) return;
+        // 仅显示歌词文字时画框也是装饰，不画；MV 适配时画框属于"绘光自己当背景"的那套壳，同样让位。
+        if (!this.options.tuning.overlayFrame || this.options.tuning.textOnly || this.options.mvAdapt || this.width === 0) return;
         this.overlayLayer.addChild(buildLumiereOverlay(this.pixi, {
             width: this.width,
             height: this.height,
@@ -270,7 +275,8 @@ export class LumierePixiRuntime {
         }
         const { program, theme } = this.options.song;
         // 暗场强度每帧从共享 tuning 现读：拖滑块不重建场景；场景还没建好的第一帧也已经铺上。
-        this.darkField.update(theme, this.sceneTuning.darkField, this.width, this.height);
+        this.darkField.update(theme, this.sceneTuning.darkField, this.width, this.height,
+            this.sceneTuning.mvDarkFieldBypassFloor);
         const frames = resolveLumiereSceneFrames(program, time, !this.options.staticMode);
         let builtThisFrame = false;
         if (frames.activeIndex !== this.activeIndex) {
@@ -400,6 +406,15 @@ export class LumierePixiRuntime {
         if (this.options.paused) this.renderOnce();
     }
 
+    /** 背景类型切换（普通 ↔ MV）时外壳推进来：暗场与背景歌词、线稿、画框让位；前者每帧现读，后者防抖重建。 */
+    setMvAdapt(mvAdapt: boolean) {
+        if (this.destroyed || mvAdapt === this.options.mvAdapt) return;
+        this.options.mvAdapt = mvAdapt;
+        this.applySceneTuning();
+        this.drawOverlay();
+        if (this.options.paused) this.renderOnce();
+    }
+
     setShowText(showText: boolean) {
         if (this.destroyed || showText === this.options.showText) return;
         this.options.showText = showText;
@@ -413,7 +428,10 @@ export class LumierePixiRuntime {
 
     private applySceneTuning() {
         const previous = { ...this.sceneTuning };
-        const next = toLumiereSceneTuning(this.options.tuning, { showText: this.options.showText });
+        const next = toLumiereSceneTuning(this.options.tuning, {
+            showText: this.options.showText,
+            mvAdapt: this.options.mvAdapt === true,
+        });
         Object.assign(this.sceneTuning, next);
         this.refreshQuality();
         if (requiresLumiereSceneRebuild(previous, next)) this.scheduleRebuild();

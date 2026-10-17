@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_CLASSIC_TUNING, AudioBands, type ClassicTuning } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
@@ -14,9 +14,8 @@ import { resolveWordColor } from '../wordColoring';
 import { GlowWord } from '../GlowWord';
 import { getGlowWordLineContainerMotion, resolveGlowWordRenderProfile } from '../glowWordTiming';
 import { buildGlowWordLayoutVariants, glowWordBodyVariants } from '../glowWordVariants';
-import { buildWordFrostMaskUrl, resolveClassicMvFrostActive } from '../glowWordFrost';
-import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
-import { useCurrentSongMvUrl } from '../../../services/onlineMusic/useCurrentSongMv';
+import { annotateLineTypes, type LineType } from '../../../utils/lyrics/lineTypeDetector';
+import { colorWithAlpha } from '../colorMix';
 
 // This mode is the most straightforward lyric pipeline in the folder.
 // First we ask runtime which line is active right now, then read renderHints from that line,
@@ -45,6 +44,29 @@ interface LineLayoutConfig {
     alignItems: string;
     perspective: number;
 }
+
+// 高潮/重音的亮度+饱和+日冕增益（三档预设）。写入容器 CSS 变量，GlowWord 在 active 词的整外层
+// span 上读。audioPower 实际范围 0~255 且上游经 process(v,3) 立方压缩（见 usePlaybackVisualizerBridge），
+// 先开立方反压回线性再按各档 weight 叠上去。饱和与亮度同因子线性联动（比例 0.55）。
+// 日冕只在 chorus 行生效（sunStart/sunFull 不为 null），rap / normal 行无日冕。sunScale 从 1.35 到 3.00。
+interface GlowPreset {
+    base: number;
+    weight: number;
+    cap: number;
+    sunStart: number | null;
+    sunFull: number | null;
+}
+const GLOW_PRESETS: Record<LineType, GlowPreset> = {
+    chorus: { base: 1.65, weight: 0.60, cap: 2.60, sunStart: 1.55, sunFull: 2.35 },
+    rap:    { base: 1.20, weight: 0.45, cap: 1.80, sunStart: null, sunFull: null },
+    normal: { base: 1.00, weight: 0.30, cap: 1.60, sunStart: null, sunFull: null },
+};
+const GLOW_SAT_RATIO = 0.55;
+
+const smoothstepGlow = (a: number, b: number, x: number) => {
+    const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+};
 
 const clampClassicBreathingFloatMultiplier = (value: number) => Math.min(2, Math.max(0, value));
 const clampClassicWordSpacing = (value: number) => Math.min(2, Math.max(0, value));
@@ -127,14 +149,6 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
     const activeWordRenderProfile = activeLineRenderProfile ?? (activeLine ? resolveGlowWordRenderProfile(activeLine) : null);
     const activeLineContainerMotion = getGlowWordLineContainerMotion(activeLineRenderProfile);
 
-    // MV background variant: when the background type is 'mv' and the current song really resolved an
-    // MV stream, glyph-shaped frosted patches sit under the words (the preview-lyric-frosted
-    // prototype's per-glyph frosted glass). Shares the mv-url cache with MvBackground, so the frost
-    // appears exactly when the MV picture does and both fall back together.
-    const displaySong = usePlaybackStore(selectDisplaySong);
-    const mvUrl = useCurrentSongMvUrl(displaySong);
-    const mvFrostActive = resolveClassicMvFrostActive(props.background?.mode, mvUrl);
-
     const [viewportWidth, setViewportWidth] = useState(() => (
         typeof window === 'undefined' ? 1200 : window.innerWidth
     ));
@@ -146,6 +160,48 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    // 高潮/重音/段行类型的亮度+饱和增益：将实时 boost 写入行容器的 CSS 变量，GlowWord 发光层外层 span
+    // 用 filter: brightness(var(--glow-boost)) saturate(var(--glow-sat)) 读取。audioPower 每帧采样，
+    // lineType 切换时手写一次确保基座当场生效。
+    const lyricGlowRef = useRef<HTMLDivElement | null>(null);
+    const lineTypes = useMemo(() => annotateLineTypes(lines), [lines]);
+    const activeType: LineType = lineTypes[currentLineIndex] ?? 'normal';
+    const writeGlowBoost = (power: number, type: LineType) => {
+        const el = lyricGlowRef.current;
+        if (!el) return;
+        const preset = GLOW_PRESETS[type];
+        const norm = Math.max(0, Math.min(255, power)) / 255;
+        const shaped = Math.cbrt(norm); // 开立方反压上游 process(v,3) 的压缩，否则重音实际只能推 0.02~0.14 几乎无感
+        const boost = Math.min(preset.cap, preset.base + shaped * preset.weight);
+        const sat = 1 + (boost - 1) * GLOW_SAT_RATIO;
+        const sun = preset.sunStart !== null && preset.sunFull !== null
+            ? smoothstepGlow(preset.sunStart, preset.sunFull, boost)
+            : 0;
+        const sunScale = (1.35 + sun * 1.65).toFixed(3); // 从 1.35 到 3.00，日冕半径随 sun 同步变化
+        el.style.setProperty('--glow-boost', boost.toFixed(3));
+        el.style.setProperty('--glow-sat', sat.toFixed(3));
+        el.style.setProperty('--sun-op', sun.toFixed(3));
+        el.style.setProperty('--sun-scale', sunScale);
+    };
+    useMotionValueEvent(audioPower, 'change', (v) => {
+        writeGlowBoost(v, lineTypes[currentLineIndex] ?? 'normal');
+    });
+    useEffect(() => {
+        writeGlowBoost(audioPower.get(), activeType);
+    }, [activeType]);
+
+    // 日冕颜色取主题 accent 着色。主题变化不频繁，单独一个 effect 写 --sun-grad，避免每帧重拼 4 段 rgba。
+    // fallback 为原暖黄 radial-gradient（partita 等不写变量的宿主保留旧观感）。
+    const sunGradient = useMemo(() => {
+        const c = theme.accentColor;
+        return `radial-gradient(ellipse at center, ${colorWithAlpha(c, 0.92)} 0%, ${colorWithAlpha(c, 0.62)} 32%, ${colorWithAlpha(c, 0.32)} 62%, rgba(0,0,0,0) 100%)`;
+    }, [theme.accentColor]);
+    useEffect(() => {
+        const el = lyricGlowRef.current;
+        if (!el) return;
+        el.style.setProperty('--sun-grad', sunGradient);
+    }, [sunGradient]);
 
     const displayWords = useMemo(() => {
         if (!activeLine) return [];
@@ -280,22 +336,6 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
     const layoutVariants = buildGlowWordLayoutVariants(theme.animationIntensity, resolvedClassicTuning.enableWordRotation);
     const bodyVariants = glowWordBodyVariants;
 
-    // One frost mask per distinct word text; the cache inside buildWordFrostMaskUrl absorbs repeats
-    // across lines, so this only paints genuinely new glyphs on a line change.
-    const frostMasks = useMemo(() => {
-        if (!mvFrostActive || displayWords.length === 0) return null;
-        const pxFontSize = getPixelFontSize(lyricsFontScale, viewportWidth);
-        const fontStack = resolveThemeFontStack(theme);
-        const fontWeight = resolveThemeFontWeight(theme, 700);
-        const masks = new Map<string, string>();
-        for (const word of displayWords) {
-            if (masks.has(word.text)) continue;
-            const url = buildWordFrostMaskUrl(word.text, pxFontSize, fontStack, fontWeight);
-            if (url) masks.set(word.text, url);
-        }
-        return masks;
-    }, [mvFrostActive, displayWords, lyricsFontScale, viewportWidth, theme]);
-
     const lyricContainerFloat = useMemo(() => {
         const multiplier = resolvedClassicTuning.breathingFloatMultiplier;
         if (multiplier <= 0) {
@@ -334,6 +374,7 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
         >
             {/* Main Container */}
             <motion.div
+                ref={lyricGlowRef}
                 className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none will-change-transform"
                 animate={lyricContainerFloat?.animate}
                 transition={lyricContainerFloat?.transition}
@@ -352,8 +393,6 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
                                 const config = wordConfigs[idx] || { id: `fallback-${idx}`, x: 0, y: 0, rotate: 0, scale: 1, marginRight: '0.5rem', alignSelf: 'auto', passedRotate: 0 };
 
                                 const activeColor = resolveWordColor(word.text, theme.wordColors, theme.accentColor);
-                                const frostUrl = frostMasks?.get(word.text) ?? null;
-
                                 return (
                                     <GlowWord
                                         key={`${word.text}-${idx}-${activeLine.startTime}`}
@@ -369,7 +408,6 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
                                         isChorus={activeLine.isChorus}
                                         fontSize={mainFontSize}
                                         layoutStyle={{ marginRight: config.marginRight, alignSelf: config.alignSelf }}
-                                        frostBackdrop={frostUrl ? { maskUrl: frostUrl } : null}
                                     />
                                 );
                             })}

@@ -5,7 +5,6 @@ import { buildWordGraphemeTimings } from '../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontWeight } from '../../utils/fontStacks';
 import { wordGlowVariants } from './wordGlow';
 import { getGlowWordActiveEndTime, getGlowWordDisplayDuration, type GlowWordRenderProfile } from './glowWordTiming';
-import { FROST_BLUR_PX, FROST_BRIGHTNESS, FROST_OPACITY } from './glowWordFrost';
 
 // src/components/visualizer/GlowWord.tsx
 // classic / partita 共用的单词组件：每个词只持有 waiting / active / passed 三态，状态变化才 setState；
@@ -25,8 +24,6 @@ export interface GlowWordProps<TConfig extends { id: string }> {
     fontSize: string;
     /** Mode-specific spacing merged into the word's own style (e.g. marginRight, alignSelf). */
     layoutStyle: React.CSSProperties;
-    /** MV background variant: glyph-shaped frosted-glass patch rendered under glow/body; absent otherwise. */
-    frostBackdrop?: { maskUrl: string } | null;
 }
 
 export const GlowWord = <TConfig extends { id: string }>({
@@ -42,7 +39,6 @@ export const GlowWord = <TConfig extends { id: string }>({
     isChorus,
     fontSize,
     layoutStyle,
-    frostBackdrop,
 }: GlowWordProps<TConfig>) => {
     const [status, setStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
     const rippleScale = useMemo(() => 1.5 + Math.random() * 2, []);
@@ -83,25 +79,31 @@ export const GlowWord = <TConfig extends { id: string }>({
                 fontWeight: resolveThemeFontWeight(theme, 700),
                 lineHeight: 1.22,
                 ...layoutStyle,
+                // 只在 active 时吃高潮/重音增益：字身+光晕一起提亮，未唱/已唱不受影响。
+                // classic 将 audioPower/isChorus 合成后写入容器的 --glow-boost/--glow-sat；
+                // 其他使用 GlowWord 但不设变量的模式（partita）var fallback 为 1，行为不变。
+                ...(status === 'active'
+                    ? { filter: 'brightness(var(--glow-boost, 1)) saturate(var(--glow-sat, 1))' }
+                    : null),
             }}
         >
-            {/* Frost Layer - MV background variant: a glyph-masked frosted patch that keeps the word
-                readable over bright video frames; the body colour simply paints over it once sung. */}
-            {frostBackdrop && (
+            {/* Sun corona - 仅在 active 且 classic 推高到日冕区间时可见，径向暖白→橙黄→透明。
+                位置在 moting.div 内第一个子位，作为字下方光斑；moting.div 自身的 brightness 会
+                二次提亮日冕，顶到 boost=2.60 时目芒正好。其他不设 --sun-op 的模式 fallback 为 0，
+                日冕不显。 */}
+            {status === 'active' && (
                 <span
                     aria-hidden="true"
-                    data-glow-word-frost=""
-                    className="absolute inset-0 z-0 block select-none pointer-events-none"
+                    data-glow-word-sun=""
+                    className="absolute inset-0 pointer-events-none select-none"
                     style={{
-                        backdropFilter: `blur(${FROST_BLUR_PX}px) brightness(${FROST_BRIGHTNESS})`,
-                        WebkitBackdropFilter: `blur(${FROST_BLUR_PX}px) brightness(${FROST_BRIGHTNESS})`,
-                        maskImage: `url("${frostBackdrop.maskUrl}")`,
-                        WebkitMaskImage: `url("${frostBackdrop.maskUrl}")`,
-                        maskSize: '100% 100%',
-                        WebkitMaskSize: '100% 100%',
-                        maskRepeat: 'no-repeat',
-                        WebkitMaskRepeat: 'no-repeat',
-                        opacity: FROST_OPACITY,
+                        background: 'var(--sun-grad, radial-gradient(ellipse at center, rgba(255,245,205,0.92) 0%, rgba(255,196,90,0.62) 32%, rgba(255,130,45,0.32) 62%, rgba(255,90,30,0) 100%))',
+                        filter: 'blur(10px)',
+                        opacity: 'var(--sun-op, 0)',
+                        transform: 'scale(var(--sun-scale, 1))',
+                        transformOrigin: 'center center',
+                        mixBlendMode: 'screen',
+                        zIndex: 0,
                     }}
                 />
             )}

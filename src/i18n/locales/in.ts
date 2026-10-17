@@ -1501,6 +1501,10 @@ export default {
   },
   "globalLyricOffset": {
     "title": "Offset Waktu Global",
+    "autoTitle": "Kompensasi Latensi Otomatis",
+    "autoDesc": "Membaca latensi output nyata dari jalur audio perangkat ini dan menggeser timeline lirik secara otomatis. Menangani headphone Bluetooth dan perpindahan perangkat tanpa pengaturan manual.",
+    "autoMeasured": "Latensi output terdeteksi: {{ms}}ms",
+    "autoStacksHint": "Kompensasi otomatis dan offset manual ditjumlahkan. Saat otomatis aktif, mengembalikan offset manual {{ms}}ms ke 0 biasanya paling pas.",
     "subtitle": "Kompensasi latensi audio/visual dari headphone Bluetooth atau perangkat output lain",
     "apply": "Terapkan",
     "reset": "Kembali ke 0",

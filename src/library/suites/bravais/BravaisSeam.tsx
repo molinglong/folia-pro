@@ -34,8 +34,10 @@ type BravaisSeamProps = {
     targetVariant: BravaisSeamContentVariant;
     /** 正画着的内容正要翻走（useBravaisSeam 的 leaving）。 */
     leaving: boolean;
-    /** 此刻渲染的那一套内容的排版宽度（翻转不重排）。 */
+    /** 此刻渲染的那一套内容的排版宽度（翻转不重排）。竖屏时是横带的排版宽度（铺满视口）。 */
     contentWidth: number;
+    /** 竖屏横缝（手机）：内容横排、绕 X 轴翻，底部不绑播放条安全区。 */
+    portrait?: boolean;
     layer: BravaisLayer | null;
     /** 当前层（标签上的标题跟着它，不等内容翻转）。 */
     currentLayer: BravaisLayer | null;
@@ -61,6 +63,7 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     targetVariant,
     leaving,
     contentWidth,
+    portrait = false,
     layer,
     currentLayer,
     level,
@@ -84,20 +87,21 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
                 className="bravais-seam"
                 data-bravais-seam={variant}
                 data-bravais-seam-level={level}
+                data-bravais-seam-axis={portrait ? 'y' : 'x'}
                 data-folia-keyboard-window={keyboardWindow ? 'true' : undefined}
                 aria-label={t('libraryBravais.seamLabel')}
                 role="region"
             >
-                <div ref={contentRef} className="bravais-seam-content" style={{ width, marginLeft: -width / 2 }}>
+                <div ref={contentRef} className="bravais-seam-content" style={portrait ? undefined : { width, marginLeft: -width / 2 }}>
                     <motion.div
                         className="bravais-seam-body"
-                        style={{ paddingBottom: bottomPx }}
+                        style={portrait ? undefined : { paddingBottom: bottomPx }}
                         inert={hideLeaving}
                         aria-hidden={hideLeaving || undefined}
                         data-bravais-seam-leaving={hideLeaving || undefined}
                     >
                         <BravaisSeamNavigation.Provider value={navigation}>
-                            <BravaisSeamContent variant={variant} layer={layer} depth={navigation.depth} actions={{ setLevel, openList, panel, openShortcut }} />
+                            <BravaisSeamContent variant={variant} layer={layer} depth={navigation.depth} portrait={portrait} actions={{ setLevel, openList, panel, openShortcut }} />
                         </BravaisSeamNavigation.Provider>
                     </motion.div>
                 </div>

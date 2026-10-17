@@ -1,4 +1,4 @@
-import { BRAVAIS_SEAM_FULL_WIDTH } from './bravaisConstants';
+import { BRAVAIS_SEAM_ACCOUNT_HEIGHT, BRAVAIS_SEAM_FULL_HEIGHT, BRAVAIS_SEAM_FULL_WIDTH, isBravaisPortraitView } from './bravaisConstants';
 import type { BravaisLayer, BravaisLayerSurface } from './bravaisLayer';
 import {
     resolveSeamOpenWidth,
@@ -16,6 +16,7 @@ import {
 // 优先级：表单 > 面板（折叠时除外）> 过滤的临时展开 > 用户选的等级。用户的等级不被改写，只是暂时不生效。
 // B9 首页：目录树面板与列表面板同一种开口（panel）；全局搜索框开着时首页窄缝临时展开成完整宽度（search，
 // 折叠时除外——搜索态没有书脊这一级，只能折叠）。首页的表单态在面板里（底部翻牌），不占整条缝。
+// 竖屏（portrait）：width 字段的语义换成横缝的高度；面板与账户态按屏高算（resolvePanelWidth 的 portrait 分支）。
 
 /** 列表面板的开口：min(420, 视口 − 52)。 */
 export const BRAVAIS_PANEL_MAX_WIDTH = 420;
@@ -28,6 +29,12 @@ export const resolvePanelWidth = (viewportWidth: number) => Math.max(
     Math.min(BRAVAIS_PANEL_MAX_WIDTH, viewportWidth - BRAVAIS_PANEL_VIEWPORT_MARGIN),
 );
 
+/** 竖屏的列表面板 / 目录树开口（横缝高度）：约六成屏高，至少放得下登录态那一档。 */
+export const resolvePanelHeight = (viewportHeight: number) => Math.max(
+    BRAVAIS_SEAM_ACCOUNT_HEIGHT,
+    Math.round(viewportHeight * 0.62),
+);
+
 export type BravaisSeamContentVariant = BravaisSeamVariant | 'panel' | 'form' | 'search' | BravaisAccountSeamVariant;
 
 /** B10：账户的登录态 / 确认态（不属于任何一层，见 bravaisAccountStore）。 */
@@ -37,6 +44,10 @@ export type BravaisSeamTargetInput = {
     surface: BravaisLayerSurface;
     level: BravaisSeamLevel;
     viewportWidth: number;
+    /** 竖屏横缝（手机）：开口尺寸按高度算。 */
+    portrait?: boolean;
+    /** 竖屏时的视口高（面板高度按它算）。 */
+    viewportHeight?: number;
     formOpen?: boolean;
     panelOpen?: boolean;
     /** 缝里的过滤输入位正在输入（bravaisUiStore.filterEditing）：书脊 / 折叠的缝临时展开。 */
@@ -51,22 +62,36 @@ export const resolveEffectiveSeamLevel = ({ level, formOpen, panelOpen, filterOp
 );
 
 export const resolveSeamTarget = (input: BravaisSeamTargetInput): { width: number; variant: BravaisSeamContentVariant } => {
+    const { portrait = false, viewportHeight = 0 } = input;
     // 整条缝翻成表单只在集合层与歌手页（B8）上有；首页的表单在目录树面板底部（B9），不占整条缝。
     // 面板三层都有：集合 / 歌手是列表面板，首页是目录树（只在有批量的那几行，hasPanel 由 surface 给）。
-    if (input.surface !== 'home' && input.formOpen) return { width: BRAVAIS_SEAM_FULL_WIDTH, variant: 'form' };
+    if (input.surface !== 'home' && input.formOpen) {
+        return { width: portrait ? BRAVAIS_SEAM_FULL_HEIGHT : BRAVAIS_SEAM_FULL_WIDTH, variant: 'form' };
+    }
     // 面板里只有「折叠」：折叠后面板仍算开着，恢复时回到面板（设计稿 §5）。
     if (input.panelOpen && input.level !== 'hidden') {
-        return { width: resolvePanelWidth(input.viewportWidth), variant: 'panel' };
+        return {
+            width: portrait ? resolvePanelHeight(viewportHeight) : resolvePanelWidth(input.viewportWidth),
+            variant: 'panel',
+        };
     }
     if (input.surface === 'home' && input.searchOpen && input.level !== 'hidden') {
-        return { width: BRAVAIS_SEAM_FULL_WIDTH, variant: 'search' };
+        return { width: portrait ? BRAVAIS_SEAM_FULL_HEIGHT : BRAVAIS_SEAM_FULL_WIDTH, variant: 'search' };
     }
     const level = resolveEffectiveSeamLevel(input);
-    return { width: resolveSeamOpenWidth(input.surface, level), variant: resolveSeamVariant(input.surface, level) };
+    return { width: resolveSeamOpenWidth(input.surface, level, portrait), variant: resolveSeamVariant(input.surface, level) };
 };
 
-/** 一套内容的排版宽度（翻转不重排：跟着此刻渲染的那一套走）。 */
-export const resolveVariantWidth = (variant: BravaisSeamContentVariant, viewportWidth: number) => {
+/** 一套内容的排版开口（翻转不重排：跟着此刻渲染的那一套走）；竖屏是高度。 */
+export const resolveVariantWidth = (variant: BravaisSeamContentVariant, viewportWidth: number, viewport?: { width: number; height: number } | null) => {
+    const portrait = viewport !== null && viewport !== undefined && isBravaisPortraitView(viewport);
+    if (portrait) {
+        if (variant === 'login' || variant === 'confirm') return BRAVAIS_SEAM_ACCOUNT_HEIGHT;
+        if (variant === 'panel') return resolvePanelHeight(viewport.height);
+        if (variant === 'none') return 0;
+        // form / search / home / full / spine 都排完整信息条的三行高度（横带铺满屏宽，多出的内容由 CSS 收）。
+        return BRAVAIS_SEAM_FULL_HEIGHT;
+    }
     if (variant === 'form' || variant === 'search' || variant === 'login' || variant === 'confirm') return BRAVAIS_SEAM_FULL_WIDTH;
     if (variant === 'panel') return resolvePanelWidth(viewportWidth);
     return seamVariantWidth(variant);
@@ -80,7 +105,9 @@ export const resolveStageSeamTarget = (
     input: BravaisSeamTargetInput,
     account: BravaisAccountSeamVariant | null,
 ): { width: number; variant: BravaisSeamContentVariant } => (
-    account ? { width: BRAVAIS_SEAM_FULL_WIDTH, variant: account } : resolveSeamTarget(input)
+    account
+        ? { width: input.portrait ? BRAVAIS_SEAM_ACCOUNT_HEIGHT : BRAVAIS_SEAM_FULL_WIDTH, variant: account }
+        : resolveSeamTarget(input)
 );
 
 /**

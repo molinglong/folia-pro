@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import { getStoredBoolean, getStoredString, setStoredBoolean } from './storagePrimitives';
+import { FINE_POINTER_QUERY } from '../hooks/useSupportsFinePointer';
 
 /**
  * Where pressing play lands. `player` is the visualizer page, `lattice` the queue collage, and
@@ -45,8 +46,25 @@ const LIBRARY_SUITE_PROMPT_SEEN_KEY = 'library_suite_prompt_seen';
 export type StartupPromptPage = 'library-suite' | 'playback-entry-view';
 
 const readEntryView = (): PlaybackEntryView => {
-    const stored = getStoredString(ENTRY_VIEW_KEY, 'player');
-    return isPlaybackEntryView(stored) ? stored : 'player';
+    const stored = getStoredString(ENTRY_VIEW_KEY, '');
+    return isPlaybackEntryView(stored) ? stored : resolvePlaybackEntryViewDefault();
+};
+
+/**
+ * 从没选过时的缺省：竖屏窄窗且主指针不是细指针（手机）缺省进海报墙，否则进可视化播放页。
+ * 2026-10-17 用户定：手机上「海报显示不完」的诉求最终落在歌词入口——竖屏没有悬停，点开播放
+ * 直接落到带逐字歌词的 Lattice 最顺手。两个条件缺一不可：指针媒体特性在无头浏览器里不可靠
+ * （e2e 实测报非细指针），单靠它会把这些窗口和窄桌面窗误判成手机；宽度阈值与 bravais 竖屏墙
+ * 同源（BRAVAIS_PORTRAIT_MAX_WIDTH_PX = 700，不 import 它：store 不碰 suite 内部）。选过的人
+ * （含首启提问里没点卡直接关掉的）存储里有值，永远以存储为准。
+ */
+const PHONE_MAX_WIDTH_PX = 700;
+
+export const resolvePlaybackEntryViewDefault = (): PlaybackEntryView => {
+    if (typeof window === 'undefined') return 'player';
+    const portraitNarrow = window.innerHeight > window.innerWidth && window.innerWidth < PHONE_MAX_WIDTH_PX;
+    const coarsePointer = typeof window.matchMedia === 'function' && !window.matchMedia(FINE_POINTER_QUERY).matches;
+    return portraitNarrow && coarsePointer ? 'lattice' : 'player';
 };
 
 export type PlaybackEntryViewState = {

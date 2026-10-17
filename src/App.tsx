@@ -68,6 +68,7 @@ import type { MediaId, OnlineProviderId, ProviderCollection } from './types/onli
 import { resolveSongCatalogRef } from './services/onlineMusic/catalogRefs';
 import { omni } from './services/onlineMusic/omni';
 import { consumeProgrammaticPause, playbackFade } from './services/playbackFade';
+import { resetAudioOutputLatencyProber, startAudioOutputLatencyProber, stopAudioOutputLatencyProber } from './services/audioOutputLatencyProber';
 import { getSongArtistLabel, getSongCoverUrl } from './services/onlineMusic/songMetadata';
 import { isNavidromeEnabled } from './services/navidromeService';
 import { useAppNavigation } from './hooks/useAppNavigation';
@@ -445,6 +446,7 @@ export default function App() {
     } = useTypographySettingsStore(useShallow(selectTypographySettingsSnapshot));
     const {
         globalLyricTimelineOffsetMs,
+        autoLyricLatencyCompensationEnabled,
         lyricFilterPattern,
         lyricFilterEnabled,
         lyricStaffPolicy,
@@ -1197,6 +1199,17 @@ export default function App() {
         const element = isShowingTail ? getDisplayElement() : audioRef.current;
         if (element) currentTime.set(element.currentTime);
     }, [audioRef, currentTime, getDisplayElement, isShowingTail]);
+
+    // 自动输出延迟补偿：开关开启期间持续采样“正在发声的那个卡盘”的交付位置与
+    // 已送达扬声器的采样之差。探测到0时桥接层自然退回纯手动偏移的行为。
+    useEffect(() => {
+        if (!autoLyricLatencyCompensationEnabled) {
+            resetAudioOutputLatencyProber();
+            return undefined;
+        }
+        startAudioOutputLatencyProber(() => getDisplayElement() ?? audioRef.current, () => audioContextRef.current);
+        return stopAudioOutputLatencyProber;
+    }, [autoLyricLatencyCompensationEnabled, getDisplayElement, audioRef, audioContextRef]);
 
     // Restore the displayed song's remembered manual offset (0 when never adjusted, so a fresh
     // song behaves exactly like the old reset). Keyed on the DISPLAYED song, not the playing one:
