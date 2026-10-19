@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { COMPAT_SCOPE, resolveIdentity } from './identity.js';
+import { createListeningRouter } from './listening.js';
+import { createProfileRouter } from './profile.js';
 
 export type D1PreparedStatement = {
   bind: (...values: unknown[]) => D1PreparedStatement;
@@ -30,9 +32,9 @@ export type SyncEnv = {
   };
 };
 
-const SCHEMA_VERSION = 3;
-// 旧客户端（schema 1/2）只解析各自版本的响应，兼容模式按 1 应答，避免破坏存量部署。
-const SUPPORTED_CLIENT_SCHEMA_VERSIONS = [1, 2, 3] as const;
+const SCHEMA_VERSION = 4;
+// 旧客户端（schema 1/2/3）只解析各自版本的响应，兼容模式按 1 应答，避免破坏存量部署。
+const SUPPORTED_CLIENT_SCHEMA_VERSIONS = [1, 2, 3, 4] as const;
 const THEME_BUCKET_COUNT = 256;
 const COLLECTION_PROVIDERS: ReadonlySet<string> = new Set(['netease', 'qq', 'kugou']);
 const MAX_COLLECTION_JSON_LENGTH = 4_000_000;
@@ -167,6 +169,29 @@ const ensureSchema = async (db: D1Database) => {
         PRIMARY KEY (user_id, provider_id)
       )
     `),
+    // schema 4：听歌记录增量同步。revision 由服务端单调分配，客户端只拉增量；
+    // cleared_at 是清空水位线，旧行留在表里也不会被下发。
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS listening_plays (
+        user_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        played_at INTEGER NOT NULL,
+        payload_json TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        deleted INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, session_id)
+      )
+    `),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_listening_plays_user_revision ON listening_plays(user_id, revision)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_listening_plays_user_played_at ON listening_plays(user_id, played_at)'),
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS listening_sync_state (
+        user_id TEXT PRIMARY KEY,
+        revision INTEGER NOT NULL DEFAULT 0,
+        cleared_at INTEGER NOT NULL DEFAULT 0
+      )
+    `),
     db.prepare(`
       CREATE TABLE IF NOT EXISTS meta (
         key TEXT PRIMARY KEY,
@@ -174,6 +199,13 @@ const ensureSchema = async (db: D1Database) => {
       )
     `),
   ]);
+
+  // schema 3.1：账号头像。users 表是老库，CREATE TABLE IF NOT EXISTS 不会补列，只能先查再 ALTER。
+  const userColumns = await db.prepare('PRAGMA table_info(users)').all<{ name: string }>();
+  const userColumnNames = new Set((userColumns.results ?? []).map(column => column.name));
+  if (!userColumnNames.has('avatar')) {
+    await db.prepare('ALTER TABLE users ADD COLUMN avatar TEXT').run();
+  }
 
   // 一次性迁移：把 schema 1 的全局数据搬进兼容模式域（scope = ''）。meta 行幂等防重放，
   // 否则每次冷启动都会把旧表数据复活（用户删过的数据被 INSERT OR IGNORE 重新插入）。
@@ -243,7 +275,7 @@ const app = new Hono<SyncEnv>();
 
 app.use('*', cors({
   origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Authorization', 'Content-Type'],
 }));
 
@@ -817,6 +849,12 @@ api.delete('/platform-sessions/:providerId', async (c) => {
   console.log(`[Sync] Deleted platform-sessions (${providerId})`);
   return c.json({ ok: true });
 });
+
+// 账号资料（头像）：与其它按用户同步域共用 identity 中间件，挂在同一棵 api 下。
+api.route('/', createProfileRouter());
+
+// 听歌记录（/listening-plays）：只对登录账号开放，兼容模式明确拒绝。
+api.route('/', createListeningRouter());
 
 app.route('/', api);
 

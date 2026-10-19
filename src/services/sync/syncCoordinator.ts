@@ -2,6 +2,11 @@ import { getSyncConfig, isSyncConfigured, setSyncStatus, whenSessionHydrated } f
 import { getRemoteState, testSyncConnection } from './syncClient';
 import { syncAllCollections, type CollectionSyncSummary } from './collectionSync';
 import { syncPlatformSessions } from './platformSessionSync';
+import {
+    initializeListeningStatsSync,
+    syncListeningStats,
+    type ListeningStatsSyncSummary,
+} from './listeningStatsSync';
 import type { SyncProviderConfig } from './syncTypes';
 import { applySyncedVisualSettings, buildSyncedSettingsRecord, readSyncableSettingsState } from './settingsSnapshot';
 import {
@@ -49,6 +54,8 @@ const pushCurrentSettings = async () => {
 };
 
 export const initializeSyncCoordinator = () => {
+    // 本地播放/删除/清空后 15s 防抖推送；未登录时模块内部直接跳过。
+    initializeListeningStatsSync();
     void (async () => {
         // 会话从 IndexedDB 水合是异步的：等它落地再决定启动同步走账号域还是兼容域。
         await whenSessionHydrated();
@@ -96,6 +103,7 @@ export type SyncNowResult = {
     appliedRemoteSettings: boolean;
     pushedLocalSettings: boolean;
     collectionSyncSummary: CollectionSyncSummary | null;
+    listeningSyncSummary: ListeningStatsSyncSummary | null;
 };
 
 export const syncNow = async (options: {
@@ -137,11 +145,14 @@ export const syncNow = async (options: {
             pushedLocalSettings = await pushCurrentSettings();
         }
         let collectionSyncSummary: CollectionSyncSummary | null = null;
+        let listeningSyncSummary: ListeningStatsSyncSummary | null = null;
         if (options.syncCollections ?? true) {
             collectionSyncSummary = await syncAllCollections();
             // 平台会话键对账（QQ 共享登录态）：与收藏同一个同步周期，
             // 本机扫码→推云、他机扫码→领养 token 并通知 UI 重查。
             await syncPlatformSessions('qq');
+            // 听歌记录：旧服务端没有该域时内部静默降级，不会拖垮整个同步周期。
+            listeningSyncSummary = await syncListeningStats();
         }
         setSyncStatus({ state: 'success', lastSyncAt: new Date().toISOString(), lastError: null });
         const summary = {
@@ -153,6 +164,7 @@ export const syncNow = async (options: {
             appliedRemoteSettings,
             pushedLocalSettings,
             collectionSyncSummary,
+            listeningSyncSummary,
         };
         console.info('[sync] Sync completed', summary);
         if (summary.downloadedThemeCount > 0 && typeof window !== 'undefined') {

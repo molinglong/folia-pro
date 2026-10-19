@@ -2,7 +2,9 @@ import { getHueDistance, hexToHsl, normalizeHue, type Hsl } from '../themeColorM
 
 // src/utils/builtinTheme/coverPaletteAnalysis.ts
 // Reads the cover's extracted colors and decides the color skeleton of a built-in theme: which
-// hue leads, which hue accents it, and how saturated/deep the backgrounds should read.
+// hue leads, which hue accents it, and how saturated/deep the backgrounds should read. Callers
+// pass population-weighted swatches in area order (largest first): the dominant colorful swatch
+// wins, not the loudest pixel.
 
 export type HarmonyScheme = 'duotone' | 'monochrome';
 export type PaletteTone = 'ink' | 'tinted' | 'rich';
@@ -12,6 +14,8 @@ export type CoverPalette = {
     baseSaturation: number;
     baseLightness: number;
     accentHue: number;
+    /** How colorful the swatch the accent borrows its hue from actually is (0 = neutral). */
+    accentSaturation: number;
     scheme: HarmonyScheme;
     tone: PaletteTone;
 };
@@ -19,10 +23,14 @@ export type CoverPalette = {
 const MIN_SUPPORT_SATURATION = 0.15;
 const MIN_SUPPORT_HUE_DISTANCE = 25;
 const MAX_SUPPORT_HUE_DISTANCE = 160;
+// A swatch that is essentially black, white or grey has no hue to build a theme on. Cover borders,
+// plain backdrops and letterboxing are usually the largest swatches, so the leading color has to
+// skip them instead of inheriting a grey tone.
+const MIN_BASE_SATURATION = 0.1;
+const MIN_BASE_LIGHTNESS = 0.06;
+const MAX_BASE_LIGHTNESS = 0.94;
 
-// Prefers colors that are both saturated and mid-lightness: those carry the cover's identity,
-// while near-black / near-white pixels only describe its background.
-const getCoverColorScore = ({ s, l }: Hsl) => s * Math.max(0, 1 - Math.abs(l - 0.5) * 1.2);
+const isColorless = ({ s, l }: Hsl) => s < MIN_BASE_SATURATION || l < MIN_BASE_LIGHTNESS || l > MAX_BASE_LIGHTNESS;
 
 const pickWeighted = <T,>(random: () => number, entries: { value: T; weight: number; }[]): T => {
     const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
@@ -44,22 +52,18 @@ const pickBaseColor = (parsedColors: Hsl[], random: () => number): Hsl => {
         return { h: random() * 360, s: 0.35 + random() * 0.3, l: 0.5 };
     }
 
-    const scored = parsedColors.reduce((best, candidate) => (
-        getCoverColorScore(candidate) > getCoverColorScore(best) ? candidate : best
-    ), parsedColors[0]);
-
-    return getCoverColorScore(scored) > 0.02 ? scored : parsedColors[0];
+    // Swatches arrive largest-area first, so the leading colorful one is the cover's dominant hue.
+    // Fall back to the largest swatch when the artwork is genuinely monochrome.
+    return parsedColors.find(color => !isColorless(color)) ?? parsedColors[0];
 };
 
-const pickSupportHue = (parsedColors: Hsl[], base: Hsl) => {
-    const support = parsedColors.find(candidate => {
-        if (candidate.s < MIN_SUPPORT_SATURATION) return false;
-        const distance = getHueDistance(candidate.h, base.h);
-        return distance >= MIN_SUPPORT_HUE_DISTANCE && distance <= MAX_SUPPORT_HUE_DISTANCE;
-    });
-
-    return support ? support.h : null;
-};
+// The accent borrows the cover's own second hue. Walking the swatches in area order keeps it on
+// a real region of the artwork instead of a tiny saturated detail in a corner.
+const pickSupportColor = (parsedColors: Hsl[], base: Hsl) => parsedColors.find(candidate => {
+    if (candidate.s < MIN_SUPPORT_SATURATION) return false;
+    const distance = getHueDistance(candidate.h, base.h);
+    return distance >= MIN_SUPPORT_HUE_DISTANCE && distance <= MAX_SUPPORT_HUE_DISTANCE;
+}) ?? null;
 
 const pickScheme = (supportHue: number | null): HarmonyScheme => {
     // The accent must stay on the artwork: a real second hue when the cover carries one, the
@@ -86,7 +90,11 @@ export const analyzeCoverPalette = (coverColors: string[], random: () => number)
         .filter((color): color is Hsl => color !== null);
 
     const base = pickBaseColor(parsedColors, random);
-    const supportHue = pickSupportHue(parsedColors, base);
+    // A near-grey swatch still carries an arbitrary hue from JPEG noise or a tinted grey. The
+    // generator uses the saturation of the swatch the hue came from as a colorfulness budget, so a
+    // black-and-white cover yields a neutral theme instead of a vivid one built on that stray hue.
+    const support = pickSupportColor(parsedColors, base);
+    const supportHue = support ? support.h : null;
     const scheme = pickScheme(supportHue);
     const accentJitter = scheme === 'monochrome' ? 0 : (random() - 0.5) * 16;
 
@@ -95,6 +103,7 @@ export const analyzeCoverPalette = (coverColors: string[], random: () => number)
         baseSaturation: base.s,
         baseLightness: base.l,
         accentHue: normalizeHue(resolveAccentHue(scheme, base.h, supportHue) + accentJitter),
+        accentSaturation: support ? support.s : base.s,
         scheme,
         tone: pickWeighted<PaletteTone>(random, [
             { value: 'ink', weight: 3 },

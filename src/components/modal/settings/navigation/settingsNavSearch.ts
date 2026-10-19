@@ -1,7 +1,7 @@
 import { COMMAND_PALETTE_COMMANDS, matchCommandsExactly } from '../../../command-palette/commandRegistry';
 import { normalizeSearchText } from '../../../command-palette/search/normalize';
 import type { SettingsAnchorId } from './settingsAnchorModel';
-import type { SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
+import type { SettingsNavCommandId, SettingsNavGroup, SettingsNavItemId, SettingsSectionId } from './settingsNavModel';
 
 // src/components/modal/settings/navigation/settingsNavSearch.ts
 // Filters the wide settings sidebar down to what a query names. Besides the sidebar's own text
@@ -13,8 +13,10 @@ import type { SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
 const SETTINGS_TARGET_COMMANDS = COMMAND_PALETTE_COMMANDS.filter(command => command.settingsTarget);
 
 export type SettingsNavSearchHit = {
-    sectionId: SettingsSectionId;
+    sectionId: SettingsNavItemId;
     anchorId: SettingsAnchorId | null;
+    /** Set when the hit is one of the sidebar's command exits (主页样式), not a page. */
+    command?: SettingsNavCommandId;
 };
 
 export type SettingsNavSearchResult = {
@@ -63,7 +65,7 @@ export const searchSettingsNav = (
                 if (!sectionMatched && matchedAnchors.length === 0) {
                     return [];
                 }
-                firstHit ??= { sectionId: section.id, anchorId: matchedAnchors[0]?.id ?? null };
+                firstHit ??= { sectionId: section.id, anchorId: matchedAnchors[0]?.id ?? null, ...(section.command ? { command: section.command } : {}) };
                 return [{ ...section, anchors: matchedAnchors.length > 0 ? matchedAnchors : section.anchors }];
             }),
         }))

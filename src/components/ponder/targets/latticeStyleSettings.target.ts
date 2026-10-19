@@ -34,8 +34,8 @@ const tintBasics: PonderSceneScript = {
     id: 'lattice-style-tint',
     titleKey: 'ponder.scenes.latticeStyleTint',
     action: {
-        kind: 'openSettings',
-        anchorId: 'latticeSettings',
+        kind: 'openHomeStylePanel',
+        panelAnchor: 'latticeSettings',
         labelKey: 'ponder.actions.openLatticeSettings',
     },
     anchors,
@@ -101,7 +101,7 @@ export default {
     titleKey: 'ponder.targets.latticeStyleSettings',
     category: 'appearance',
     summaryKey: 'ponder.summaries.lattice_style_settings',
-    hoverSelector: '[data-settings-anchor="latticeSettings"]',
+    hoverSelector: '[data-home-style-anchor="latticeSettings"]',
     relatedTargetIds: ['lattice-page', 'grid3d-card-style', 'grid-view-card-settings'],
     scenes: [tintBasics, customColor],
 } satisfies PonderTargetDefinition;

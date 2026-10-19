@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useMotionValue } from 'framer-motion';
+import { motionValue, useMotionValue } from 'framer-motion';
 import Lattice from '../../src/components/app/lattice/Lattice';
 import { PlayerState, type Line, type SongResult } from '../../src/types';
 import type { ProbeDefinition } from './definition';
@@ -33,6 +33,8 @@ const buildQueue = (count: number, covers: CoverMode): SongResult[] => Array.fro
 }));
 
 const queue: SongResult[] = buildQueue(12, 'off');
+// 探针没有真实音频：能量恒为 0，高潮提亮只剩副歌基座档。
+const idlePower = motionValue(0);
 const lyricLines: Line[] = [
     { startTime: 0, endTime: 8, fullText: '壤土下的安居 Cozy Home Underground', words: [
         { text: '壤土下的安居', startTime: 0, endTime: 4 },
@@ -73,7 +75,7 @@ function LatticeProbe({ covers = 'off', queueLength = 12, withLyrics = false }:
             invokeCommandById: setCommand, canInvokeCommandById: () => true,
         }} queue={songs} currentSong={currentSong} playerState={playerState}
             lyricSource={{ currentTime: time, currentLineIndex: withLyrics ? 0 : -1,
-                lines: withLyrics ? lyricLines : [], theme: DEFAULT_THEME }} lyricKeywordColoringEnabled
+                lines: withLyrics ? lyricLines : [], theme: DEFAULT_THEME, audioPower: idlePower }} lyricKeywordColoringEnabled
             currentTime={time} playbackDuration={playbackDuration} canTogglePlayback isDaylight={false}
             onBack={() => setBacks(value => value + 1)} onOpenPlayer={() => {}} onPlaySong={song => setCurrentSong(song)}
             onTogglePlayback={() => setToggles(value => value + 1)} onSeek={setSeek} />

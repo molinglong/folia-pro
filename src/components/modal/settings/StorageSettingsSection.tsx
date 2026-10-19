@@ -1,21 +1,13 @@
 import React from 'react';
-import { AudioWaveform, Check, Cloud, Command, Database, Disc3, Download, FolderOpen, HardDrive, Layers, Loader2, Pencil, PlayCircle, RefreshCw, Trash2, Upload, UserRound, X } from 'lucide-react';
+import { AudioWaveform, Command, Database, Disc3, Download, FolderOpen, HardDrive, Layers, Loader2, Pencil, PlayCircle, Trash2, UserRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
-import { getSyncConfig, getSyncStatus, saveSyncConfig, setSyncStatus, subscribeSyncConfig, subscribeSyncStatus } from '../../../services/sync/syncConfig';
-import { exportSyncLibraryBundle, importSyncLibraryBundle, isSyncLibraryExportBundle, syncNow, testSyncProviderConnection } from '../../../services/sync/syncCoordinator';
-import { createSyncLibraryZipBlob, readSyncLibraryZipFile } from '../../../services/sync/syncArchive';
-import { SYNC_PROVIDER, type SyncProviderConfig, type SyncRuntimeStatus } from '../../../services/sync/syncTypes';
-import { createSafeObjectUrl } from '../../../utils/blobGuards';
-import { getQqApiBaseUrlOverride, setQqApiBaseUrlOverride } from '../../../services/onlineMusic/qqApiConfig';
-import { formatLocalDateTimeStamp } from '../../../utils/downloadFileName';
 import { CustomSelect } from '../../shared/CustomSelect';
 import LocalLibraryWatchSection from './LocalLibraryWatchSection';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import { openCommandPaletteCommand } from '../../../stores/useAppViewStore';
 import { closeSettings } from '../../../stores/useSettingsModalStore';
-import { useAccountSessionStore } from '../../../stores/useAccountSessionStore';
 import AccountAuthForm from './AccountAuthForm';
 import { LYRIC_EXPORT_COMMAND_ID } from '../../command-palette/commands/lyricExportCommands';
 
@@ -74,19 +66,10 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
     useInsetCacheRows = false,
 }) => {
     const { t } = useTranslation();
-    const accountSession = useAccountSessionStore();
-    const [syncConfig, setSyncConfig] = React.useState<SyncProviderConfig>(() => getSyncConfig());
-    const [draftSyncConfig, setDraftSyncConfig] = React.useState<SyncProviderConfig>(() => getSyncConfig());
-    const [syncStatus, setSyncStatusState] = React.useState<SyncRuntimeStatus>(() => getSyncStatus());
-    const [syncAction, setSyncAction] = React.useState<'idle' | 'testing' | 'syncing' | 'syncingSettings' | 'exporting' | 'importing'>('idle');
-    const [testResult, setTestResult] = React.useState<'idle' | 'success' | 'error'>('idle');
-    const [syncSummaryMsg, setSyncSummaryMsg] = React.useState<string | null>(null);
-    // QQ 音乐 API 地址：多设备共享 QQ 登录态的前提，Electron 由此指向远程后端（默认留空 = 内嵌/构建期变量）。
-    const [qqApiUrlDraft, setQqApiUrlDraft] = React.useState<string>(() => getQqApiBaseUrlOverride());
-    const syncImportInputRef = React.useRef<HTMLInputElement | null>(null);
+    // shrink-0 给手机那条横滑行（不被压扁），min-w-0 给 PC 网格（列窄时让标题省略而不是撑破栏）。
     const cacheRowClass = useInsetCacheRows
-        ? `flex items-center justify-between gap-2 shrink-0 px-3 py-2 rounded-xl border ${settingsCardClass}`
-        : 'flex items-center justify-between gap-2 shrink-0 px-3 py-2 rounded-xl border bg-white/5 border-white/5';
+        ? `flex min-w-0 items-center justify-between gap-2 shrink-0 px-3 py-2 rounded-xl border ${settingsCardClass}`
+        : 'flex min-w-0 items-center justify-between gap-2 shrink-0 px-3 py-2 rounded-xl border bg-white/5 border-white/5';
     const iconClass = useInsetCacheRows && settingsIconClass
         ? `p-2 rounded-lg opacity-60 ${settingsIconClass}`
         : 'p-2 bg-white/5 rounded-lg opacity-60';
@@ -103,158 +86,22 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
         { id: 'media' as const, label: t('options.mediaFiles') || 'Media Files', size: cacheSizes.media, icon: PlayCircle },
         { id: 'analysis' as const, label: t('options.analysisData') || 'Analysis Data', size: cacheSizes.analysis, icon: AudioWaveform },
     ];
-    const syncConfigDirty = JSON.stringify(syncConfig) !== JSON.stringify(draftSyncConfig);
-    // 登录 Folia 账号后兼容模式 token 非必填（鉴权走会话，见 syncClient.resolveBearerToken）。
-    const syncConfigured = Boolean(draftSyncConfig.workerBaseUrl.trim())
-        && (Boolean(draftSyncConfig.authToken.trim()) || accountSession.status === 'signed-in');
-    const syncStatusLabel = syncStatus.state === 'error'
-        ? (syncStatus.lastError || t('options.r2SyncStatusError') || 'Sync failed')
-        : syncStatus.lastSyncAt
-            ? `${t('options.r2SyncLastSync') || 'Last sync'}: ${new Date(syncStatus.lastSyncAt).toLocaleString()}`
-            : (t('options.r2SyncStatusIdle') || 'Not synced yet');
-
-    React.useEffect(() => {
-        // 会话水合已上移到 App 启动链路（账号卡等全局入口也要读登录态）；这里只订阅同步配置/状态。
-        const unsubscribeConfig = subscribeSyncConfig(() => {
-            const nextConfig = getSyncConfig();
-            setSyncConfig(nextConfig);
-            setDraftSyncConfig(nextConfig);
-        });
-        const unsubscribeStatus = subscribeSyncStatus(() => setSyncStatusState(getSyncStatus()));
-        return () => {
-            unsubscribeConfig();
-            unsubscribeStatus();
-        };
-    }, []);
-
-    const updateDraftSyncConfig = (patch: Partial<SyncProviderConfig>) => {
-        setDraftSyncConfig(prev => ({
-            ...prev,
-            ...patch,
-            provider: SYNC_PROVIDER,
-        }));
-    };
-
-    const handleSaveSyncConfig = () => {
-        saveSyncConfig(draftSyncConfig);
-        setSyncConfig(getSyncConfig());
-    };
-
-    const handleTestSync = async () => {
-        setSyncAction('testing');
-        setTestResult('idle');
-        setSyncSummaryMsg(null);
-        const nextConfig = {
-            ...draftSyncConfig,
-            workerBaseUrl: draftSyncConfig.workerBaseUrl.trim().replace(/\/+$/, ''),
-            authToken: draftSyncConfig.authToken.trim(),
-        };
-        try {
-            const ok = await testSyncProviderConnection(nextConfig);
-            if (ok) {
-                saveSyncConfig(nextConfig);
-                setSyncConfig(getSyncConfig());
-                setSyncStatus({ state: 'success', lastSyncAt: new Date().toISOString(), lastError: null });
-                setTestResult('success');
-                setSyncSummaryMsg(t('ui.storage.syncTestSuccess'));
-            } else {
-                setTestResult('error');
-                setSyncSummaryMsg(t('ui.storage.syncTestFailed'));
-            }
-        } catch (error) {
-            setTestResult('error');
-            setSyncSummaryMsg(error instanceof Error ? error.message : String(error));
-            setSyncStatus({ state: 'error', lastError: error instanceof Error ? error.message : String(error) });
-        } finally {
-            setSyncAction('idle');
-            setTimeout(() => setTestResult('idle'), 3000);
-        }
-    };
-
-    const handleSyncNow = async () => {
-        if (syncConfigDirty) {
-            handleSaveSyncConfig();
-        }
-        setSyncAction('syncing');
-        setSyncSummaryMsg(null);
-        try {
-            const summary = await syncNow({ syncThemes: true, applyRemoteSettings: false, pushSettings: false });
-            if (summary) {
-                setSyncSummaryMsg(t('ui.storage.syncThemesComplete', { uploaded: summary.uploadedThemeCount, downloaded: summary.downloadedThemeCount, local: summary.checkedLocalThemeCount, diff: summary.diffBucketCount }));
-            }
-        } finally {
-            setSyncAction('idle');
-        }
-    };
-
-    const handleSyncSettings = async () => {
-        if (syncConfigDirty) {
-            handleSaveSyncConfig();
-        }
-        setSyncAction('syncingSettings');
-        setSyncSummaryMsg(null);
-        try {
-            const summary = await syncNow({ syncThemes: false, applyRemoteSettings: true, pushSettings: true });
-            if (summary) {
-                const parts = [];
-                if (summary.appliedRemoteSettings) parts.push(t('ui.storage.syncAppliedRemote'));
-                if (summary.pushedLocalSettings) parts.push(t('ui.storage.syncPushedLocal'));
-                setSyncSummaryMsg(parts.length > 0 ? t('ui.storage.syncSettingsComplete', { details: parts.join(', ') }) : t('ui.storage.syncSettingsNoChange'));
-            }
-        } finally {
-            setSyncAction('idle');
-        }
-    };
-
-    const handleExportSyncLibrary = async () => {
-        setSyncAction('exporting');
-        try {
-            const bundle = await exportSyncLibraryBundle();
-            const blob = createSyncLibraryZipBlob(bundle);
-            const url = createSafeObjectUrl(blob);
-            if (!url) throw new TypeError('Sync export must produce a Blob');
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `folia-sync-${formatLocalDateTimeStamp()}.zip`;
-            link.click();
-            URL.revokeObjectURL(url);
-        } finally {
-            setSyncAction('idle');
-        }
-    };
-
-    const handleImportSyncLibrary = async (file: File | null) => {
-        if (!file) {
-            return;
-        }
-
-        setSyncAction('importing');
-        try {
-            const parsed = file.name.toLowerCase().endsWith('.zip')
-                ? await readSyncLibraryZipFile(file)
-                : JSON.parse(await file.text()) as unknown;
-            if (!isSyncLibraryExportBundle(parsed)) {
-                throw new Error('Invalid Folia sync export');
-            }
-            const shouldImport = window.confirm(t('options.r2SyncImportConfirm') || 'Import this sync library and overwrite local sync cache?');
-            if (!shouldImport) {
-                return;
-            }
-            await importSyncLibraryBundle(parsed, {
-                pushRemote: draftSyncConfig.enabled && syncConfigured,
-            });
-        } catch (error) {
-            setSyncStatus({ state: 'error', lastError: error instanceof Error ? error.message : String(error) });
-        } finally {
-            setSyncAction('idle');
-            if (syncImportInputRef.current) {
-                syncImportInputRef.current.value = '';
-            }
-        }
-    };
 
     return (
         <>
+            {/* Folia 账号：登录后收藏/歌单/喜欢走账号数据域；同步服务器地址有内置默认值，登录即自动同步，
+                不再需要手动填地址 / 开关 / 兼容 token。登录 / 注册在 AccountAuthDialog 弹窗里，这里只留入口。 */}
+            <SettingsAnchor anchorId="foliaAccount" label={t('ui.storage.accountTitle') || 'Folia Account'}>
+                <SettingsSectionHeading icon={UserRound} label={t('ui.storage.accountTitle') || 'Folia Account'} />
+                <div className={`p-4 rounded-xl border space-y-3 ${settingsCardClass}`}>
+                    <div className="text-xs opacity-50 max-w-[400px]" style={{ color: 'var(--text-secondary)' }}>
+                        {t('ui.storage.accountDesc') || 'Sign in to sync playlists and likes across devices through your own sync server. Platform credentials never leave this device.'}
+                    </div>
+                    {/* 已登录显示邮箱与登出（与侧栏账号页、首页平台列表共用同一份 AccountAuthForm）。 */}
+                    <AccountAuthForm errorTextColor={errorTextColor} />
+                </div>
+            </SettingsAnchor>
+
             <SettingsAnchor anchorId="cacheDetails" label={t('options.cacheDetails') || 'Cache Details'}>
                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
                     <Database size={14} /> {t('options.cacheDetails') || 'Cache Storage'}
@@ -268,16 +115,18 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                     </button>
                 </h3>
 
-                <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 mobile-hide-scrollbar">
+                {/* @fork 本地魔改版：手机仍是那条横向滑动行（宽度不够，竖排会把「清除」按钮挤到看不见）；
+                    md 起换成按容器实际宽度自动分栏的网格——五类缓存一屏看全，不必左右拖。 */}
+                <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 mobile-hide-scrollbar md:grid md:grid-cols-[repeat(auto-fill,minmax(240px,1fr))] md:overflow-x-visible md:pb-0">
                     {cacheItems.map((item) => (
                         <div key={item.id} className={cacheRowClass}>
-                            <div className="flex items-center gap-2">
-                                <div className={iconClass}>
+                            <div className="flex min-w-0 items-center gap-2">
+                                <div className={`${iconClass} shrink-0`}>
                                     <item.icon size={16} />
                                 </div>
-                                <div className="flex items-baseline gap-1.5">
-                                    <div className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{item.label}</div>
-                                    <div className="text-xs opacity-50 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{item.size}</div>
+                                <div className="flex min-w-0 items-baseline gap-1.5">
+                                    <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{item.label}</div>
+                                    <div className="text-xs opacity-50 shrink-0 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{item.size}</div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1">
@@ -307,205 +156,6 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                             </div>
                         </div>
                     ))}
-                </div>
-            </SettingsAnchor>
-
-            <SettingsAnchor anchorId="r2Sync" label={t('options.r2Sync') || 'Sync Server'}>
-                <SettingsSectionHeading icon={Cloud} label={t('options.r2Sync') || 'Sync Server'} />
-                <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
-                    <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                {t('options.r2SyncEnable') || 'Enable sync server'}
-                            </div>
-                            <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.r2SyncEnableDesc') || 'Sync appearance settings and AI themes through your own Cloudflare D1 Worker or self-hosted sync service.'}{' '}
-                                <a
-                                    href="https://folia-site.cielaniska.top/guide/deploy-sync"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="underline underline-offset-2 hover:opacity-80"
-                                >
-                                    {t('options.r2SyncDeployDocs') || 'Deployment guide'}
-                                </a>
-                            </div>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => updateDraftSyncConfig({ enabled: !draftSyncConfig.enabled })}
-                            className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!draftSyncConfig.enabled ? toggleOffBackgroundClass : ''}`}
-                            style={{ backgroundColor: draftSyncConfig.enabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                        >
-                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${draftSyncConfig.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                        </button>
-                    </div>
-
-                    <div className="space-y-3">
-                        <label className="block space-y-1">
-                            <span className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.r2SyncWorkerUrl') || 'Sync Server URL'}
-                            </span>
-                            <input
-                                type="url"
-                                value={draftSyncConfig.workerBaseUrl}
-                                onChange={(event) => updateDraftSyncConfig({ workerBaseUrl: event.target.value })}
-                                placeholder="https://folia-sync.example.workers.dev"
-                                className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
-                                style={{ color: 'var(--text-primary)' }}
-                            />
-                            <span className="block text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.r2SyncWorkerUrlHint') || 'Leave empty to use the built-in default server on every device. Remember to save.'}
-                            </span>
-                        </label>
-                        {/* QQ 音乐 API 地址：指向你自己部署的 qq-api，多设备共享同一登录态（docs/qq-shared-session-design.md §5.2） */}
-                        <label className="block space-y-1">
-                            <span className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.qqApiUrl') || 'QQ Music API URL'}
-                            </span>
-                            <input
-                                type="url"
-                                value={qqApiUrlDraft}
-                                onChange={(event) => setQqApiUrlDraft(event.target.value)}
-                                onBlur={() => setQqApiBaseUrlOverride(qqApiUrlDraft)}
-                                placeholder="https://qq-api.example.com"
-                                className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
-                                style={{ color: 'var(--text-primary)' }}
-                            />
-                            <span className="block text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.qqApiUrlHint') || 'Point every device at the same self-hosted qq-api to share the QQ login. Leave empty for the default. Restart the app to apply.'}
-                            </span>
-                        </label>
-                        {/* Folia 账号：登录后收藏/歌单/喜欢走账号数据域，兼容模式 token 可留空 */}
-                        <div className="pt-3 border-t border-white/10 space-y-3">
-                            <div className="space-y-1">
-                                <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                                    <UserRound size={14} />
-                                    {t('ui.storage.accountTitle') || 'Folia Account'}
-                                </div>
-                                <div className="text-xs opacity-50 max-w-[400px]" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('ui.storage.accountDesc') || 'Sign in to sync playlists and likes across devices through your own sync server. Platform credentials never leave this device.'}
-                                </div>
-                            </div>
-
-                            {/* 登录/注册/登出交互在 AccountAuthForm（与侧栏账号页共用同一份）；
-                                同步服务器地址有内置默认值，留空即可用，无需先配置。 */}
-                            <AccountAuthForm
-                                errorTextColor={errorTextColor}
-                            />
-                        </div>
-
-                        <details>
-                            <summary
-                                className="text-xs opacity-60 cursor-pointer select-none hover:opacity-90 transition-opacity"
-                                style={{ color: 'var(--text-secondary)' }}
-                            >
-                                {t('options.r2SyncAdvanced') || 'Advanced / compatibility mode'}
-                            </summary>
-                            <label className="block space-y-1 mt-3">
-                                <span className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('options.r2SyncToken') || 'Bearer Token'}
-                                </span>
-                                <input
-                                    type="password"
-                                    value={draftSyncConfig.authToken}
-                                    onChange={(event) => updateDraftSyncConfig({ authToken: event.target.value })}
-                                    placeholder={t('options.r2SyncTokenPlaceholder') || 'Worker SYNC_TOKEN'}
-                                    className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
-                                    style={{ color: 'var(--text-primary)' }}
-                                />
-                                <span className="block text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('options.r2SyncTokenAccountHint') || 'Leave empty after signing in; only needed for legacy single-user deployments.'}
-                                </span>
-                            </label>
-                        </details>
-                    </div>
-
-                    <div className="flex flex-col gap-3">
-                        {/* 基础配置与备份功能 */}
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex flex-wrap gap-2">
-                                <button
-                                    type="button"
-                                    onClick={handleSaveSyncConfig}
-                                    disabled={!syncConfigDirty}
-                                    className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                                    style={{ color: 'var(--text-primary)' }}
-                                >
-                                    <Check size={14} />
-                                    {t('options.r2SyncSave') || 'Save'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => void handleTestSync()}
-                                    disabled={!syncConfigured || syncAction !== 'idle'}
-                                    className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                                    style={{ color: 'var(--text-primary)' }}
-                                >
-                                    {syncAction === 'testing' ? <Loader2 size={14} className="animate-spin" /> : 
-                                     testResult === 'success' ? <Check size={14} className="text-green-500" /> :
-                                     testResult === 'error' ? <X size={14} className="text-red-500" /> :
-                                     <Cloud size={14} />}
-                                    {t('options.r2SyncTest') || 'Test'}
-                                </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => void handleExportSyncLibrary()}
-                                    disabled={syncAction !== 'idle'}
-                                    className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                                    style={{ color: 'var(--text-primary)' }}
-                                >
-                                    {syncAction === 'exporting' ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                                    {t('options.r2SyncExportLibrary') || 'Export library'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => syncImportInputRef.current?.click()}
-                                    disabled={syncAction !== 'idle'}
-                                    className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                                    style={{ color: 'var(--text-primary)' }}
-                                >
-                                    {syncAction === 'importing' ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                                    {t('options.r2SyncImportLibrary') || 'Import library'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* 核心同步功能 */}
-                        <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-white/5">
-                            <button
-                                type="button"
-                                onClick={() => void handleSyncNow()}
-                                disabled={!draftSyncConfig.enabled || !syncConfigured || syncAction !== 'idle'}
-                                className="flex-1 px-3 py-2.5 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg text-xs font-medium transition-colors flex justify-center items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-blue-400"
-                            >
-                                {syncAction === 'syncing' ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                                {t('options.r2SyncNow') || 'Sync AI Themes'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => void handleSyncSettings()}
-                                disabled={!draftSyncConfig.enabled || !syncConfigured || syncAction !== 'idle'}
-                                className="flex-1 px-3 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg text-xs font-medium transition-colors flex justify-center items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-purple-400"
-                            >
-                                {syncAction === 'syncingSettings' ? <Loader2 size={14} className="animate-spin" /> : <Layers size={14} />}
-                                {t('options.syncVisualSettings')}
-                            </button>
-                        </div>
-
-                        <input
-                            ref={syncImportInputRef}
-                            type="file"
-                            accept="application/zip,.zip,application/json,.json"
-                            className="hidden"
-                            onChange={(event) => void handleImportSyncLibrary(event.target.files?.[0] ?? null)}
-                        />
-                    </div>
-
-                    <div className={`rounded-lg border px-3 py-2 text-xs ${(syncStatus.state === 'error' || testResult === 'error') && !syncSummaryMsg ? errorTextColor : testResult === 'success' ? 'text-green-500 border-green-500/20 bg-green-500/5' : ''}`} style={{ color: testResult === 'success' || testResult === 'error' ? undefined : 'var(--text-secondary)' }}>
-                        {syncSummaryMsg || syncStatusLabel}
-                    </div>
                 </div>
             </SettingsAnchor>
 

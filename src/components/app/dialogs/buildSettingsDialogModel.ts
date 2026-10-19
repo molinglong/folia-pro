@@ -52,6 +52,8 @@ export type SettingsDialogDeps = {
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
     onReplayGainModeChange: (mode: ReplayGainMode) => void;
     onToggleTransparentPlayerBackground: (enabled: boolean) => Promise<void> | void;
+    /** Sends the app back to the home wall; wired straight to App's navigateToHome for the 主页样式 command. */
+    navigateToHome: () => void;
     obsBrowserSourceStatus?: ObsBrowserSourceStatus | null;
     refreshObsBrowserSourceStatus?: () => Promise<ObsBrowserSourceStatus>;
     lyricApiStatus?: LyricApiStatus | null;
@@ -86,6 +88,7 @@ export const buildSettingsDialogModel = ({
     replayGainMode,
     onReplayGainModeChange,
     onToggleTransparentPlayerBackground,
+    navigateToHome,
     obsBrowserSourceStatus,
     refreshObsBrowserSourceStatus,
     lyricApiStatus,
@@ -146,6 +149,7 @@ export const buildSettingsDialogModel = ({
         initialVisualizerSection: state.initialVisualizerSection ?? null,
         initialAnchor: state.initialAnchor ?? null,
         onClose: closeSettings,
+        onNavigateHome: navigateToHome,
         onToggleStageMode: async (enabled) => {
             try {
                 const nextStatus = await window.electron?.setStageEnabled(enabled);

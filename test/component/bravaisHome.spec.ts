@@ -231,6 +231,28 @@ test.describe('[bravais-only] home', () => {
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
     });
 
+    // 缝里列出最近搜索（与搜索页历史面板同一条 store 数据）：点一行按那条的来源直接提交，同样关缝离开。
+    // 探针宿主只记不搜（onSearchCommitted 被替身接管），所以历史用 store 直种，不依赖替身的提交成功。
+    test('the seam search box lists recent searches, and a row submits with its own source tab', async ({ page }) => {
+        await page.evaluate(async () => {
+            const modulePath = '/src/stores/useSearchNavigationStore.ts';
+            const { useSearchNavigationStore } = await import(/* @vite-ignore */ modulePath);
+            useSearchNavigationStore.setState({
+                searchHistory: [
+                    { query: 'jay chords', sourceTab: 'local', at: 2 },
+                    { query: 'blue train', sourceTab: 'netease', at: 1 },
+                ],
+            });
+        });
+        await page.keyboard.press('/');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'search');
+        await expect(seam(page).locator('[data-bravais-search-history] button')).toHaveCount(2);
+        await page.evaluate(() => window.__homeProbe!.clearLog());
+        await seam(page).locator('[data-bravais-search-history-item="jay chords"]').click();
+        await expect.poll(async () => (await calls(page, 'searchCommitted')).map(call => [call.text, call.key])).toEqual([['jay chords', 'local']]);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+    });
+
     // 设计稿 §7.6：每面墙都有当前页过滤——首页各页签也一样。墙上直接打字进缝里的输入位（窄缝里，平时不占地方），
     // 过滤词是这一页的目录会话 query；它只收窄当前墙，不发 provider 请求。搜索在线平台是另一个入口（⌕ / `/`）。
     const filterField = (page: Page) => seam(page).locator('[data-bravais-input-kind="filter"]');
@@ -277,7 +299,8 @@ test.describe('[bravais-only] home', () => {
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'search');
         const search = seam(page).locator('[data-bravais-input-kind="search"]');
         await expect(search.locator('input[name="bravais-search"]')).toHaveAttribute('placeholder', 'Search online platforms');
-        await expect(search.locator('[data-bravais-seam-action="submit-search"]')).toBeVisible();
+        // 不设搜索按钮：回车是唯一提交口。
+        await expect(search.locator('button[type="submit"], [data-bravais-seam-action="submit-search"]')).toHaveCount(0);
         await expect(filterField(page)).toHaveCount(0);
         await seam(page).locator('[data-bravais-seam-action="close-search"]').click();
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
@@ -1157,6 +1180,125 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await more.click();
         await expect(menu).toBeVisible();
         await expect(accountList(page)).toHaveCount(0);
+    });
+
+    // @fork（2026-10-19，用户：登录 Folia 直接在这里给个入口）：平台列表顶部先放 Folia 云同步账号。
+    // 登录 / 注册统一走 AccountAuthDialog（与设置存储区、侧栏账号页同一个）：未登录是一行——云图标 +
+    // 标题 / 状态 + 「登录」，点开弹窗填邮箱 / 密码；已登录整块收成一行：头像 + 名称 / 邮箱 + 登出。
+    test('the account list starts with the Folia account entry: sign in dialog and sign-out always shown', async ({ page }) => {
+        const setFoliaSession = (state: Record<string, unknown>) => page.evaluate(async ({ state }) => {
+            const modulePath = '/src/stores/useAccountSessionStore.ts';
+            const { useAccountSessionStore } = await import(/* @vite-ignore */ modulePath);
+            useAccountSessionStore.setState(state);
+        }, { state });
+        await setFoliaSession({ status: 'signed-out', userId: null, email: null, busy: false, errorCode: null });
+        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
+        const folia = accountList(page).locator('[data-bravais-account-folia]');
+        const head = folia.locator('.bravais-account-folia-head');
+        await expect(folia).toBeVisible();
+        // 位置：Folia 是列表的第一个元素，各平台行在它下面。
+        expect(await accountList(page).evaluate(el => el.firstElementChild?.hasAttribute('data-bravais-account-folia') ?? false)).toBe(true);
+        await expect(head).toContainText('Folia Account');
+        await expect(head.locator('.is-status')).toHaveText('Not signed in');
+        // 未登录没有账号头像，标题行左边仍是云图标。
+        await expect(head.locator('[data-account-avatar]')).toHaveCount(0);
+        // 登录统一走弹窗：列表里只有一行——云图标 + 标题/状态 + 「登录」，表单不再内嵌。
+        const openAuth = folia.locator('.bravais-account-folia-login');
+        await expect(openAuth).toBeVisible();
+        await expect(folia.getByPlaceholder('Email', { exact: true })).toHaveCount(0);
+        await openAuth.click();
+        const authDialog = page.locator('[data-account-auth-dialog]');
+        await expect(authDialog).toBeVisible();
+        const email = authDialog.getByPlaceholder('Email', { exact: true });
+        const password = authDialog.getByPlaceholder('Password', { exact: true });
+        await expect(email).toBeVisible();
+        await expect(password).toBeVisible();
+        await email.fill('someone@example.com');
+        await password.fill('secret');
+        await expect(authDialog.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+        // 弹窗里的点击不算「点别处」：列表还在；Esc 先收弹窗，不会顺带把列表也收起来。
+        await expect(accountList(page)).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(authDialog).toHaveCount(0);
+        await expect(accountList(page)).toBeVisible();
+        // 已登录：整块收成一行——头像 + 名称 + 邮箱 + 登出，不再有输入框，也不再多一行入口。
+        await setFoliaSession({ status: 'signed-in', userId: 'probe-user', email: 'someone@example.com', busy: false, errorCode: null });
+        await expect(folia.locator('.bravais-account-folia-head')).toHaveCount(0);
+        // 没设头像：行内一颗邮箱首字母。
+        await expect(folia.locator('[data-account-avatar="initial"]')).toHaveText('S');
+        await expect(folia.locator('[data-account-avatar="initial"]')).toHaveCount(1);
+        await expect(folia.locator('.bravais-account-folia-mail')).toHaveText('someone@example.com');
+        await expect(folia.getByPlaceholder('Email', { exact: true })).toHaveCount(0);
+        // 设了头像：行内那颗换成图（data URL 直接当 src）。
+        const avatarDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+        await setFoliaSession({ avatar: avatarDataUrl });
+        await expect(folia.locator('img[data-account-avatar="image"]')).toHaveCount(1);
+        await expect(folia.locator('img[data-account-avatar="image"]')).toHaveAttribute('src', avatarDataUrl);
+        await expect(folia.getByRole('button', { name: 'Change avatar', exact: true })).toBeVisible();
+        await expect(folia.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
+    });
+
+    // @fork（2026-10-19，用户：添加头像功能）：点已登录那一行的头像 = 选图 → 本地裁方 / 压到 192px →
+    // PATCH /account/profile；回包里的 data URL 换到行内那一颗头像。请求打默认同步服务器，用例里拦下。
+    test('picking a picture sends a cropped data URL and both avatars turn into it', async ({ page }) => {
+        const patches: unknown[] = [];
+        const corsHeaders = {
+            'access-control-allow-origin': '*',
+            'access-control-allow-methods': 'GET, PATCH, OPTIONS',
+            'access-control-allow-headers': 'authorization, content-type, accept',
+        };
+        const profile = (avatar: string | null) => JSON.stringify({ ok: true, userId: 'probe-user', email: 'someone@example.com', avatar });
+        await page.route('**/account/profile', async route => {
+            const request = route.request();
+            if (request.method() === 'OPTIONS') {
+                await route.fulfill({ status: 204, headers: corsHeaders });
+                return;
+            }
+            const body = request.postDataJSON() as { avatar?: string | null } | null;
+            if (request.method() === 'PATCH') patches.push(body);
+            await route.fulfill({
+                status: 200,
+                headers: { ...corsHeaders, 'content-type': 'application/json' },
+                body: profile(request.method() === 'PATCH' ? (body?.avatar ?? null) : null),
+            });
+        });
+        // 上传要带 access token：种一份会话（token 只进 IndexedDB / 内存，不进 store）。
+        await page.evaluate(async () => {
+            const modulePath = '/src/services/sync/syncConfig.ts';
+            const { storeSession } = await import(/* @vite-ignore */ modulePath);
+            const now = Date.now();
+            storeSession({
+                userId: 'probe-user',
+                email: 'someone@example.com',
+                accessToken: 'probe-access',
+                refreshToken: 'probe-refresh',
+                accessExpiresAt: new Date(now + 3_600_000).toISOString(),
+                refreshExpiresAt: new Date(now + 7 * 24 * 3_600_000).toISOString(),
+            });
+        });
+        await page.evaluate(async () => {
+            const modulePath = '/src/stores/useAccountSessionStore.ts';
+            const { useAccountSessionStore } = await import(/* @vite-ignore */ modulePath);
+            useAccountSessionStore.setState({
+                status: 'signed-in', userId: 'probe-user', email: 'someone@example.com', avatar: null,
+                busy: false, errorCode: null, avatarBusy: false, avatarErrorCode: null,
+            });
+        });
+        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
+        const folia = accountList(page).locator('[data-bravais-account-folia]');
+        await expect(folia.getByRole('button', { name: 'Set avatar', exact: true })).toBeVisible();
+        // 1×1 PNG：组件自己裁方、压到 192px（Chromium 下是 webp）。
+        const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+        await folia.locator('[data-account-avatar-input]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+        await expect.poll(() => patches.length).toBe(1);
+        const sent = patches[0] as { avatar: string };
+        expect(sent.avatar).toMatch(/^data:image\//);
+        expect(sent.avatar.length).toBeLessThanOrEqual(200_000);
+        // 行内那颗换成图，src 就是服务端回的 data URL；按钮换成「更换头像」。
+        const images = folia.locator('img[data-account-avatar="image"]');
+        await expect(images).toHaveCount(1);
+        await expect(images.first()).toHaveAttribute('src', sent.avatar);
+        await expect(folia.getByRole('button', { name: 'Change avatar', exact: true })).toBeVisible();
     });
 
     // @fork（2026-10-12，用户：用户头像 + 用户名那里只保留头像，名字删了）：入口只剩那一颗圆——已登录是头像，

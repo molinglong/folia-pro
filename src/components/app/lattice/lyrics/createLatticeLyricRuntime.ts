@@ -8,6 +8,9 @@ import { createLatticeLineView, type LatticeLineView } from './latticeLyricScene
 import { createLatticeEdgeFilter } from './latticeLyricFilters';
 import { createLatticeTimeline, stackLatticeContextRows, type LatticeStackRow, stepLatticeSpring } from './latticeLyricTimeline';
 import { createLatticeLyricFrameLoop } from './latticeLyricFrameLoop';
+import { splitLatticeLinesToRows } from './latticeLyricRowSplit';
+import { annotateLineTypes, type LineType } from '../../../../utils/lyrics/lineTypeDetector';
+import { resolveLatticeBoost } from './latticeLyricBoost';
 import type { LatticeLyricInput, LatticeLyricRuntime } from './types';
 import { resolveSingleTrackSubtitleMode } from '../../../../utils/lyrics/alternateText';
 
@@ -15,7 +18,7 @@ import { resolveSingleTrackSubtitleMode } from '../../../../utils/lyrics/alterna
 interface Track { view: LatticeLineView; y: number; vy: number; scale: number; vs: number;
     alpha: number; blur: number; fromAlpha: number; fromBlur: number; elapsed: number;
     alphaTo: number; blurTo: number; hidden: boolean; lastTarget: number;
-    status: MonetVisibleLineEntry['status']; offset: number; leaving: boolean; }
+    status: MonetVisibleLineEntry['status']; offset: number; index: number; leaving: boolean; }
 const ease = cubicBezier(0.32, 0.72, 0, 1);
 // Softer than the shared Monet springs on purpose: those settle a line in ~0.4s, which on this
 // wall reads as the next line lunging out of the queue. These glide the handover instead.
@@ -85,6 +88,17 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
     const edge = createLatticeEdgeFilter(pixi, resolution); stage.filters = [edge.filter];
     host.appendChild(app.canvas); app.canvas.setAttribute('aria-hidden', 'true');
     let timeline = createLatticeTimeline(input.lines), lastTime = input.currentTime.get();
+    // 段类型（副歌/说唱/普通）决定提亮基座，只在换歌/换词表/换尺寸时重算一遍。
+    let lineTypes: LineType[] = annotateLineTypes(input.lines);
+    // 一句只占一行：源句超出当前容量就就地切段，唱不完的那截不算"第二行"而是"下一句"，
+    // 到它那几个字真正起唱的时刻才上场。宽度、字号、词表任一变动都要重切，所以跟着 rebuild 走。
+    // 切段与排版必须共用同一个容量，否则切完还是会折行，这两处一旦飘开功能就静悄悄失效。
+    const lyricCapacity = () => Math.max(1, width - typography.padding * 2);
+    const rebuildRows = () => {
+        const rows = width >= 2 ? splitLatticeLinesToRows(input.lines, lyricCapacity(), typography.font, raster.measure) : input.lines;
+        timeline = createLatticeTimeline(rows);
+        lineTypes = annotateLineTypes(rows);
+    };
     let lastEntries: MonetVisibleLineEntry[] | null = null;
     const tracks = new Map<string, Track>();
     let anchorHeight = 0, anchorVelocity = 0, anchorSnap = true;
@@ -100,16 +114,16 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
             if (!track) {
                 // Lattice draws the translation row inside its own lyric scene, not the shared bottom subtitle, so it
                 // cannot stack two rows yet: the 'both' option falls back to translation only (phase 2 will add a track).
-                const layout = layoutLatticeLine(entry.line, typography, Math.max(1, width - typography.padding * 2), raster.measure,
+                const layout = layoutLatticeLine(entry.line, typography, lyricCapacity(), raster.measure,
                     resolveSingleTrackSubtitleMode(input.subtitleContentMode ?? 'translation') === 'romanization');
                 const view = createLatticeLineView(pixi, raster, stage, entry, layout, typography, input, resolution);
                 track = { view, y: height * 0.46 + (entry.offset >= 0 ? 34 : -34), vy: 0, scale: 0.7, vs: 0,
                     alpha: 0, blur: 5, fromAlpha: 0, fromBlur: 5, elapsed: 0, alphaTo: 0, blurTo: 5,
                     hidden: false, lastTarget: height * 0.46 + (entry.offset >= 0 ? 34 : -34),
-                    status: entry.status, offset: entry.offset, leaving: false };
+                    status: entry.status, offset: entry.offset, index: entry.index, leaving: false };
                 tracks.set(entry.key, track);
             }
-            track.status = entry.status; track.offset = entry.offset; track.leaving = false;
+            track.status = entry.status; track.offset = entry.offset; track.index = entry.index; track.leaving = false;
         }
         // Rapid seeks must not accumulate fading copies of every visited line.
         for (const [key, track] of tracks) if (track.leaving && tracks.size > 10) { track.view.destroy(); tracks.delete(key); }
@@ -118,6 +132,8 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
         try {
             if (destroyed || width < 2 || height < 2) return false;
             const time = input.currentTime.get(), quiet = Boolean(input.reducedMotion || input.staticMode);
+            // 高潮/重音提亮：每帧读一次能量，各轨按自己的段类型换算倍数；静默档（减少动效/静态）不跟拍。
+            const power = input.audioPower?.get() ?? 0;
             if (time < lastTime || Math.abs(time - lastTime) > 0.75) clear();
             lastTime = time;
             const entries = timeline(quiet ? time : time + LATTICE_LEAD_SECONDS);
@@ -192,7 +208,8 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
                 track.view.blur.enabled = !quiet && track.blur > 0.05;
                 // Hidden rows keep their spring target (so they land in place when capacity returns)
                 // but skip per-piece content work while invisible.
-                if (track.view.container.visible) track.view.update(time, track.status, tone.baseAlpha, height, track.y, track.scale, quiet);
+                if (track.view.container.visible) track.view.update(time, track.status, tone.baseAlpha, height, track.y, track.scale, quiet,
+                    quiet ? 1 : resolveLatticeBoost(power, lineTypes[track.index] ?? 'normal'));
             }
             app.render();
             return moving;
@@ -214,7 +231,7 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
             if (next.currentTime !== input.currentTime) { unsubscribe(); unsubscribe = next.currentTime.on('change', loop.wake); }
             if (next.fontsEpoch !== input.fontsEpoch) { clearMonetMeasurementCaches(); raster.clearMeasureCache(); }
             input = next;
-            if (rebuild) { clear(); timeline = createLatticeTimeline(input.lines); typography = resolveLatticeTypography(input, width, height, raster.measure); }
+            if (rebuild) { clear(); typography = resolveLatticeTypography(input, width, height, raster.measure); rebuildRows(); }
             loop.wake();
         },
         resize(w, h, devicePixelRatio) {
@@ -225,6 +242,7 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
             edge.filter.resolution = resolution;
             stage.filterArea = new pixi.Rectangle(0, 0, width, height);
             typography = resolveLatticeTypography(input, width, height, raster.measure);
+            rebuildRows();
             clear(); loop.wake();
         },
         setVisible(visible) { loop.setVisible(visible); },

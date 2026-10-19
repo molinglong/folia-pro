@@ -34,8 +34,8 @@ const coverShape: PonderSceneScript = {
     id: 'grid-view-card-cover',
     titleKey: 'ponder.scenes.gridViewCardCover',
     action: {
-        kind: 'openSettings',
-        anchorId: 'gridViewCardSettings',
+        kind: 'openHomeStylePanel',
+        panelAnchor: 'gridViewCardSettings',
         labelKey: 'ponder.actions.openGridViewCard',
     },
     anchors,
@@ -99,7 +99,7 @@ export default {
     titleKey: 'ponder.targets.gridViewCardSettings',
     category: 'appearance',
     summaryKey: 'ponder.summaries.grid_view_card_settings',
-    hoverSelector: '[data-settings-anchor="gridViewCardSettings"]',
+    hoverSelector: '[data-home-style-anchor="gridViewCardSettings"]',
     relatedTargetIds: ['grid3d-card-style', 'lattice-style-settings', 'grid-view-page'],
     scenes: [coverShape, falloff],
 } satisfies PonderTargetDefinition;

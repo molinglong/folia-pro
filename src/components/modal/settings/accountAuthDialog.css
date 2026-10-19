@@ -1,0 +1,40 @@
+/* src/components/modal/settings/accountAuthDialog.css
+   登录 / 注册弹窗里的字段配色：全部跟当前主题的 --text-primary 走。
+   深色设置弹窗、首页的深色列表、日光主题下的浅底弹窗共用这一份，不再写死 white/10。 */
+
+/* 设置存储区 / 侧栏账号页的入口按钮：未登录时替换掉原来的内嵌表单。 */
+.account-auth-open {
+    color: var(--text-primary, #f7f4ee);
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 10%, transparent);
+}
+
+.account-auth-open:hover {
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 16%, transparent);
+}
+
+.account-auth-dialog-card input {
+    border-color: color-mix(in srgb, var(--text-primary, #f7f4ee) 16%, transparent);
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 6%, transparent);
+    color: var(--text-primary, #f7f4ee);
+}
+
+.account-auth-dialog-card input::placeholder {
+    color: color-mix(in srgb, var(--text-primary, #f7f4ee) 42%, transparent);
+}
+
+.account-auth-dialog-card input:focus {
+    border-color: color-mix(in srgb, var(--text-primary, #f7f4ee) 34%, transparent);
+}
+
+.account-auth-dialog-card .account-auth-primary {
+    color: var(--text-primary, #f7f4ee);
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 12%, transparent);
+}
+
+.account-auth-dialog-card .account-auth-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 18%, transparent);
+}
+
+.account-auth-dialog-card .account-auth-switch {
+    color: var(--text-secondary, color-mix(in srgb, var(--text-primary, #f7f4ee) 60%, transparent));
+}

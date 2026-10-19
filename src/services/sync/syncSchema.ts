@@ -1,7 +1,10 @@
 import { sanitizeDualTheme } from '../themeSanitizer';
 // 背景模式没有 mod 投稿通道，静态清单与活注册表在任何时刻都等价。
 import { isBuiltinVisualizerBackgroundMode } from '../../types/visualizerModes';
+import type { ListeningPlayRecord } from '../../types/listeningStats';
 import {
+    LISTENING_SYNC_SCHEMA_VERSION,
+    LISTENING_SYNC_SOURCES,
     SYNC_LEGACY_SCHEMA_VERSION,
     SYNC_SCHEMA_VERSION,
     type SyncLibraryExportBundle,
@@ -12,6 +15,8 @@ import {
     type SyncedCloudSnapshot,
     type SyncedCloudUser,
     type SyncedCollectionRecord,
+    type SyncedListeningPull,
+    type SyncedListeningPushResult,
     type SyncedPlatformSessionRecord,
     type SyncedSettingsRecord,
     type SyncedVisualSettings,
@@ -333,5 +338,110 @@ export const parseSyncThemeManifest = (value: unknown): SyncThemeManifest | null
         schemaVersion: SYNC_SCHEMA_VERSION,
         bucketCount: value.bucketCount,
         buckets: buckets as SyncThemeBucketSummary[],
+    };
+};
+
+// --- 听歌记录（/listening-plays，schemaVersion 独立从 1 起计）---
+
+const LISTENING_PLAY_KEYS = [
+    'sessionId', 'songKey', 'source', 'title', 'artist', 'album', 'coverUrl',
+    'durationSec', 'listenedSec', 'startedAt', 'playedAt', 'completed',
+];
+
+const MAX_LISTENING_TEXT_LENGTH = 512;
+const MAX_LISTENING_DURATION_SEC = 7 * 24 * 60 * 60;
+
+/** 严格白名单解析：服务端已经验过一遍，客户端仍不信任任何多余字段。 */
+export const parseSyncedListeningPlay = (value: unknown): ListeningPlayRecord | null => {
+    if (!isRecord(value) || Object.keys(value).some(key => !LISTENING_PLAY_KEYS.includes(key))) {
+        return null;
+    }
+
+    const { sessionId, songKey, source, title, artist, album, coverUrl } = value;
+    if (typeof sessionId !== 'string' || !sessionId || sessionId.length > 256
+        || typeof songKey !== 'string' || !songKey || songKey.length > MAX_LISTENING_TEXT_LENGTH
+        || typeof source !== 'string' || !LISTENING_SYNC_SOURCES.has(source)
+        || typeof title !== 'string' || !title || title.length > MAX_LISTENING_TEXT_LENGTH
+        || typeof artist !== 'string' || artist.length > MAX_LISTENING_TEXT_LENGTH
+        || typeof album !== 'string' || album.length > MAX_LISTENING_TEXT_LENGTH
+        || (coverUrl !== undefined && (
+            typeof coverUrl !== 'string'
+            || coverUrl.length > 2_048
+            || !/^https?:\/\//i.test(coverUrl)
+        ))
+        || !isFiniteNumber(value.durationSec) || value.durationSec < 0 || value.durationSec > MAX_LISTENING_DURATION_SEC
+        || !isFiniteNumber(value.listenedSec) || value.listenedSec < 0 || value.listenedSec > MAX_LISTENING_DURATION_SEC
+        || !isFiniteNumber(value.startedAt) || value.startedAt <= 0
+        || !isFiniteNumber(value.playedAt) || value.playedAt <= 0
+        || typeof value.completed !== 'boolean'
+    ) {
+        return null;
+    }
+
+    return {
+        sessionId,
+        songKey,
+        source: source as ListeningPlayRecord['source'],
+        title,
+        artist,
+        album,
+        ...(coverUrl !== undefined ? { coverUrl: coverUrl as string } : {}),
+        durationSec: value.durationSec,
+        listenedSec: value.listenedSec,
+        startedAt: Math.trunc(value.startedAt),
+        playedAt: Math.trunc(value.playedAt),
+        completed: value.completed,
+    };
+};
+
+export const parseSyncedListeningPull = (value: unknown): SyncedListeningPull | null => {
+    if (!isRecord(value)
+        || value.schemaVersion !== LISTENING_SYNC_SCHEMA_VERSION
+        || !Array.isArray(value.plays)
+        || !isStringArray(value.deletes)
+        || !isFiniteNumber(value.clearedAt) || value.clearedAt < 0
+        || !isFiniteNumber(value.since) || value.since < 0
+        || !isFiniteNumber(value.latestRevision) || value.latestRevision < 0
+        || typeof value.hasMore !== 'boolean'
+        || typeof value.reset !== 'boolean'
+    ) {
+        return null;
+    }
+
+    // 单条损坏/非法只跳过那一行，不让整页作废——否则一条坏数据会永久卡住游标。
+    const plays = value.plays
+        .map(parseSyncedListeningPlay)
+        .filter((play): play is ListeningPlayRecord => Boolean(play));
+
+    return {
+        schemaVersion: 1,
+        plays,
+        deletes: value.deletes,
+        clearedAt: Math.trunc(value.clearedAt),
+        since: Math.trunc(value.since),
+        latestRevision: Math.trunc(value.latestRevision),
+        hasMore: value.hasMore,
+        reset: value.reset,
+    };
+};
+
+export const parseSyncedListeningPushResult = (value: unknown): SyncedListeningPushResult | null => {
+    if (!isRecord(value)
+        || value.ok !== true
+        || value.schemaVersion !== LISTENING_SYNC_SCHEMA_VERSION
+        || !isFiniteNumber(value.revision)
+        || !isFiniteNumber(value.clearedAt)
+        || !isFiniteNumber(value.savedPlays)
+        || !isFiniteNumber(value.savedDeletes)
+    ) {
+        return null;
+    }
+
+    return {
+        schemaVersion: 1,
+        revision: Math.max(0, Math.trunc(value.revision)),
+        clearedAt: Math.max(0, Math.trunc(value.clearedAt)),
+        savedPlays: Math.max(0, Math.trunc(value.savedPlays)),
+        savedDeletes: Math.max(0, Math.trunc(value.savedDeletes)),
     };
 };

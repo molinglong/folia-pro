@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Monitor, Palette, Settings2, LayoutGrid, PanelsTopLeft, Images, Download, Copy, Check, ChevronRight, AlertTriangle, KeyRound, Music2, Film } from 'lucide-react';
+import { Monitor, Palette, Settings2, Download, Copy, Check, ChevronRight, AlertTriangle, KeyRound, Music2, Film } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -21,8 +21,6 @@ import { buildCurrentObsUrl } from '../../../services/obs/currentObsUrl';
 import { ObsCopyUrlButton } from '../../shared/ObsCopyUrlButton';
 import { resolveWebObsTarget, selectWebObsSource } from '../../../services/obs/webObsTarget';
 import { buildVisualSettingsConfig, resolveObsCopyHintKey } from '../../../services/obs/visualSettingsConfig';
-import LatticeSettingsSection from './LatticeSettingsSection';
-import GridViewSettingsSection from './GridViewSettingsSection';
 import VideoLayerSettingsSection from './VideoLayerSettingsSection';
 import NowPlayingCardSettingsSection from './NowPlayingCardSettingsSection';
 import { isThemeGenerationSource, type ThemeGenerationSource } from '../../../services/themePreferences';
@@ -41,6 +39,10 @@ import { isLibraryWallSeamStyle } from '../../../utils/libraryWallSeamStyle';
 
 // src/components/modal/settings/AppearanceSettingsSubview.tsx
 // Visual settings subview for theme presets, lyric renderer entry, layout settings, and configurations import/export.
+// 2026-10-19 拆分（用户：视觉设置一屏塞了八块）：这个组件现在按 `part` 渲染侧栏的两个分区——
+// 'player'（歌词渲染 / 播放胶囊 / 视频层）与 'theme'（主题配色 / 导入导出）。两块共用同一个文件是
+// 故意的：导入导出的状态与处理函数有四百多行，拆成两个文件只会把它们复制一份。
+// 主页外观（卡片样式 / 拼贴墙 / 海报墙）不再在这里出现，整组搬到主页样式浮层现场调。
 
 type AppearanceSettingsSubviewProps = {
     accentOutlineColor: string;
@@ -76,9 +78,9 @@ type AppearanceSettingsSubviewProps = {
     onChangeStageTrackPillTimeoutSec: (sec: number) => void;
     onToggleStageTrackPillOnHome: (enable: boolean) => void;
     utilityGhostButtonClass: string;
-    grid3dCardStyle: 'image' | 'card';
-    onChangeGrid3dCardStyle: (style: 'image' | 'card') => void;
     aiTheme?: DualTheme | null;
+    /** Which of the two sidebar sections this instance renders. See the file header. */
+    part: 'player' | 'theme';
 };
 
 // ==========================================
@@ -119,9 +121,8 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     stageTrackPillOnHome,
     onToggleStageTrackPillOnHome,
     utilityGhostButtonClass,
-    grid3dCardStyle,
-    onChangeGrid3dCardStyle,
     aiTheme,
+    part,
 }) => {
     const { t } = useTranslation();
     // OBS static URL points to this web deploy, so the copy button is web-only (no shareable URL under Electron).
@@ -590,6 +591,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
 
     return (
         <div className="space-y-6">
+            {/* 下面每一块按 part 归属侧栏的两个分区；包裹不再缩进一层是为了不把六百行 JSX 整体平移，
+                每块的边界看一眼注释就能读懂。 */}
+            {part === 'player' && (<>
             {/* Section 1: Lyrics Animation & Player View */}
             <SettingsAnchor anchorId="lyricsRenderer" label={t('options.lyricsRenderer')}>
                 <SettingsSectionHeading icon={Monitor} label={t('options.lyricsRenderer')} />
@@ -689,7 +693,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                     </div>
                 </div>
             </SettingsAnchor>
+            </>)}
 
+            {part === 'theme' && (<>
             {/* Section 2: Theme presets and edit options */}
             <SettingsAnchor anchorId="themePresets" label={t('options.themePresets')}>
                 <SettingsSectionHeading icon={Palette} label={t('options.themePresets')} />
@@ -837,6 +843,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                     )}
                 </div>
             </SettingsAnchor>
+            </>)}
+
+            {part === 'player' && (<>
             {/* Section 3: Now playing card */}
             <SettingsAnchor anchorId="stageTrackPill" label={t('options.stageTrackPill')}>
                 <SettingsSectionHeading icon={Music2} label={t('options.stageTrackPill')} />
@@ -855,62 +864,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 />
             </SettingsAnchor>
 
-            {/* Section 4: Grid card style */}
-            <SettingsAnchor anchorId="grid3dCardStyle" label={t('options.grid3dCardStyle')}>
-                <SettingsSectionHeading icon={LayoutGrid} label={t('options.grid3dCardStyle')} />
-                <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
-                    <div className="space-y-1">
-                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                            {t('options.grid3dCardStyle')}
-                        </div>
-                        <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                            {t('options.grid3dCardStyleDesc')}
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            onClick={() => onChangeGrid3dCardStyle('image')}
-                            className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all"
-                            style={getAccentOptionStyle(grid3dCardStyle === 'image')}
-                        >
-                            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                {t('options.grid3dCardStyleImage')}
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => onChangeGrid3dCardStyle('card')}
-                            className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all"
-                            style={getAccentOptionStyle(grid3dCardStyle === 'card')}
-                        >
-                            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                {t('options.grid3dCardStyleCard')}
-                            </span>
-                        </button>
-                    </div>
-                </div>
-            </SettingsAnchor>
-
-            {/* Section 5: Tile wall appearance (queue collage + bravais library wall) */}
-            <SettingsAnchor anchorId="latticeSettings" label={t('options.latticeSettings')}>
-                <SettingsSectionHeading icon={PanelsTopLeft} label={t('options.latticeSettings')} />
-                <LatticeSettingsSection
-                    settingsCardClass={settingsCardClass}
-                    toggleOffBackgroundClass={toggleOffBackgroundClass}
-                    isDaylight={isDaylight}
-                    theme={theme}
-                />
-            </SettingsAnchor>
-
-            {/* Section 6: Folia card grid, sitting with the poster wall it shares its look with. */}
-            <SettingsAnchor anchorId="gridViewCardSettings" label={t('options.gridViewCardSettings')}>
-                <SettingsSectionHeading icon={Images} label={t('options.gridViewCardSettings')} />
-                <GridViewSettingsSection
-                    settingsCardClass={settingsCardClass}
-                    settingsDividerClass={settingsDividerClassFor(isDaylight)}
-                    toggleOffBackgroundClass={toggleOffBackgroundClass}
-                    theme={theme}
-                />
-            </SettingsAnchor>
+            {/* 原 Section 4～6（卡片样式 / 拼贴墙外观 / 海报墙卡片）于 2026-10-19 搬入主页样式浮层：
+                它们调的是用户正在看的那面墙，站在墙上改比在设置里隔空改直观（LatticeSettingsSection /
+                GridViewSettingsSection 本体不动，HomeStylePanel 直接复用）。 */}
 
             {/* Section 7: Video layer behind the lyrics. Not part of the import/export payload below. */}
             <SettingsAnchor anchorId="videoLayerSettings" label={t('options.videoLayerSettings')}>
@@ -923,7 +879,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                     theme={theme}
                 />
             </SettingsAnchor>
+            </>)}
 
+            {part === 'theme' && (<>
             {/* Section 8: Configurations Import/Export (New feature) */}
             <SettingsAnchor anchorId="importExportTitle" label={t('options.importExportTitle')}>
                 <SettingsSectionHeading icon={Settings2} label={t('options.importExportTitle')} />
@@ -1024,6 +982,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                     if (pendingImport) applyImportedConfig(pendingImport.config, keys);
                 }}
             />
+            </>)}
         </div>
     );
 };

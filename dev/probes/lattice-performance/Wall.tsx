@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useMotionValue } from 'framer-motion';
+import { motionValue, useMotionValue } from 'framer-motion';
 import Lattice from '../../../src/components/app/lattice/Lattice';
 import { DEFAULT_THEME } from '../../../src/services/baseThemes';
 import { PlayerState, type SongResult } from '../../../src/types';
@@ -9,6 +9,8 @@ const TITLES = ['Piano Sonata, Op. 27 No. 2, in C♯ minor, “Moonlight”',
     '壤土下的安居 Cozy Home Underground', '锤砧间的音符 Notes From Striking the Anvil',
     '新月的摇篮曲（其三）：眉间落英 Lullaby of the New Moon'];
 const noop = () => {};
+// 探针不放声音：能量恒为 0，高潮提亮只剩副歌基座档。
+const idlePower = motionValue(0);
 export function Wall({ count }: { count: number }) {
     const time = useMotionValue(0);
     const queue = useMemo<SongResult[]>(() => Array.from({ length: count }, (_, index) => ({
@@ -18,7 +20,7 @@ export function Wall({ count }: { count: number }) {
     })), [count]);
     return <Lattice queue={queue} currentSong={null} playerState={PlayerState.PAUSED} currentTime={time}
         playbackDuration={180} canTogglePlayback={false} isDaylight={false} lyrics={null}
-        lyricSource={{ currentTime: time, currentLineIndex: -1, lines: [], theme: DEFAULT_THEME }} lyricKeywordColoringEnabled={false}
+        lyricSource={{ currentTime: time, currentLineIndex: -1, lines: [], theme: DEFAULT_THEME, audioPower: idlePower }} lyricKeywordColoringEnabled={false}
         controls={{ loopMode: 'off', playback: { prev: noop, next: noop, toggleLoop: noop, shuffleQueue: noop,
             toggleSongLike: noop, isSongLiked: false, isFmMode: false }, invokeCommandById: noop, canInvokeCommandById: () => false }}
         onBack={noop} onOpenPlayer={noop} onPlaySong={noop} onTogglePlayback={noop} onSeek={noop} />;

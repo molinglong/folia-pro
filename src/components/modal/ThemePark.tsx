@@ -15,7 +15,6 @@ import {
 import { getVisualizerModeLabel } from '../visualizer/registry';
 import { normalizeThemeHexColor } from '../../services/themeSanitizer';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
-import { extractColors } from '../../utils/colorExtractor';
 import { buildRecommendedColors } from '../../utils/themeEditorPalette';
 import { useThemeQuickEditorStore } from '../../stores/useThemeQuickEditorStore';
 import type { VisualizerTuningBundle } from '../visualizer/tuningRegistry';

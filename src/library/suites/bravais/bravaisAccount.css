@@ -381,5 +381,120 @@
 .bravais-account-list .bravais-account-logout:hover:not(:disabled) { background: color-mix(in srgb, currentColor 14%, transparent); }
 .bravais-account-list .bravais-account-logout:disabled { cursor: default; opacity: 0.4; }
 
+/* @fork 2026-10-19（用户：登录 Folia 直接在这里给个入口）：平台列表顶部的 Folia 云同步账号。
+   与平台行用一条细线隔开；不折叠。整块就是一行：头像 / 云图标 40 + 名称 / 状态两行 + 右侧登出或登录，
+   已登录那一行由 AccountAuthForm 的 stacked 形态渲染，这里不再叠第二层卡片；
+   邮箱 / 密码在 AccountAuthDialog 弹窗里，Folia 区块本身始终只有一行。
+   未登录的「登录」是 32 的圆角按钮，颜色跟 currentColor 走——列表在日光模式下是浅底，白 10% 的底会看不见。 */
+.bravais-account-folia {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 4px;
+    padding: 0 0 8px;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* 未登录 / 正在检查：云图标装在 40 的圆里，和已登录那一行的头像同尺寸、同基线。 */
+.bravais-account-folia-head {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    color: inherit;
+}
+
+.bravais-account-folia-head .is-mark {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.bravais-account-folia-head .is-mark svg { width: 20px; height: 20px; }
+
+/* 未登录的入口：一颗 32 的圆角按钮，和已登录行右侧的登出同高，颜色跟列表走。 */
+.bravais-account-folia-head .bravais-account-folia-login {
+    height: 32px;
+    flex: none;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.bravais-account-folia-head .bravais-account-folia-login:hover {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* 与平台行一个节奏：名称 14 / 800，下面一行 10px 的小字。 */
+.bravais-account-folia-head .is-text,
+.bravais-account-folia-text {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.bravais-account-folia-head .is-title,
+.bravais-account-folia-name {
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-account-folia-head .is-status,
+.bravais-account-folia-mail {
+    overflow: hidden;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-account-folia input::placeholder { color: color-mix(in srgb, currentColor 45%, transparent); }
+.bravais-account-folia input:focus { border-color: var(--text-accent, currentColor); outline: none; }
+
+/* 已登录行的登出：一颗 32 圆的浅底，无描边；颜色跟当前行，不跟表单的错误红。 */
+.bravais-account-folia .account-logout-button {
+    border: 0;
+    color: inherit;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.bravais-account-folia .account-logout-button:hover:not(:disabled) {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* 已登录那一行的头像按钮：无底无数，只留圆形头像本身。 */
+.bravais-account-folia .account-avatar-button {
+    border: 0;
+    background: none;
+}
+
+/* 已登录那一行（邮箱 + 登出）：AccountAuthForm 用黑 10% 的底，在深色列表里几乎看不见——
+   改成随列表 inks 走的浅底，日光 / 深色两边都立得住。 */
+.bravais-account-folia .bg-black\/10 {
+    border-color: color-mix(in srgb, currentColor 10%, transparent);
+    background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
 /* 书脊上只留一个图标按钮：点它展开窄缝（fb3：并打开平台列表）。 */
 .bravais-account-switcher.is-compact { align-items: center; }

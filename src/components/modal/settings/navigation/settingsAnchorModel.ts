@@ -6,27 +6,26 @@ import type { SettingsSubviewId } from '../../../../stores/useSettingsModalStore
 // destination panel exists, so it is declared once here. settingsAnchorCoverage.test.ts holds the
 // table against the anchors actually rendered, so a section cannot silently drift away from its
 // navigation destination.
+//
+// 主页外观不在这里登记（2026-10-19）：卡片样式 / 首页标签 / 记住卡片位置 / 拼贴墙 / 海报墙 / Bravais 墙面
+// 整组搬到主页样式浮层（src/components/home/HomeStylePanel.tsx，调什么底下那面墙立刻跟着变），
+// 侧栏那颗 homeStyle 入口是直接回到主页开它，不再是一个设置页。
 
 export const SETTINGS_ANCHOR_DEFINITIONS = {
-    // AppearanceSettingsSubview
+    // AppearanceSettingsSubview（part='player'：播放页那一屏的样子）
     lyricsRenderer: { section: 'appearance', labelKey: 'options.lyricsRenderer' },
-    themePresets: { section: 'appearance', labelKey: 'options.themePresets' },
     stageTrackPill: { section: 'appearance', labelKey: 'options.stageTrackPill' },
-    grid3dCardStyle: { section: 'appearance', labelKey: 'options.grid3dCardStyle' },
-    latticeSettings: { section: 'appearance', labelKey: 'options.latticeSettings' },
-    gridViewCardSettings: { section: 'appearance', labelKey: 'options.gridViewCardSettings' },
     videoLayerSettings: { section: 'appearance', labelKey: 'options.videoLayerSettings' },
-    importExportTitle: { section: 'appearance', labelKey: 'options.importExportTitle' },
+
+    // AppearanceSettingsSubview（part='theme'：配色与配置）
+    themePresets: { section: 'theme', labelKey: 'options.themePresets' },
+    importExportTitle: { section: 'theme', labelKey: 'options.importExportTitle' },
 
     // GeneralSettingsSubview (PinnedCommandSettings and PonderTouchButtonSettingsSection render inside it)
     languageSettings: { section: 'general', labelKey: 'options.languageSettings' },
-    homeTabsVisibility: { section: 'general', labelKey: 'options.homeTabsVisibility' },
-    rememberHomeCardPosition: { section: 'general', labelKey: 'options.rememberHomeCardPosition' },
     playbackEntryView: { section: 'general', labelKey: 'options.playbackEntryView' },
     // Rendered only when more than one library suite is available (hasLibrarySuiteChoice).
     librarySuite: { section: 'general', labelKey: 'options.librarySuite', requiresLibrarySuiteChoice: true },
-    // bravais 独有的设置（透光、每块窗数、集合叠页边）：只在生效 suite 是 bravais 时渲染（isBravaisLibraryActive）。
-    bravaisSettings: { section: 'general', labelKey: 'options.bravaisSettings', requiresBravaisSuite: true },
     bottomUiSettings: { section: 'general', labelKey: 'options.bottomUiSettings' },
     pinnedCommands: { section: 'general', labelKey: 'options.pinnedCommands' },
     // @fork 本地魔改版：原 ponderHints（思索教程提示三档）随胶囊一起摘掉。锚点 id 换成
@@ -57,8 +56,10 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     navidrome: { section: 'integration', labelKey: 'navidrome.settings' },
 
     // StorageSettingsSection (LocalLibraryWatchSection renders inside it)
+    // 2026-10-19：原来手填服务器地址 / 开关 / 兼容 token 的「同步服务」区块已删（登录 Folia 账号即自动同步），
+    // 那个 r2Sync 锚点跟着消失；同一位置改登记账号区块，侧栏与搜索仍能定位到 Folia 账号。
+    foliaAccount: { section: 'storage', labelKey: 'ui.storage.accountTitle' },
     cacheDetails: { section: 'storage', labelKey: 'options.cacheDetails' },
-    r2Sync: { section: 'storage', labelKey: 'options.r2Sync' },
     localLibraryWatch: { section: 'storage', labelKey: 'options.localLibraryWatch' },
     mediaCache: { section: 'storage', labelKey: 'options.mediaCache' },
 
@@ -70,7 +71,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
 
     // GraphicsSettingsSubview
     // 档位选择器常驻；它选中非「自定义」时，下面两个被档位接管的细粒度栏位（画质开关、减少动效）会折叠
-    // 隐藏，侧栏目录跟着收起，不然会链到一个不存在的目的地（同 requiresBravaisSuite 的处理路子）。
+    // 隐藏，侧栏目录跟着收起，不然会链到一个不存在的目的地。
     // graphicsPerformance（静态模式/原生模糊/光晕量化）不受档位管，任何时候都常驻。
     graphicsPreset: { section: 'graphics', labelKey: 'options.graphicsPresetSection' },
     graphicsQualitySwitches: { section: 'graphics', labelKey: 'options.graphicsQualitySwitchesSection', requiresCustomPreset: true },
@@ -84,7 +85,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     // LabSettingsModal
     labPlayerUi: { section: 'lab', labelKey: 'options.labPlayerUiSection' },
     labWindowAndTools: { section: 'lab', labelKey: 'options.labWindowAndToolsSection' },
-} as const satisfies Record<string, { section: SettingsSubviewId; labelKey: string; electronOnly?: boolean; requiresLibrarySuiteChoice?: boolean; requiresBravaisSuite?: boolean; requiresCustomPreset?: boolean }>;
+} as const satisfies Record<string, { section: SettingsSubviewId; labelKey: string; electronOnly?: boolean; requiresLibrarySuiteChoice?: boolean; requiresCustomPreset?: boolean }>;
 
 export type SettingsAnchorId = keyof typeof SETTINGS_ANCHOR_DEFINITIONS;
 

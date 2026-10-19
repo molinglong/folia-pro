@@ -26,7 +26,7 @@ test.describe('settings navigation - wide layout', () => {
         // The sidebar lists sections only: anchor labels never render as buttons, and the active
         // section is told out loud through aria-current instead of a highlighted anchor row.
         await expect(sidebarItem(page, 'Alpha Section')).toHaveCount(0);
-        await expect(sidebarItem(page, 'visualSettings')).toHaveAttribute('aria-current', 'true');
+        await expect(sidebarItem(page, 'playerLookSettings')).toHaveAttribute('aria-current', 'true');
         await expect(sidebarItem(page, 'desktopSettings')).toHaveCount(1);
     });
 
@@ -36,7 +36,7 @@ test.describe('settings navigation - wide layout', () => {
         await sidebarItem(page, 'generalSettings').click();
 
         await expect(sidebarItem(page, 'generalSettings')).toHaveAttribute('aria-current', 'true');
-        await expect(sidebarItem(page, 'visualSettings')).not.toHaveAttribute('aria-current');
+        await expect(sidebarItem(page, 'playerLookSettings')).not.toHaveAttribute('aria-current');
         await expect(sidebarItem(page, 'Alpha Section')).toHaveCount(0);
     });
 
@@ -47,7 +47,7 @@ test.describe('settings navigation - wide layout', () => {
         await page.locator('input[type="search"]').fill('desktopSettings');
 
         await expect(sidebarItem(page, 'desktopSettings')).toBeVisible();
-        await expect(sidebarItem(page, 'visualSettings')).toHaveCount(0);
+        await expect(sidebarItem(page, 'playerLookSettings')).toHaveCount(0);
     });
 
     test('slots a late-arriving section into its document position', async ({ mount, page }) => {
@@ -61,7 +61,7 @@ test.describe('settings navigation - wide layout', () => {
         const labels = await page.evaluate(() => (
             [...document.querySelectorAll('[data-settings-anchor]')].map(node => node.getAttribute('data-settings-anchor'))
         ));
-        expect(labels).toEqual(['lyricsRenderer', 'themePresets', 'importExportTitle', 'stageTrackPill', 'grid3dCardStyle', 'latticeSettings']);
+        expect(labels).toEqual(['lyricsRenderer', 'themePresets', 'importExportTitle', 'stageTrackPill', 'videoLayerSettings', 'bottomUiSettings']);
     });
 });
 

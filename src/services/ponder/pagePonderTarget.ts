@@ -1,6 +1,7 @@
 import { useAppViewStore, type AppView } from '../../stores/useAppViewStore';
 import { usePonderStore } from '../../stores/usePonderStore';
 import { openSettings, useSettingsModalStore, type VisualizerSettingsSection } from '../../stores/useSettingsModalStore';
+import { openHomeStylePanel } from '../../stores/useHomeStylePanelStore';
 import { settingsAnchorSubview, type SettingsAnchorId } from '../../components/modal/settings/navigation/settingsAnchorModel';
 import type { PonderTargetId } from '../../types/ponder';
 
@@ -91,6 +92,30 @@ export const openVisualizerSettingsFromPonder = (section: VisualizerSettingsSect
     ponder.closePonder();
     ponder.closeNavigation();
     openSettings('options', 'visualizer', section);
+};
+
+/**
+ * 「回主页」的模块级把手。视图切换归 useAppNavigation 独占（它推 window.history），
+ * 这里不自己 setView —— 只把 App 装配时真正的那个 navigateToHome 存进来，走同一条压栈路径。
+ * 没注册时退化到 setView('home')：至少人到主页、浮层开在墙上，不至于点了没反应。
+ */
+let homeNavigator: (() => void) | null = null;
+export const registerHomeNavigator = (navigateToHome: () => void): void => {
+    homeNavigator = navigateToHome;
+};
+
+/** 一章「直接去那儿」：收掉教程层和导航页，回主页墙，拉开主页样式现场调浮层。 */
+export const openHomeStylePanelFromPonder = (): void => {
+    const ponder = usePonderStore.getState();
+    ponder.closePonder();
+    ponder.closeNavigation();
+    useSettingsModalStore.getState().closeSettings();
+    if (homeNavigator) {
+        homeNavigator();
+    } else {
+        useAppViewStore.getState().setView('home' as AppView);
+    }
+    openHomeStylePanel();
 };
 
 /** Opens Ponder for the foremost page and completes the non-dismissible shortcut lesson if present. */

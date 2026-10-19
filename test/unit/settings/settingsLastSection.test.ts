@@ -48,7 +48,11 @@ describe('settingsLastSection', () => {
 
     it('lists the same sections the sidebar shows on each platform', () => {
         for (const availability of [DESKTOP, WEB]) {
-            const sidebarIds = flattenSettingsNavItems(buildSettingsNavGroups(key => key, availability)).map(item => item.id);
+            // The sidebar also carries command exits (主页样式) that are not pages; the memory only
+            // tracks real sections, so drop the command rows before comparing.
+            const sidebarIds = flattenSettingsNavItems(buildSettingsNavGroups(key => key, availability))
+                .filter(item => !item.command)
+                .map(item => item.id);
             expect(getAvailableSettingsSectionIds(availability)).toEqual(sidebarIds);
         }
     });

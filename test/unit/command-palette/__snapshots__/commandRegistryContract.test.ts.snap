@@ -117,7 +117,6 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-obs-copy-css",
   "settings-storage",
   "settings-media-cache",
-  "settings-r2-sync",
   "sync-now",
   "export-lyric-cache",
   "export-current-lyrics-fia",

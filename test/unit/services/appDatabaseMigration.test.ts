@@ -4,7 +4,7 @@ import { APP_DATABASE_NAME, appDatabase } from '../../../src/services/appDatabas
 import { getFromCache, getSessionData, getThemeRegistryEntries } from '../../../src/services/db';
 
 // test/unit/services/appDatabaseMigration.test.ts
-// Verifies legacy native databases remain readable when Dexie opens and upgrades them to v0.9.
+// Verifies legacy native databases remain readable when Dexie opens and upgrades them to v1.1.
 
 const openNativeV6 = () => new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(APP_DATABASE_NAME, 6);
@@ -79,7 +79,7 @@ describe('AppDatabase native v6 migration', () => {
 
         await appDatabase.open();
 
-        expect(appDatabase.verno).toBe(0.9);
+        expect(appDatabase.verno).toBe(1.1);
         expect(await getSessionData()).toMatchObject({ fileName: 'song.mp3' });
         expect(await getFromCache('last_song')).toEqual({ id: 42 });
         expect(await getFromCache('user_profile')).toEqual({ userId: 7 });
@@ -94,6 +94,7 @@ describe('AppDatabase native v6 migration', () => {
             'local_library_entities',
             'local_library_assignments',
             'local_cover_assets',
+            'listening_plays',
         ]));
     });
 
@@ -120,7 +121,7 @@ describe('AppDatabase native v6 migration', () => {
         await appDatabase.open();
 
         const storedSong = await appDatabase.local_music.get('legacy-cover-song');
-        expect(appDatabase.verno).toBe(0.9);
+        expect(appDatabase.verno).toBe(1.1);
         expect((storedSong as typeof storedSong & { embeddedCover?: Blob })?.embeddedCover).toBeInstanceOf(Blob);
         expect(appDatabase.local_music.schema.indexes.map(index => index.name)).toContain('localCoverAssetId');
         expect(await appDatabase.local_cover_assets.count()).toBe(0);

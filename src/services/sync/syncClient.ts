@@ -1,18 +1,24 @@
+import type { ListeningPlayRecord } from '../../types/listeningStats';
 import type {
     SyncProviderConfig,
     SyncRemoteState,
     SyncThemeManifest,
     SyncedCollectionRecord,
+    SyncedListeningPull,
+    SyncedListeningPushResult,
     SyncedPlatformSessionRecord,
     SyncedSettingsRecord,
     SyncedThemeRecord,
     WorkerHealthResponse,
 } from './syncTypes';
+import { LISTENING_SYNC_SCHEMA_VERSION } from './syncTypes';
 import {
     parseSyncCollectionRecord,
     parseSyncPlatformSessionRecord,
     parseSyncRemoteState,
     parseSyncThemeManifest,
+    parseSyncedListeningPull,
+    parseSyncedListeningPushResult,
     parseSyncedSettingsRecord,
     parseSyncedThemeRecords,
 } from './syncSchema';
@@ -264,4 +270,57 @@ export const listRemoteThemes = async (
         themes: parseSyncedThemeRecords(response.themes ?? []),
         cursor: typeof response.cursor === 'string' && response.cursor ? response.cursor : null,
     };
+};
+
+// --- 听歌记录云同步（/listening-plays）---
+
+export type ListeningPushPayload = {
+    plays?: ListeningPlayRecord[];
+    deletes?: string[];
+    /** 必须单独成批：语义是"那一刻之前的记录全不要"，混入新增会让顺序含糊。 */
+    clear?: { clearedAt: number };
+};
+
+export type ListeningPushOutcome =
+    | { status: 'ok'; result: SyncedListeningPushResult }
+    | { status: 'unsupported' };
+
+/** 旧服务端没有该路由（404）、兼容模式没有账号（403）：都按"不支持听歌同步"降级为 null。 */
+export const getRemoteListeningPlays = async (
+    config: SyncProviderConfig,
+    options: { since: number; limit?: number },
+): Promise<SyncedListeningPull | null> => {
+    const since = Math.max(0, Math.trunc(options.since));
+    const limit = Math.min(1_000, Math.max(1, Math.trunc(options.limit ?? 500)));
+    try {
+        return parseSyncedListeningPull(
+            await requestJson(config, `/listening-plays?since=${since}&limit=${limit}`),
+        );
+    } catch (error) {
+        if (error instanceof SyncClientError && (error.status === 404 || error.status === 403 || error.status === 400)) {
+            return null;
+        }
+        throw error;
+    }
+};
+
+export const pushRemoteListeningPlays = async (
+    config: SyncProviderConfig,
+    payload: ListeningPushPayload,
+): Promise<ListeningPushOutcome | null> => {
+    try {
+        const parsed = parseSyncedListeningPushResult(
+            await requestJson(config, '/listening-plays', {
+                method: 'POST',
+                body: JSON.stringify({ schemaVersion: LISTENING_SYNC_SCHEMA_VERSION, ...payload }),
+            }),
+        );
+        // 应答不是可以识别的格式：保留 outbox，下次再试，不把待推送数据丢掉。
+        return parsed ? { status: 'ok', result: parsed } : null;
+    } catch (error) {
+        if (error instanceof SyncClientError && (error.status === 404 || error.status === 403)) {
+            return { status: 'unsupported' };
+        }
+        throw error;
+    }
 };

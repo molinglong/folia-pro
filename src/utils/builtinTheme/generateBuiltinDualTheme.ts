@@ -33,9 +33,11 @@ import {
 const between = (random: () => number, [min, max]: Range) => min + random() * (max - min);
 
 // v2 stops flinging the accent hue with random harmony schemes; v3 additionally waits for the
-// song's own artwork before deriving; v4 adds the duotone background wash. Caches stamped
-// below this are treated as missing.
-export const COVER_PALETTE_VERSION = 4;
+// song's own artwork before deriving; v4 adds the duotone background wash; v5 reads
+// population-weighted swatches in area order instead of the most saturated pixels; v6 caps every
+// role's saturation by the cover's own colorfulness so neutral artwork stays neutral. Caches
+// stamped below this are treated as missing.
+export const COVER_PALETTE_VERSION = 6;
 export const BUILTIN_THEME_PROVIDER = 'Built-in';
 
 // Interpolates along the shorter arc so a base/accent pair never swings through the opposite hue.
@@ -48,8 +50,10 @@ const buildBackgroundColor = (mode: ThemeMode, palette: CoverPalette, random: ()
     const tone = BACKGROUND_TONES[palette.tone];
     const lightnessRange = mode === 'dark' ? tone.darkLightness : tone.lightLightness;
     const saturationRange = mode === 'dark' ? tone.darkSaturation : tone.lightSaturation;
-    // A washed-out cover should not force a washed-out ground, but it should still read calmer.
-    const coverWeight = 0.55 + 0.45 * clamp01(palette.baseSaturation / 0.7);
+    // The ground is tinted in proportion to how colorful the cover actually is. A near-grey swatch
+    // still carries an arbitrary hue, so a black-and-white sleeve has to stay neutral rather than
+    // inherit a barely-visible tint at full background saturation.
+    const coverWeight = 0.1 + 0.9 * clamp01((palette.baseSaturation - MIN_COVER_CHROMA) / 0.45);
 
     return hslToHex({
         h: palette.baseHue,
@@ -57,6 +61,21 @@ const buildBackgroundColor = (mode: ThemeMode, palette: CoverPalette, random: ()
         l: between(random, lightnessRange),
     });
 };
+
+// Saturation below this reads as grey on a cover; only the excess above it is what the theme is
+// allowed to amplify. A slightly tinted black-and-white photo must not become a vivid theme.
+const MIN_COVER_CHROMA = 0.15;
+
+// Maps a swatch's raw saturation to 0..1 colorfulness, discarding the near-grey floor.
+const resolveCoverChroma = (saturation: number) => (
+    saturation <= MIN_COVER_CHROMA ? 0 : (saturation - MIN_COVER_CHROMA) / (1 - MIN_COVER_CHROMA)
+);
+
+// Every role's saturation is capped by the colorfulness of the swatch it borrows its hue from:
+// a neutral artwork yields neutral text and accents, a vivid one keeps its full range.
+const resolveChromaCeiling = (saturation: number, gain: number, floor: number) => (
+    clamp01(floor + resolveCoverChroma(saturation) * gain)
+);
 
 const buildAccentColor = (
     mode: ThemeMode,
@@ -66,7 +85,10 @@ const buildAccentColor = (
     random: () => number,
 ) => {
     const ranges = ACCENT_RANGES[mode];
-    const saturation = between(random, ranges.saturation);
+    const saturation = Math.min(
+        between(random, ranges.saturation),
+        resolveChromaCeiling(palette.accentSaturation, 1.6, 0.06),
+    );
     const lightness = between(random, ranges.lightness);
     const accent = adjustLightnessForContrast(
         hslToHex({ h: palette.accentHue, s: saturation, l: lightness }),
@@ -102,7 +124,10 @@ const buildModeTheme = (
     const primaryColor = adjustLightnessForContrast(
         hslToHex({
             h: palette.baseHue,
-            s: between(random, primaryRanges.saturation),
+            s: Math.min(
+                between(random, primaryRanges.saturation),
+                resolveChromaCeiling(palette.baseSaturation, 1.2, 0.04),
+            ),
             l: between(random, primaryRanges.lightness),
         }),
         backgroundColor,
@@ -115,7 +140,10 @@ const buildModeTheme = (
     const secondaryColor = adjustLightnessForContrast(
         hslToHex({
             h: lerpHue(palette.baseHue, palette.accentHue, 0.2 + random() * 0.4),
-            s: between(random, secondaryRanges.saturation),
+            s: Math.min(
+                between(random, secondaryRanges.saturation),
+                resolveChromaCeiling(palette.baseSaturation, 1.2, 0.04),
+            ),
             l: between(random, secondaryRanges.lightness),
         }),
         backgroundColor,

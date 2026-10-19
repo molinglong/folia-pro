@@ -24,8 +24,8 @@ const SECTIONS = [
     { id: 'lyricsRenderer', label: 'Alpha Section', icon: Sparkles, height: 700 },
     { id: 'themePresets', label: 'Bravo Section', icon: Monitor, height: 260 },
     { id: 'stageTrackPill', label: 'Charlie Section', icon: Cpu, height: 900 },
-    { id: 'grid3dCardStyle', label: 'Delta Section', icon: Database, height: 320 },
-    { id: 'latticeSettings', label: 'Echo Section', icon: Boxes, height: 480 },
+    { id: 'videoLayerSettings', label: 'Delta Section', icon: Database, height: 320 },
+    { id: 'bottomUiSettings', label: 'Echo Section', icon: Boxes, height: 480 },
 ] as const satisfies ReadonlyArray<{ id: SettingsAnchorId; label: string; icon: typeof Sparkles; height: number }>;
 
 /** Stands in for a section gated on an async status that has not arrived yet. */
@@ -111,6 +111,7 @@ const ProbeBody: React.FC = () => {
                             groups={groups}
                             activeSectionId={activeSection}
                             onSelectSection={setActiveSection}
+                            onSelectCommand={() => {}}
                             activeAnchorId={activeAnchorId}
                             onSelectAnchor={(sectionId, anchorId) => {
                                 if (sectionId === activeSection) {
@@ -127,6 +128,7 @@ const ProbeBody: React.FC = () => {
                             groups={groups}
                             activeSectionId={activeSection}
                             onSelectSection={setActiveSection}
+                            onSelectCommand={() => {}}
                             isDaylight={false}
                         />
                     )}

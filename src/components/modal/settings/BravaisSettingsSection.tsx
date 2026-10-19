@@ -5,7 +5,6 @@ import { useShallow } from 'zustand/react/shallow';
 import type { Theme } from '../../../types';
 import { useIsBravaisLibraryActive } from '../../../library/app/bravaisLibraryActive';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
-import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import LibraryWallLookSettings from './LibraryWallLookSettings';
 import BravaisSettingsToggleRow from './BravaisSettingsToggleRow';
@@ -27,6 +26,11 @@ type BravaisSettingsSectionProps = {
     theme?: Theme;
 };
 
+// 2026-10-19：本组随主页外观整组搬到 HomeStylePanel（主页样式浮层现场调），不再是设置侧栏目录里的一个锚点，
+// 所以外层不再套 <SettingsAnchor>——浮层里没有目录可登记，锚点 id 也已在 settingsAnchorModel 里注销。
+// 分组标题与卡片留在组件内，由浮层用 <div data-home-style-anchor="bravaisSettings"> 兜住思索直达的落点。
+
+/** 分组标题 + 卡片正文；不再登记到设置目录（自带 suite 门控）。 */
 const BravaisSettingsSection: React.FC<BravaisSettingsSectionProps> = ({ isDaylight, settingsCardClass, theme }) => {
     const { t } = useTranslation();
     const isBravaisActive = useIsBravaisLibraryActive();
@@ -41,7 +45,7 @@ const BravaisSettingsSection: React.FC<BravaisSettingsSectionProps> = ({ isDayli
     const toggleOnColor = theme?.secondaryColor;
 
     return (
-        <SettingsAnchor anchorId="bravaisSettings" label={t('options.bravaisSettings')}>
+        <>
             <SettingsSectionHeading icon={LayoutGrid} label={t('options.bravaisSettings')} />
             <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`} data-bravais-settings="">
                 <div className="text-[11px] opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
@@ -60,7 +64,7 @@ const BravaisSettingsSection: React.FC<BravaisSettingsSectionProps> = ({ isDayli
                 <BravaisSeamSettings isDaylight={isDaylight} accentColor={accentColor} toggleOnColor={toggleOnColor} />
                 <BravaisBackdropSettings isDaylight={isDaylight} toggleOnColor={toggleOnColor} />
             </div>
-        </SettingsAnchor>
+        </>
     );
 };
 

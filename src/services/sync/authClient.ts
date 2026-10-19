@@ -121,6 +121,48 @@ export const verifyAccountSession = async (): Promise<{ userId: string; email: s
     }
 };
 
+// --- 账号资料 ---
+// 头像是按用户存的资料（sync-server /account/profile），走与同步域同一套 access token。
+// 旧服务端没有这个接口（404）：调用方要能静默退回首字母占位，不能拖垮登录态。
+
+export type AccountProfile = {
+    userId: string;
+    email: string;
+    avatar: string | null;
+    updatedAt?: string;
+};
+
+const requestWithAccess = async <T>(path: string, init: RequestInit): Promise<T> => {
+    const session = getActiveSession();
+    if (!session) {
+        throw new AuthClientError('Not signed in', 401, 'unauthorized');
+    }
+    const send = (accessToken: string) => requestAuth<T>(path, {
+        ...init,
+        headers: { ...init.headers, Authorization: `Bearer ${accessToken}` },
+    });
+    try {
+        return await send(session.accessToken);
+    } catch (error) {
+        // access token 过期：刷新一次再重试（refresh 是单飞的，不会把并发请求的会话弄坏）。
+        if (!(error instanceof AuthClientError) || error.status !== 401) throw error;
+        const refreshed = await refreshSession();
+        if (!refreshed) throw error;
+        return await send(refreshed.accessToken);
+    }
+};
+
+export const fetchAccountProfile = async (): Promise<AccountProfile> => (
+    requestWithAccess<AccountProfile>('/account/profile', { method: 'GET' })
+);
+
+export const updateAccountProfile = async (patch: { avatar: string | null }): Promise<AccountProfile> => (
+    requestWithAccess<AccountProfile>('/account/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+    })
+);
+
 // 把会话写入存储，并让账号元数据进入 sync 配置（触发 config 订阅者刷新 UI）。
 const adoptSession = (session: SyncAccountSession) => {
     storeSession(session);

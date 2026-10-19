@@ -1,5 +1,6 @@
 import type { DualTheme, SubtitleContentMode, Theme, VisualizerBackgroundMode, VisualizerMode } from '../../types';
 import type { VisualizerTuningBundle } from '../../components/visualizer/tuningRegistry';
+import type { ListeningPlayRecord } from '../../types/listeningStats';
 
 // src/services/sync/syncTypes.ts
 // Shared contracts for Folia's user-hosted sync server API.
@@ -176,4 +177,37 @@ export type SyncLibraryExportBundle = {
     exportedAt: string;
     settings: SyncedSettingsRecord | null;
     themes: SyncedThemeRecord[];
+};
+
+// --- 听歌记录云同步（/listening-plays，schemaVersion 独立从 1 起计）---
+// 记录是只追加事件：跨设备按 sessionId 取并集，没有 LWW。删除用墓碑传播，
+// 清空用每用户 clearedAt 水位线传播，revision 是服务端分配的增量游标。
+
+export const LISTENING_SYNC_SCHEMA_VERSION = 1;
+
+/** 服务端接受的来源白名单，与 sync-server/src/listening.ts 保持一致。 */
+export const LISTENING_SYNC_SOURCES: ReadonlySet<string> = new Set([
+    'netease', 'qq', 'kugou', 'local', 'navidrome', 'stage',
+]);
+
+export type SyncedListeningPull = {
+    schemaVersion: 1;
+    plays: ListeningPlayRecord[];
+    deletes: string[];
+    /** 清空水位线（毫秒）；早于它的记录在两端都不再存在。 */
+    clearedAt: number;
+    /** 下次拉取游标；hasMore 时为本页最后一条 revision。 */
+    since: number;
+    latestRevision: number;
+    hasMore: boolean;
+    /** 本地游标超前（服务端换库/回滚），调用方应从 0 重拉。 */
+    reset: boolean;
+};
+
+export type SyncedListeningPushResult = {
+    schemaVersion: 1;
+    revision: number;
+    clearedAt: number;
+    savedPlays: number;
+    savedDeletes: number;
 };

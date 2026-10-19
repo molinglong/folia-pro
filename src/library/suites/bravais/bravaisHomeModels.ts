@@ -1,4 +1,5 @@
 import type { LibraryDirectoryVisibilityMode } from '../../core/contracts/directory';
+import type { SearchSource } from '../../../stores/useSearchNavigationStore';
 import type { BravaisSeamForm, BravaisSeamMenuItem, BravaisSeamNotice } from './bravaisSeamModels';
 import type { BravaisAccountRow } from './bravaisAccountModel';
 import type { LibraryHomeSpecialKind } from '../../core/model/homeSpecialCards';
@@ -81,9 +82,13 @@ export type BravaisHomeSearch = {
     placeholder: string;
     /** 输入框下面一行说明：搜的是在线平台、结果去搜索页（不是收窄这面墙）。 */
     hint: string;
-    submitLabel: string;
     closeLabel: string;
-    onSubmit: (query: string) => void;
+    /** 提交（回车或点历史行）：不传 sourceTab 用当前页签；历史行传它那一条的来源（同词跟着源走）。 */
+    onSubmit: (query: string, sourceTab?: SearchSource) => void;
+    /** 最近搜索面板的标题（search.historyTitle）。 */
+    historyLabel: string;
+    /** 搜索历史（与搜索页历史面板同源：useSearchNavigationStore.searchHistory）：点一行直达那次的结果。 */
+    history: readonly { query: string; sourceTab: SearchSource }[];
 };
 
 /**

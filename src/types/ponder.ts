@@ -433,6 +433,19 @@ export type PonderSceneAction =
           labelKey: string;
       }
     /**
+     * 回到主页墙上，拉开「主页样式」现场调整浮层（HomeStylePanel）。
+     *
+     * 2026-10-19 拆分后主页外观（卡片样式 / 拼贴墙 / 海报墙 / Bravais 墙面）不再是设置里的表单，
+     * 而是那面墙上的实时浮层，所以这几章的「直接去那儿」不再走 openSettings 锚点。panelAnchor 是
+     * 浮层里 data-home-style-anchor 的值（string，理由同 anchorId：types 层不反向依赖组件），
+     * 只作提示用途，缺省就停在浮层顶部。
+     */
+    | {
+          kind: 'openHomeStylePanel';
+          panelAnchor?: string;
+          labelKey: string;
+      }
+    /**
      * 在外部浏览器里打开一个地址。
      *
      * 给「更多说明看文档」这类出口：教程讲得完的东西讲完了，讲不完的该把人送到文档去，

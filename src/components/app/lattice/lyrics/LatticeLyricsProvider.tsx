@@ -11,10 +11,10 @@ export default function LatticeLyricsProvider({ source, songKey, keywordColoring
 }) {
     // Select explicitly: the source may structurally contain global font scales and player-only showText.
     const { currentTime, currentLineIndex, lines, theme, subtitleTheme, showSubtitleTranslation,
-        hideTranslationSubtitle, subtitleContentMode, paused, staticMode } = source;
+        hideTranslationSubtitle, subtitleContentMode, paused, staticMode, audioPower } = source;
     const value = useMemo(() => ({ currentTime, currentLineIndex, lines, theme, subtitleTheme,
-        showSubtitleTranslation, hideTranslationSubtitle, subtitleContentMode, paused, staticMode, songKey, keywordColoringEnabled }),
+        showSubtitleTranslation, hideTranslationSubtitle, subtitleContentMode, paused, staticMode, audioPower, songKey, keywordColoringEnabled }),
     [currentTime, currentLineIndex, lines, theme, subtitleTheme, showSubtitleTranslation,
-        hideTranslationSubtitle, subtitleContentMode, paused, staticMode, songKey, keywordColoringEnabled]);
+        hideTranslationSubtitle, subtitleContentMode, paused, staticMode, audioPower, songKey, keywordColoringEnabled]);
     return <Context.Provider value={value}>{children}</Context.Provider>;
 }

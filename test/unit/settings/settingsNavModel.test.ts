@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SETTINGS_ANCHOR_DEFINITIONS } from '../../../src/components/modal/settings/navigation/settingsAnchorModel';
-import { SETTINGS_NAV_GROUP_SPECS, buildSettingsNavGroups, findSettingsNavItem, flattenSettingsNavItems, type SettingsSectionId } from '../../../src/components/modal/settings/navigation/settingsNavModel';
+import { SETTINGS_NAV_GROUP_SPECS, buildSettingsNavGroups, findSettingsNavItem, flattenSettingsNavItems, type SettingsNavGroup, type SettingsSectionId } from '../../../src/components/modal/settings/navigation/settingsNavModel';
 import en from '../../../src/i18n/locales/en';
 import zhCN from '../../../src/i18n/locales/zh-CN';
 import id from '../../../src/i18n/locales/in';
@@ -12,8 +12,13 @@ import id from '../../../src/i18n/locales/in';
 const echo = (key: string) => key;
 
 const ALL_SECTIONS: SettingsSectionId[] = [
-    'appearance', 'general', 'playback', 'interaction', 'integration', 'storage', 'desktop', 'graphics', 'mods', 'lab', 'developer',
+    'overview', 'appearance', 'theme', 'general', 'playback', 'listeningStats', 'interaction', 'integration', 'storage', 'desktop', 'graphics', 'mods', 'lab', 'developer',
 ];
+
+/** Sidebar rows that are real pages; the home-style command entry is not one and keys off `.command`. */
+const sectionIdsOf = (groups: SettingsNavGroup[]): SettingsSectionId[] => (
+    flattenSettingsNavItems(groups).filter(item => !item.command).map(item => item.id as SettingsSectionId)
+);
 
 const lookup = (bundle: Record<string, unknown>, key: string): unknown => (
     key.split('.').reduce<unknown>((node, part) => (
@@ -23,13 +28,13 @@ const lookup = (bundle: Record<string, unknown>, key: string): unknown => (
 
 describe('settingsNavModel', () => {
     it('lists every section exactly once on desktop', () => {
-        const ids = flattenSettingsNavItems(buildSettingsNavGroups(echo, { isElectron: true })).map(item => item.id);
+        const ids = sectionIdsOf(buildSettingsNavGroups(echo, { isElectron: true }));
         expect([...ids].sort()).toEqual([...ALL_SECTIONS].sort());
     });
 
     it('drops desktop-only sections on web without leaving an empty group', () => {
         const groups = buildSettingsNavGroups(echo, { isElectron: false });
-        const ids = flattenSettingsNavItems(groups).map(item => item.id);
+        const ids = sectionIdsOf(groups);
 
         expect(ids).not.toContain('desktop');
         expect(ids).not.toContain('mods');
@@ -38,7 +43,7 @@ describe('settingsNavModel', () => {
     });
 
     it('keeps the section order the flat sidebar list used', () => {
-        const ids = flattenSettingsNavItems(buildSettingsNavGroups(echo, { isElectron: true })).map(item => item.id);
+        const ids = sectionIdsOf(buildSettingsNavGroups(echo, { isElectron: true }));
         expect(ids).toEqual(ALL_SECTIONS);
     });
 
@@ -50,7 +55,7 @@ describe('settingsNavModel', () => {
     });
 
     it('expands every declared anchor under its owning section', () => {
-        const items = flattenSettingsNavItems(buildSettingsNavGroups(echo, { isElectron: true, hasLibrarySuiteChoice: true, isBravaisSuiteActive: true, isCustomPresetActive: true }));
+        const items = flattenSettingsNavItems(buildSettingsNavGroups(echo, { isElectron: true, hasLibrarySuiteChoice: true, isCustomPresetActive: true }));
         const rendered = items.flatMap(item => item.anchors.map(anchor => [anchor.id, item.id]));
         const declared = Object.entries(SETTINGS_ANCHOR_DEFINITIONS).map(([id, definition]) => [id, definition.section]);
 
@@ -68,17 +73,14 @@ describe('settingsNavModel', () => {
         expect(anchorsOf(false)).toContain('playbackEntryView');
     });
 
-    it('lists the Bravais group only while bravais is the active suite (its section renders nothing otherwise)', () => {
-        const anchorsOf = (isBravaisSuiteActive: boolean) => findSettingsNavItem(
-            buildSettingsNavGroups(echo, { isElectron: false, hasLibrarySuiteChoice: true, isBravaisSuiteActive }),
-            'general',
-        )?.anchors.map(anchor => anchor.id);
+    it('exposes the home-style sidebar entry as a command, not a page', () => {
+        // 主页样式不再是设置里的一个分区表单，而是一颗离开对话框、回主页拉开现场调浮层的 command。
+        const items = flattenSettingsNavItems(buildSettingsNavGroups(echo, { isElectron: true }));
+        const homeStyle = items.find(item => item.command === 'homeStyle');
 
-        expect(anchorsOf(true)).toEqual(expect.arrayContaining(['librarySuite', 'bravaisSettings']));
-        // 紧跟在「资料库界面」后面（与界面设置里的渲染顺序一致）。
-        expect(anchorsOf(true)!.indexOf('bravaisSettings')).toBe(anchorsOf(true)!.indexOf('librarySuite') + 1);
-        expect(anchorsOf(false)).toContain('librarySuite');
-        expect(anchorsOf(false)).not.toContain('bravaisSettings');
+        expect(homeStyle?.id).toBe('homeStyle');
+        expect(homeStyle?.anchors, 'command 入口没有页面可指，不该带任何锚点').toEqual([]);
+        expect(sectionIdsOf(buildSettingsNavGroups(echo, { isElectron: true }))).not.toContain('homeStyle');
     });
 
     it('lists the detailed graphics anchors only while the quality tier is set to custom (they collapse otherwise)', () => {

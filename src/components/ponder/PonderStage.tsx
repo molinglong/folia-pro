@@ -13,7 +13,7 @@ import { fitRectsToStage } from '../../utils/ponder/fitRectsToStage';
 import { refreshPonderDomRectSnapshot, type PonderDomRectSnapshot } from '../../utils/ponder/ponderDomRectSnapshot';
 import { findPonderTarget } from './ponderRegistry';
 import { type SettingsAnchorId } from '../modal/settings/navigation/settingsAnchorModel';
-import { openSettingsFromPonder, openVisualizerSettingsFromPonder } from '../../services/ponder/pagePonderTarget';
+import { openSettingsFromPonder, openVisualizerSettingsFromPonder, openHomeStylePanelFromPonder } from '../../services/ponder/pagePonderTarget';
 import type { VisualizerSettingsSection } from '../../stores/useSettingsModalStore';
 import { openPonderActionUrl } from '../../services/ponder/ponderActionUrl';
 import { createPonderStageNodes } from './ponderStageNodes';
@@ -315,6 +315,10 @@ const PonderStage: React.FC<PonderStageProps> = ({ theme, isDaylight }) => {
                         }
                         if (scene.action.kind === 'openVisualizerSettings') {
                             openVisualizerSettingsFromPonder(scene.action.section as VisualizerSettingsSection);
+                            return;
+                        }
+                        if (scene.action.kind === 'openHomeStylePanel') {
+                            openHomeStylePanelFromPonder();
                             return;
                         }
                         // 顺序和「还要收掉哪几层」都在 openSettingsFromPonder 里 ——

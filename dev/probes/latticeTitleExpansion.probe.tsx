@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useMotionValue } from 'framer-motion';
+import { motionValue, useMotionValue } from 'framer-motion';
 import Lattice from '../../src/components/app/lattice/Lattice';
 import { DEFAULT_THEME } from '../../src/services/baseThemes';
 import { PlayerState, type SongResult } from '../../src/types';
@@ -12,6 +12,8 @@ import type { ProbeDefinition } from './definition';
 const TITLES = ['束光似水 Light Shines Through Fingers as a Silver Stream',
     '壤土下的安居 Cozy Home Underground', '锤砧间的音符 Notes From Striking the Anvil'];
 const noop = () => {};
+// 探针不放声音，能量恒为 0：提亮只剩副歌基座档。
+const idlePower = motionValue(0);
 function Probe() {
     const time = useMotionValue(0);
     const [songs] = useState(() => Array.from({ length: 40 }, (_, index) => ({
@@ -19,7 +21,7 @@ function Probe() {
         album: { id: 1, name: 'Probe' }, durationMs: 180000,
         sourceRef: { kind: 'online', providerId: 'netease', mediaId: `d-${index}` },
     } satisfies SongResult)));
-    const source = useMemo(() => ({ currentTime: time, currentLineIndex: -1, lines: [], theme: DEFAULT_THEME }), [time]);
+    const source = useMemo(() => ({ currentTime: time, currentLineIndex: -1, lines: [], theme: DEFAULT_THEME, audioPower: idlePower }), [time]);
     return <div style={{ height: '100vh' }}>
         <Lattice queue={songs} currentSong={null} playerState={PlayerState.PAUSED} currentTime={time}
             playbackDuration={180} canTogglePlayback={false} isDaylight={false} lyrics={null}

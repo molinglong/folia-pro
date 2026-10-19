@@ -3,17 +3,20 @@ import { Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../../types';
 import type { SettingsAnchorId } from './settingsAnchorModel';
-import type { SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
+import type { SettingsNavCommandId, SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
 import { searchSettingsNav } from './settingsNavSearch';
 // src/components/modal/settings/navigation/SettingsSidebarWide.tsx
 // Wide-layout settings navigation: a flat list of grouped sections under a search box that
 // narrows the list. The anchor table of contents used to hang under the active section; it was
 // removed on purpose, so the sidebar is sections only. The narrow chip strip has no search either.
+// One row is not a page: `homeStyle` hands the user back to the wall and opens the live panel there.
 
 type SettingsSidebarWideProps = {
     groups: SettingsNavGroup[];
     activeSectionId: SettingsSectionId;
     onSelectSection: (sectionId: SettingsSectionId) => void;
+    /** The command rows (主页样式) leave the dialog instead of switching page. */
+    onSelectCommand: (command: SettingsNavCommandId) => void;
     activeAnchorId: string | null;
     onSelectAnchor: (sectionId: SettingsSectionId, anchorId: SettingsAnchorId) => void;
     isDaylight: boolean;
@@ -24,6 +27,7 @@ export const SettingsSidebarWide: React.FC<SettingsSidebarWideProps> = ({
     groups,
     activeSectionId,
     onSelectSection,
+    onSelectCommand,
     activeAnchorId,
     onSelectAnchor,
     isDaylight,
@@ -38,11 +42,13 @@ export const SettingsSidebarWide: React.FC<SettingsSidebarWideProps> = ({
     const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Enter' && search.firstHit) {
             event.preventDefault();
-            const { sectionId, anchorId } = search.firstHit;
-            if (anchorId) {
-                onSelectAnchor(sectionId, anchorId);
+            const { sectionId, anchorId, command } = search.firstHit;
+            if (command) {
+                onSelectCommand(command);
+            } else if (anchorId) {
+                onSelectAnchor(sectionId as SettingsSectionId, anchorId);
             } else {
-                onSelectSection(sectionId);
+                onSelectSection(sectionId as SettingsSectionId);
             }
             return;
         }
@@ -103,12 +109,12 @@ export const SettingsSidebarWide: React.FC<SettingsSidebarWideProps> = ({
                     </div>
                     {group.items.map((section) => {
                         const Icon = section.icon;
-                        const isActive = activeSectionId === section.id;
+                        const isActive = !section.command && activeSectionId === section.id;
                         return (
                             <div key={section.id}>
                                 <button
                                     type="button"
-                                    onClick={() => onSelectSection(section.id)}
+                                    onClick={() => (section.command ? onSelectCommand(section.command) : onSelectSection(section.id as SettingsSectionId))}
                                     // Active state was carried by the highlight alone; say it out loud now.
                                     aria-current={isActive ? 'true' : undefined}
                                     className={`w-full p-3 rounded-xl border transition-colors flex items-center justify-between gap-3 text-left ${isActive ? (isDaylight ? 'border-zinc-300/70 bg-white/80' : 'border-white/20 bg-white/10') : (isDaylight ? 'border-transparent hover:bg-white/50' : 'border-transparent hover:bg-white/5')}`}

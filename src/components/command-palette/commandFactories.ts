@@ -8,6 +8,7 @@ import type { LibraryArtistSurfaceActionId } from '../../library/core/contracts/
 import type { LibrarySuiteChromeActionMeta } from '../../library/core/contracts/suiteChrome';
 import { libraryChromeCommandId } from '../../library/core/model/suiteChrome';
 import { settingsAnchorSubview, type SettingsAnchorId } from '../modal/settings/navigation/settingsAnchorModel';
+import { openHomeStylePanel } from '../../stores/useHomeStylePanelStore';
 import type { CommandPaletteCommand, CommandPaletteContext, CommandPaletteGroup } from './types';
 
 // src/components/command-palette/commandFactories.ts
@@ -84,6 +85,32 @@ export const createSettingsAnchorCommand = (
     settingsTarget: { subview: settingsAnchorSubview(anchorId), anchorId },
     execute: (_input, context) => {
         context.settings.openSettings('options', settingsAnchorSubview(anchorId), null, anchorId);
+        return true;
+    },
+});
+
+/**
+ * A palette entry that lands the user on the home wall with the live HomeStylePanel open — the same
+ * destination as the sidebar's 主页样式 command. Home-appearance knobs (card style / home tabs /
+ * lattice / grid-view / bravais) moved out of Settings into that panel, so these no longer have an
+ * anchor to jump to; they open the workbench instead.
+ */
+export const createHomeStylePanelCommand = (
+    id: string,
+    title: string,
+    description: string,
+    keywords: string[],
+    options: Pick<CommandPaletteCommand, 'platform' | 'isAvailable' | 'executeShortcut'> = {},
+): CommandPaletteCommand => defineCommand({
+    id,
+    group: 'settings',
+    title,
+    description,
+    keywords,
+    ...options,
+    execute: (_input, context) => {
+        context.navigation.navigateToHome();
+        openHomeStylePanel();
         return true;
     },
 });

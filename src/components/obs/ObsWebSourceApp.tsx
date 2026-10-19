@@ -7,7 +7,7 @@ import type { DualTheme, Line, MonetPortraitImage, Theme } from '../../types';
 import type { VisualizerBackgroundConfig } from '../visualizer/backgrounds/definition';
 import { findLatestActiveLineIndex } from '../../utils/appPlaybackHelpers';
 import { buildBuiltinDualTheme } from '../../hooks/themeControllerState';
-import { extractColors } from '../../utils/colorExtractor';
+import { extractRepresentativeColors } from '../../utils/colorExtractor';
 import { readObsCustomCssAssets, type ObsCustomCssAssets } from '../../services/obs/obsCustomCss';
 import type { WebLyricSource } from '../../types/webLyricSource';
 import type { ObsWebAppearance } from '../../utils/obsWebAppearance';
@@ -151,7 +151,7 @@ const ObsWebSourceApp: React.FC<ObsWebSourceAppProps> = ({ source, appearance, o
             setBuiltinDualTheme(buildBuiltinDualTheme());
             return () => { cancelled = true; };
         }
-        void extractColors(coverUrl, 5)
+        void extractRepresentativeColors(coverUrl, 5)
             .then((colors) => { if (!cancelled) setBuiltinDualTheme(buildBuiltinDualTheme({ coverColors: colors })); })
             .catch(() => { if (!cancelled) setBuiltinDualTheme(buildBuiltinDualTheme()); });
         return () => { cancelled = true; };

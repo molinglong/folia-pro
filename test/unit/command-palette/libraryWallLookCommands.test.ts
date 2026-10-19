@@ -9,6 +9,7 @@ import {
 import type { CommandPaletteContext } from '@/components/command-palette/types';
 import type { LibraryWallLook } from '@/utils/libraryWallLook';
 import type { LibraryWallSeamStyle } from '@/utils/libraryWallSeamStyle';
+import { closeHomeStylePanel } from '@/stores/useHomeStylePanelStore';
 
 // test/unit/command-palette/libraryWallLookCommands.test.ts
 // bravais 透光的两条命令（B6b②）：可用性与设置分区同一个谓词（context.settings.isLibraryWallLookAvailable，
@@ -32,8 +33,12 @@ const createContext = (state: Settings) => {
     const toggleLibraryWallBackdropBlur = vi.fn();
     const setLibraryWallSeamStyle = vi.fn((style: LibraryWallSeamStyle) => { state.seamStyle = style; });
     const openSettings = vi.fn();
+    const navigateToHome = vi.fn();
     const context = {
         shared: { t: (_key: string, fallback?: string) => fallback ?? '' },
+        navigation: {
+            navigateToHome,
+        },
         settings: {
             toggleLibraryWallStackEdges,
             toggleLibraryWallSeamClear,
@@ -60,6 +65,7 @@ const createContext = (state: Settings) => {
         toggleLibraryWallBackdropBlur,
         setLibraryWallSeamStyle,
         openSettings,
+        navigateToHome,
     };
 };
 
@@ -156,8 +162,9 @@ describe('library wall windows picker', () => {
         expect(setLibraryWallWindowsPerBlock).toHaveBeenCalledWith(4);
     });
 
-    // 2026-10-09：bravais 独有的设置整理进界面设置的「Bravais 墙面」分组；集合叠页边是一个开关。
-    it('toggles the collection stack edges and jumps to the Bravais group only while bravais is the effective suite', () => {
+    // 2026-10-19：bravais 独有设置随主页外观整组搬到 HomeStylePanel，settings-bravais 不再是跳设置锚点，
+    // 而是「回主页 + 拉开现场调浮层」的 command（与侧栏 homeStyle 入口同一个落点）。
+    it('toggles the collection stack edges, and sends the bravais entry back to the wall to open the live panel', () => {
         const toggle = command('library-wall-stack-edges-toggle');
         const anchor = command('settings-bravais');
         for (const entry of [toggle, anchor]) {
@@ -166,13 +173,17 @@ describe('library wall windows picker', () => {
             expect(entry.isAvailable?.(createContext({ available: true, look: 'solid', windows: 3 }).context)).toBe(true);
             expect(entry.isAvailable?.(createContext({ available: false, look: 'solid', windows: 3 }).context)).toBe(false);
         }
-        expect(anchor.settingsTarget).toEqual({ subview: 'general', anchorId: 'bravaisSettings' });
+        // 浮层不是一个设置页，没有可跳的锚点。
+        expect(anchor.settingsTarget).toBeUndefined();
 
-        const { context, toggleLibraryWallStackEdges, openSettings } = createContext({ available: true, look: 'solid', windows: 3 });
+        const { context, toggleLibraryWallStackEdges, openSettings, navigateToHome } = createContext({ available: true, look: 'solid', windows: 3 });
         expect(toggle.execute('', context)).toBe(true);
         expect(toggleLibraryWallStackEdges).toHaveBeenCalledTimes(1);
         expect(anchor.execute('', context)).toBe(true);
-        expect(openSettings).toHaveBeenCalledWith('options', 'general', null, 'bravaisSettings');
+        expect(openSettings, 'bravais 入口不再打开设置对话框').not.toHaveBeenCalled();
+        expect(navigateToHome).toHaveBeenCalledTimes(1);
+        // openHomeStylePanel 是真的 store，收尾关掉免得泄漏到别的用例。
+        closeHomeStylePanel();
     });
 });
 

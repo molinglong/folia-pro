@@ -24,7 +24,7 @@ import {
     type ThemePreferenceSwitchState,
 } from '../services/themePreferences';
 import { FALLBACK_AI_DUAL_THEME, sanitizeDualTheme, sanitizeTheme } from '../services/themeSanitizer';
-import { extractColors } from '../utils/colorExtractor';
+import { extractRepresentativeColors } from '../utils/colorExtractor';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import {
     buildThemeSourceModel,
@@ -424,7 +424,7 @@ export function useThemeController({
         origin: 'chosen' | 'fallback',
         source: 'manual' | 'auto' = 'manual',
     ): Promise<GenerateAIThemeResult> => {
-        const coverColors = coverUrl ? await extractColors(coverUrl, 5) : [];
+        const coverColors = coverUrl ? await extractRepresentativeColors(coverUrl, 5) : [];
         // Without artwork there is nothing honest to derive: an empty palette would bake the
         // neutral fallback theme into the song's cache. Skip without caching -- a later attempt
         // (cover resolved, manual retry) can still build the real thing.

@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { DualTheme, SongResult } from '../../types';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
 import { FALLBACK_AI_DUAL_THEME, sanitizeDualTheme } from '../../services/themeSanitizer';
-import { extractColors } from '../../utils/colorExtractor';
+import { extractRepresentativeColors } from '../../utils/colorExtractor';
 import { THEME_GENERATION_PROMPT_PREFIX, buildThemeSourcePrompt, parseAiThemeJsonInput } from '../../utils/aiThemePrompts';
 import { useThemeQuickEditorStore } from '../../stores/useThemeQuickEditorStore';
 import { buildRecommendedColors } from '../../utils/themeEditorPalette';
@@ -103,7 +103,7 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
             return undefined;
         }
 
-        extractColors(coverUrl, 8)
+        extractRepresentativeColors(coverUrl, 8)
             .then(colors => {
                 if (!cancelled) {
                     setCoverColors(colors);

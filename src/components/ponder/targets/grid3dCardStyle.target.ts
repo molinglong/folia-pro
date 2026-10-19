@@ -29,8 +29,8 @@ const styles: PonderSceneScript = {
     id: 'grid3d-card-style-options',
     titleKey: 'ponder.scenes.grid3dCardStyleOptions',
     action: {
-        kind: 'openSettings',
-        anchorId: 'grid3dCardStyle',
+        kind: 'openHomeStylePanel',
+        panelAnchor: 'grid3dCardStyle',
         labelKey: 'ponder.actions.openGrid3dCardStyle',
     },
     anchors,
@@ -59,7 +59,7 @@ export default {
     titleKey: 'ponder.targets.grid3dCardStyle',
     category: 'appearance',
     summaryKey: 'ponder.summaries.grid3d_card_style',
-    hoverSelector: '[data-settings-anchor="grid3dCardStyle"]',
+    hoverSelector: '[data-home-style-anchor="grid3dCardStyle"]',
     relatedTargetIds: ['grid-view-card-settings', 'lattice-style-settings', 'settings-page'],
     scenes: [styles],
 } satisfies PonderTargetDefinition;

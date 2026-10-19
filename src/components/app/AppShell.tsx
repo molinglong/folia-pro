@@ -77,7 +77,9 @@ const AppShell: React.FC<AppShellProps> = ({
 
     const shouldApplyWindowRadius = useCustomWindowRadius && !isWindowMaximized;
     const areTitlebarControlsVisible = isTitlebarRevealed || alwaysShowMainWindowTitlebar;
-    const shouldRenderTitlebarBackdrop = !isPlayerView || (useCustomWindowRadius && !isMainWindowClickThroughEnabled);
+    // 2026-10-19（用户定）：首页/列表页顶部那条背景板删掉——夜间非播放页那格只有 backdrop-blur 没配底色，
+    // 悬停揭示时会把下面那排封面糊成一条磨砂带，看着像标题栏被毛玻璃盖住。改为只在播放页渲染这条（播放页那格本就带实色底，是有意的暗带）。
+    const shouldRenderTitlebarBackdrop = isPlayerView && useCustomWindowRadius && !isMainWindowClickThroughEnabled;
     const titlebarBackdropClassName = `absolute inset-0 backdrop-blur-sm ${
         isDaylight
             ? isPlayerView
@@ -90,6 +92,7 @@ const AppShell: React.FC<AppShellProps> = ({
 
     return (
         <div
+            data-app-shell
             className="fixed inset-0 w-full h-full flex flex-col overflow-hidden font-sans transition-colors duration-500"
             style={{
                 ...appStyle,

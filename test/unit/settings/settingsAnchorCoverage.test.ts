@@ -49,6 +49,7 @@ describe('settings section anchors', () => {
         const renderedOrder = [
             ['queueSettings', 'anchorId="queueSettings"'],
             ['scrobbleSettings', 'anchorId="scrobbleSettings"'],
+            ['crossReplaceSettings', 'anchorId="crossReplaceSettings"'],
             ['transitionSettings', '<TransitionSettingsSection'],
             ['replayGainSettings', 'anchorId="replayGainSettings"'],
             ['lyrics', 'anchorId="lyrics"'],

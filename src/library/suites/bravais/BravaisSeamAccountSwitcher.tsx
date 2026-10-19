@@ -1,8 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
-import { LogIn, LogOut, Plug } from 'lucide-react';
+import { Cloud, LogIn, LogOut, Plug } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
+import AccountAuthForm from '../../../components/modal/settings/AccountAuthForm';
+import AccountAuthDialog from '../../../components/modal/settings/AccountAuthDialog';
+import { useAccountSessionStore } from '../../../stores/useAccountSessionStore';
 import type { BravaisHomeAccount } from './bravaisHomeModels';
 import { resolveBravaisAccountPopMotion } from './bravaisAccountMotion';
 import { closeBravaisHomePopover, setBravaisHomeOpenRequest, setBravaisHomePopover, useBravaisHomeUiStore } from './bravaisHomeUiStore';
@@ -93,6 +97,54 @@ const placeAccountList = (entry: HTMLElement, seam: HTMLElement, host: HTMLEleme
 const describeRow = (row: BravaisHomeAccount['rows'][number]) => [row.label, row.detail, row.actionLabel].filter(Boolean).join(' · ');
 
 /**
+ * 列表顶部的 Folia 云同步账号，一整块就是一行（和平台行同一节奏）：
+ * - 已登录：头像 40（点一下换图）+ 「Folia 账号」/ 邮箱两行 + 登出 32 圆——行由 AccountAuthForm 的
+ *   stacked 形态渲染，这里不再叠一行入口，避免头像和邮箱写两遍；
+ * - 未登录 / 正在检查：云图标装在 40 的圆里 + 「Folia 账号」/ 状态，右侧一颗「登录」；
+ *   邮箱 / 密码在 AccountAuthDialog 弹窗里，列表本身始终只有一行。
+ */
+const BravaisFoliaAccount: React.FC = () => {
+    const { t } = useTranslation();
+    const status = useAccountSessionStore(state => state.status);
+    const [authOpen, setAuthOpen] = useState(false);
+    if (status === 'signed-in') {
+        return (
+            <div className="bravais-account-folia is-signed" data-bravais-account-folia>
+                <AccountAuthForm errorTextColor="text-red-400" stacked />
+            </div>
+        );
+    }
+    return (
+        <div className="bravais-account-folia" data-bravais-account-folia>
+            <div className="bravais-account-folia-head">
+                <span className="is-mark" aria-hidden><Cloud /></span>
+                {/* 与平台行同一个节奏：名称一行、此刻的状态一行小字。 */}
+                <span className="is-text">
+                    <span className="is-title">{t('account.foliaTitle')}</span>
+                    <span className="is-status">
+                        {status === 'hydrating'
+                            ? t('ui.storage.accountHydrating')
+                            : t('libraryBravaisAccount.notSignedIn')}
+                    </span>
+                </span>
+                {status !== 'hydrating' && (
+                    <button
+                        type="button"
+                        className="bravais-account-folia-login"
+                        onClick={() => setAuthOpen(true)}
+                        aria-label={t('ui.storage.accountSignInOrSignUp') || 'Sign in / Sign up'}
+                        title={t('ui.storage.accountSignInOrSignUp') || 'Sign in / Sign up'}
+                    >
+                        {t('ui.storage.accountSignIn') || 'Sign in'}
+                    </button>
+                )}
+            </div>
+            <AccountAuthDialog open={authOpen} onClose={() => setAuthOpen(false)} errorTextColor="text-red-400" />
+        </div>
+    );
+};
+
+/**
  * 弹出的平台列表（挂在 .bravais-root 上，位置由 placement 给）。收起动画途中（useIsPresent 为 false）挂 inert，
  * 不再接点击与焦点。
  */
@@ -127,6 +179,9 @@ const BravaisAccountList: React.FC<{
                 maxHeight: placement.maxHeight,
             }}
         >
+            {/* @fork 2026-10-19（用户：登录 Folia 直接在这里给个入口）：平台列表顶部先放 Folia 云同步账号，
+                再往下是各平台行，两者用一条细线隔开。不折叠：标题行下面直接是登录表单 / 账号卡片。 */}
+            <BravaisFoliaAccount />
             {account.rows.map(row => (
                 <div
                     key={row.providerId}
@@ -247,7 +302,10 @@ const BravaisSeamAccountSwitcher: React.FC<{
     useEffect(() => {
         if (!shown) return undefined;
         const onPointerDown = (event: PointerEvent) => {
-            if (event.target instanceof Node && (rootRef.current?.contains(event.target) || listRef.current?.contains(event.target))) return;
+            const target = event.target;
+            // 登录弹窗挂在 body 上：点它不算点别处，登录完列表还在。
+            if (target instanceof Element && target.closest('[data-account-auth-dialog]')) return;
+            if (target instanceof Node && (rootRef.current?.contains(target) || listRef.current?.contains(target))) return;
             closeBravaisHomePopover('accounts');
         };
         const onKeyDown = (event: globalThis.KeyboardEvent) => {

@@ -3,6 +3,7 @@ import app from '../src/app.js';
 import { createAuthRouter } from '../src/auth.js';
 import { D1Emulator } from '../src/d1-emulator.js';
 import type { Env } from '../src/app.js';
+import { MAX_AVATAR_LENGTH } from '../src/profile.js';
 
 // 手工探针：npm run test:node（tsx test/auth.probe.ts）
 // 覆盖：注册/登录/会话旋转/登出、兼容模式回归（schema 1 语义）、用户数据域隔离、
@@ -55,6 +56,20 @@ const putJson = (env: Env, path: string, payload: unknown, token?: string) => (
     body: JSON.stringify(payload),
   })
 );
+
+const patchJson = (env: Env, path: string, payload: unknown, token?: string) => (
+  requestJson(env, path, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  })
+);
+
+// 1×1 透明 PNG，够过 data URL 校验。
+const AVATAR_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 const registerUser = async (env: Env, email: string, password: string) => (
   postJson(env, '/auth/register', { email, password, deviceLabel: 'probe' })
@@ -310,6 +325,174 @@ const main = async () => {
 
     const skipped = await requestJson(env2, '/settings', { headers: { Authorization: `Bearer ${SYNC_TOKEN}` } });
     assert.equal(skipped.body, null);
+  });
+
+  await section('账号头像：写入 / 读回 / 跨用户隔离 / 兼容模式拒绝', async () => {
+    const env = makeEnv();
+    const userA = (await registerUser(env, 'avatar-a@example.com', 'password-123')).body;
+    const userB = (await registerUser(env, 'avatar-b@example.com', 'password-456')).body;
+    const authA = { Authorization: `Bearer ${userA.accessToken}` };
+    const authB = { Authorization: `Bearer ${userB.accessToken}` };
+
+    const empty = await requestJson(env, '/account/profile', { headers: authA });
+    assert.equal(empty.status, 200);
+    assert.equal(empty.body.email, 'avatar-a@example.com');
+    assert.equal(empty.body.avatar, null);
+
+    const patched = await patchJson(env, '/account/profile', { avatar: AVATAR_DATA_URL }, userA.accessToken);
+    assert.equal(patched.status, 200);
+    assert.equal(patched.body.avatar, AVATAR_DATA_URL);
+
+    const readBack = await requestJson(env, '/account/profile', { headers: authA });
+    assert.equal(readBack.body.avatar, AVATAR_DATA_URL);
+
+    // 另一个账号读不到这张头像（按 user_id 隔离）。
+    const otherUser = await requestJson(env, '/account/profile', { headers: authB });
+    assert.equal(otherUser.body.avatar, null);
+
+    const compat = await requestJson(env, '/account/profile', { headers: { Authorization: `Bearer ${SYNC_TOKEN}` } });
+    assert.equal(compat.status, 403);
+    assert.equal(compat.body.error, 'account_required');
+
+    const notImage = await patchJson(env, '/account/profile', { avatar: 'data:text/plain;base64,aGk=' }, userA.accessToken);
+    assert.equal(notImage.status, 400);
+
+    const tooLong = await patchJson(env, '/account/profile', { avatar: `data:image/png;base64,${'A'.repeat(MAX_AVATAR_LENGTH)}` }, userA.accessToken);
+    assert.equal(tooLong.status, 400);
+
+    const missingField = await patchJson(env, '/account/profile', {}, userA.accessToken);
+    assert.equal(missingField.status, 400);
+
+    const removed = await patchJson(env, '/account/profile', { avatar: null }, userA.accessToken);
+    assert.equal(removed.status, 200);
+    assert.equal(removed.body.avatar, null);
+    const afterRemove = await requestJson(env, '/account/profile', { headers: authA });
+    assert.equal(afterRemove.body.avatar, null);
+  });
+
+  await section('listening-plays：增量游标、去重、删除墓碑、清空水位与账号隔离', async () => {
+    const env = makeEnv();
+    const userA = (await registerUser(env, 'listen-a@example.com', 'password-123')).body;
+    const userB = (await registerUser(env, 'listen-b@example.com', 'password-456')).body;
+    const headersA = { Authorization: `Bearer ${userA.accessToken}` };
+
+    const play = (sessionId: string, playedAt: number) => ({
+      sessionId,
+      songKey: 'online:netease:1',
+      source: 'netease',
+      title: 'Night Drive',
+      artist: 'Aria',
+      album: 'Neon',
+      durationSec: 200,
+      listenedSec: 120,
+      startedAt: playedAt,
+      playedAt,
+      completed: false,
+    });
+
+    const push1 = await postJson(env, '/listening-plays', {
+      schemaVersion: 1,
+      plays: [play('s1', 1_000), play('s2', 2_000)],
+    }, userA.accessToken);
+    assert.equal(push1.status, 200);
+    assert.equal(push1.body.savedPlays, 2);
+    assert.ok(push1.body.revision >= 2);
+
+    const pull1 = await requestJson(env, '/listening-plays?since=0&limit=10', { headers: headersA });
+    assert.equal(pull1.status, 200);
+    assert.equal(pull1.body.schemaVersion, 1);
+    assert.deepEqual(pull1.body.plays.map((record: { sessionId: string }) => record.sessionId), ['s1', 's2']);
+    assert.deepEqual(pull1.body.deletes, []);
+    assert.equal(pull1.body.hasMore, false);
+    assert.equal(pull1.body.reset, false);
+
+    const cursor = pull1.body.since;
+    const pullNoop = await requestJson(env, `/listening-plays?since=${cursor}&limit=10`, { headers: headersA });
+    assert.equal(pullNoop.body.plays.length, 0);
+
+    // 同一 sessionId 重复推送只更新一条，不产生第二行；全量拉取仍是两条。
+    await postJson(env, '/listening-plays', { schemaVersion: 1, plays: [play('s1', 1_000)] }, userA.accessToken);
+    const pullAfterDuplicate = await requestJson(env, `/listening-plays?since=${cursor}&limit=10`, { headers: headersA });
+    assert.equal(pullAfterDuplicate.body.plays.length, 1);
+    const pullAll = await requestJson(env, '/listening-plays?since=0&limit=10', { headers: headersA });
+    assert.equal(pullAll.body.plays.length, 2);
+
+    // 删除墓碑跨设备传播；之后重复上传同一个 sessionId 不能复活它。
+    const deleted = await postJson(env, '/listening-plays', { schemaVersion: 1, deletes: ['s1'] }, userA.accessToken);
+    assert.equal(deleted.status, 200);
+    const pullDeleted = await requestJson(env, `/listening-plays?since=${pullAll.body.since}&limit=10`, { headers: headersA });
+    assert.deepEqual(pullDeleted.body.deletes, ['s1']);
+    await postJson(env, '/listening-plays', { schemaVersion: 1, plays: [play('s1', 1_000)] }, userA.accessToken);
+    const pullAfterResurrect = await requestJson(env, '/listening-plays?since=0&limit=10', { headers: headersA });
+    assert.deepEqual(pullAfterResurrect.body.plays.map((record: { sessionId: string }) => record.sessionId), ['s2']);
+
+    // 清空水位线：早于 clearedAt 的记录不再下发，晚于它的记录保留；早于水位的推送直接丢弃。
+    await postJson(env, '/listening-plays', { schemaVersion: 1, plays: [play('s3', 3_000)] }, userA.accessToken);
+    const cleared = await postJson(env, '/listening-plays', {
+      schemaVersion: 1,
+      clear: { clearedAt: 2_500 },
+    }, userA.accessToken);
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.clearedAt, 2_500);
+    const pullAfterClear = await requestJson(env, '/listening-plays?since=0&limit=10', { headers: headersA });
+    assert.equal(pullAfterClear.body.clearedAt, 2_500);
+    assert.deepEqual(pullAfterClear.body.plays.map((record: { sessionId: string }) => record.sessionId), ['s3']);
+    // 清空只回收水位线之前的记录，墓碑必须留着，否则不认识的设备重推已删记录会复活它。
+    assert.deepEqual(pullAfterClear.body.deletes, ['s1']);
+    const pushBeforeClear = await postJson(env, '/listening-plays', {
+      schemaVersion: 1,
+      plays: [play('s4', 1_000)],
+    }, userA.accessToken);
+    assert.equal(pushBeforeClear.body.savedPlays, 0);
+    const pullAfterOldPush = await requestJson(env, '/listening-plays?since=0&limit=10', { headers: headersA });
+    assert.deepEqual(pullAfterOldPush.body.plays.map((record: { sessionId: string }) => record.sessionId), ['s3']);
+
+    // 水位线之上被删的记录：墓碑同样挡住重复上传。
+    await postJson(env, '/listening-plays', { schemaVersion: 1, plays: [play('s5', 7_000)] }, userA.accessToken);
+    await postJson(env, '/listening-plays', { schemaVersion: 1, deletes: ['s5'] }, userA.accessToken);
+    await postJson(env, '/listening-plays', { schemaVersion: 1, plays: [play('s5', 7_000)] }, userA.accessToken);
+    const pullAfterLateDelete = await requestJson(env, '/listening-plays?since=0&limit=10', { headers: headersA });
+    assert.equal(
+      pullAfterLateDelete.body.plays.some((record: { sessionId: string }) => record.sessionId === 's5'),
+      false,
+    );
+
+    // 分页用干净账号单独测：limit=2 时 hasMore 为 true，游标只推进到本页最后一条。
+    const userC = (await registerUser(env, 'listen-c@example.com', 'password-789')).body;
+    const headersC = { Authorization: `Bearer ${userC.accessToken}` };
+    await postJson(env, '/listening-plays', {
+      schemaVersion: 1,
+      plays: [play('p1', 10_000), play('p2', 11_000), play('p3', 12_000)],
+    }, userC.accessToken);
+    const page1 = await requestJson(env, '/listening-plays?since=0&limit=2', { headers: headersC });
+    assert.equal(page1.body.hasMore, true);
+    assert.equal(page1.body.plays.length, 2);
+    const page2 = await requestJson(env, `/listening-plays?since=${page1.body.since}&limit=10`, { headers: headersC });
+    assert.equal(page2.body.hasMore, false);
+    assert.equal(page2.body.plays.length, 1);
+
+    // 服务端 revision 回退（例如换库）时通知客户端从 0 重拉。
+    const reset = await requestJson(env, '/listening-plays?since=999999&limit=10', { headers: headersA });
+    assert.equal(reset.body.reset, true);
+    assert.equal(reset.body.since, 0);
+
+    // 跨账号隔离 + 兼容模式拒绝 + 非法载荷拒绝。
+    const otherUser = await requestJson(env, '/listening-plays?since=0', { headers: { Authorization: `Bearer ${userB.accessToken}` } });
+    assert.equal(otherUser.body.plays.length, 0);
+    assert.equal(otherUser.body.clearedAt, 0);
+    const compat = await postJson(env, '/listening-plays', { schemaVersion: 1, plays: [play('s9', 9_000)] }, SYNC_TOKEN);
+    assert.equal(compat.status, 403);
+    const invalidSource = await postJson(env, '/listening-plays', {
+      schemaVersion: 1,
+      plays: [{ ...play('s9', 9_000), source: 'bilibili' }],
+    }, userA.accessToken);
+    assert.equal(invalidSource.status, 400);
+    const mixedClear = await postJson(env, '/listening-plays', {
+      schemaVersion: 1,
+      plays: [play('s9', 9_000)],
+      clear: { clearedAt: 9_000 },
+    }, userA.accessToken);
+    assert.equal(mixedClear.status, 400);
   });
 
   await section('CORS 预检放行 DELETE（platform-sessions 远端清除，实机日志曾报 remote clear failed）', async () => {

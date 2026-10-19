@@ -1,5 +1,5 @@
 import type { SettingsSubviewId } from '../../../../stores/useSettingsModalStore';
-import { SETTINGS_NAV_GROUP_SPECS, type SettingsSectionId } from './settingsNavModel';
+import { SETTINGS_NAV_GROUP_SPECS, isSettingsNavSectionSpec, type SettingsSectionId } from './settingsNavModel';
 
 // src/components/modal/settings/navigation/settingsLastSection.ts
 // Remembers which options-tab section the settings dialog was last on, and decides which section it
@@ -12,7 +12,7 @@ import { SETTINGS_NAV_GROUP_SPECS, type SettingsSectionId } from './settingsNavM
 
 export const SETTINGS_LAST_SECTION_STORAGE_KEY = 'folia_settings_last_section';
 
-export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = 'appearance';
+export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = 'overview';
 
 /** The slice of Storage this module touches; tests pass a plain object. */
 export type SettingsSectionStorage = Pick<Storage, 'getItem' | 'setItem'>;
@@ -21,10 +21,11 @@ export interface SettingsSectionAvailability {
     isElectron: boolean;
 }
 
-/** Section ids the sidebar actually shows on this runtime, in sidebar order. */
+/** Section ids the sidebar actually shows on this runtime, in sidebar order. Command exits are skipped. */
 export const getAvailableSettingsSectionIds = ({ isElectron }: SettingsSectionAvailability): SettingsSectionId[] => (
     SETTINGS_NAV_GROUP_SPECS
         .flatMap(group => group.sections)
+        .filter(isSettingsNavSectionSpec)
         .filter(section => !section.electronOnly || isElectron)
         .map(section => section.id)
 );

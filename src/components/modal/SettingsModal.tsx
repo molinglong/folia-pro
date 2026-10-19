@@ -16,6 +16,7 @@ import type { LyricFilterDraft } from './LyricFilterSettingsModal';
 import GlobalLyricOffsetModal from './settings/GlobalLyricOffsetModal';
 import { settingsCardClassFor, settingsToggleOffClassFor } from './settings/settingsCardClasses';
 import AppearanceSettingsSubview from './settings/AppearanceSettingsSubview';
+import OverviewSettingsSubview from './settings/OverviewSettingsSubview';
 import DesktopSettingsSubview from './settings/DesktopSettingsSubview';
 import GeneralSettingsSubview from './settings/GeneralSettingsSubview';
 import IntegrationSettingsSubview from './settings/IntegrationSettingsSubview';
@@ -25,6 +26,7 @@ import GraphicsSettingsSubview from './settings/GraphicsSettingsSubview';
 import ModsSettingsSubview from './settings/ModsSettingsSubview';
 import DeveloperSettingsSubview from './settings/DeveloperSettingsSubview';
 import PlaybackSettingsSubview from './settings/PlaybackSettingsSubview';
+import ListeningStatsSettingsSection from './settings/ListeningStatsSettingsSection';
 import InteractionSettingsSubview from './settings/InteractionSettingsSubview';
 import StorageSettingsSection from './settings/StorageSettingsSection';
 // @fork 本地魔改版：AiHelpPromptModal（「遇到问题？」弹窗）与 ReleaseNotesDialog（版本更新）不再挂载，源文件保留。
@@ -41,7 +43,7 @@ import SettingsSidebarChips from './settings/navigation/SettingsSidebarChips';
 import SettingsSidebarWide from './settings/navigation/SettingsSidebarWide';
 import { settingsAnchorSubview } from './settings/navigation/settingsAnchorModel';
 import SettingsSectionHeader from './settings/SettingsSectionHeader';
-import { buildSettingsNavGroups, findSettingsNavItem, type SettingsSectionId } from './settings/navigation/settingsNavModel';
+import { buildSettingsNavGroups, findSettingsNavItem, type SettingsNavCommandId, type SettingsSectionId } from './settings/navigation/settingsNavModel';
 import { isSettingsSectionSubview, resolveInitialSettingsSection, sectionForSettingsSubview, writeLastSettingsSection } from './settings/navigation/settingsLastSection';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useSettingsScrollSpy } from '../../hooks/useSettingsScrollSpy';
@@ -67,11 +69,10 @@ import { selectDesktopSettingsSnapshot, useDesktopSettingsStore } from '../../st
 import { selectStageSettingsSnapshot, useStageSettingsStore } from '../../stores/useStageSettingsStore';
 import { useSettingsModalStore } from '../../stores/useSettingsModalStore';
 import { selectAudioSettingsSnapshot, useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
-import { selectHomeLayoutSettingsSnapshot, useHomeLayoutSettingsStore } from '../../stores/useHomeLayoutSettingsStore';
 import { useGraphicsPresetStore } from '../../stores/useGraphicsPresetStore';
 import { setNavidromeEnabledState, useLibraryStore } from '../../stores/useLibraryStore';
 import { hasLibrarySuiteChoice } from '../../library/registry';
-import { useIsBravaisLibraryActive } from '../../library/app/bravaisLibraryActive';
+import { openHomeStylePanel } from '../../stores/useHomeStylePanelStore';
 
 const DEFAULT_OPENAI_TEMPERATURE = '0.7';
 const AUR_PACKAGE_URL = 'https://aur.archlinux.org/packages/folia-major-bin';
@@ -81,6 +82,8 @@ const VERSION_INFO = __DOCKER_STACK_VERSION__
 
 interface SettingsModalProps {
     onClose: () => void;
+    /** Sends the app back to the home wall; used by the 主页样式 sidebar command. */
+    onNavigateHome: () => void;
     initialTab?: 'help' | 'options';
     initialSubview?: SettingsSubviewId | null;
     initialVisualizerSection?: VisualizerSettingsSection | null;
@@ -140,6 +143,7 @@ const hasElectronBridge = () => typeof window !== 'undefined' && Boolean((window
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose,
+    onNavigateHome,
     initialTab = 'help',
     initialSubview = null,
     initialVisualizerSection = null,
@@ -185,10 +189,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const { t } = useTranslation();
     // Track the press origin per overlay so nested subview backdrops do not overwrite each other.
     const overlayMouseDownTargetsRef = useRef(new WeakSet<HTMLDivElement>());
-    const {
-        grid3dCardStyle,
-        handleSetGrid3dCardStyle: onChangeGrid3dCardStyle,
-    } = useHomeLayoutSettingsStore(useShallow(selectHomeLayoutSettingsSnapshot));
     const {
         enableMediaCache,
         mediaCacheLimitGb,
@@ -410,6 +410,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setActiveSettingsSection(section);
         writeLastSettingsSection(section, { isElectron: hasElectronBridge() });
     };
+    // 侧栏里那类「不是页面」的入口：主页样式不做表单，直接关设置、回主页、拉开现场调整浮层，
+    // 让用户在真正的墙上看到改动即时生效（浮层挂在 App 首页层同级，见 HomeStylePanel）。
+    const handleSelectNavCommand = (command: SettingsNavCommandId) => {
+        if (command === 'homeStyle') {
+            onClose();
+            onNavigateHome();
+            openHomeStylePanel();
+        }
+    };
     const contentScrollRef = useRef<HTMLDivElement>(null);
     // Matches the md:flex-row split below; the two sidebars are different enough to render separately.
     const isWideSettingsLayout = useMediaQuery('(min-width: 768px)');
@@ -442,7 +451,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 writeLastSettingsSection(targetSection, { isElectron: hasElectronBridge() });
             }
         } else {
-            setActiveSettingsSection(prev => prev || 'appearance');
+            // 没有任何记忆时落总览：先让人看见账户、听歌和各分区现状，再决定往哪进。
+            setActiveSettingsSection(prev => prev || 'overview');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialSubview, initialTab]);
@@ -1272,13 +1282,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     );
     const canEnableAutoUpdate = Boolean(electronSettings.ENABLE_UPDATE_CHECK && updateStatus?.autoUpdateSupported);
 
-    const isBravaisSuiteActive = useIsBravaisLibraryActive();
     // 图形设置的两个细粒度锚点（性能/减少动效）只在档位是「自定义」时才渲染出来；
     // 选了预设档位会被折叠隐藏，侧栏目录要跟着收掉这两条，不然会链到一个不存在的目的地。
     const isCustomPresetActive = useGraphicsPresetStore(state => state.graphicsPreset === 'custom');
     const settingsNavGroups = useMemo(
-        () => buildSettingsNavGroups(t, { isElectron, hasLibrarySuiteChoice: hasLibrarySuiteChoice(), isBravaisSuiteActive, isCustomPresetActive }),
-        [t, isElectron, isBravaisSuiteActive, isCustomPresetActive],
+        () => buildSettingsNavGroups(t, { isElectron, hasLibrarySuiteChoice: hasLibrarySuiteChoice(), isCustomPresetActive }),
+        [t, isElectron, isCustomPresetActive],
     );
     const activeSettingsNavItem = findSettingsNavItem(settingsNavGroups, activeSettingsSection);
     const prefersReducedMotion = useReducedMotionFor('settingsScroll');
@@ -1602,6 +1611,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         groups={settingsNavGroups}
                                         activeSectionId={activeSettingsSection}
                                         onSelectSection={handleSelectSettingsSection}
+                                        onSelectCommand={handleSelectNavCommand}
                                         activeAnchorId={activeAnchorId}
                                         onSelectAnchor={(sectionId, anchorId) => {
                                             if (sectionId === activeSettingsSection) {
@@ -1618,6 +1628,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         groups={settingsNavGroups}
                                         activeSectionId={activeSettingsSection}
                                         onSelectSection={handleSelectSettingsSection}
+                                        onSelectCommand={handleSelectNavCommand}
                                         isDaylight={isDaylight}
                                     />
                                 )}
@@ -1625,15 +1636,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <SettingsSectionHeader
                                         title={activeSettingsNavItem?.label ?? ''}
                                         description={activeSettingsNavItem?.description ?? ''}
-                                        showDaylightToggle={activeSettingsSection === 'appearance'}
+                                        showDaylightToggle={activeSettingsSection === 'appearance' || activeSettingsSection === 'theme'}
                                         isDaylight={isDaylight}
                                         onSetDaylightPreference={onSetDaylightPreference}
                                         daylightLabel={t('options.daylightMode')}
                                         utilityGhostButtonClass={utilityGhostButtonClass}
                                     />
                                     <div className="space-y-8">
-                                        {activeSettingsSection === 'appearance' && (
+                                        {activeSettingsSection === 'overview' && (
+                                            <OverviewSettingsSubview
+                                                isDaylight={isDaylight}
+                                                isElectron={isElectron}
+                                                themeGenerationSource={themeGenerationSource}
+                                                onOpenSection={handleSelectSettingsSection}
+                                                discordPresenceStatus={discordPresenceStatus}
+                                                obsBrowserSourceStatus={obsBrowserSourceStatus}
+                                                lyricApiStatus={lyricApiStatus}
+                                            />
+                                        )}
+                                        {(activeSettingsSection === 'appearance' || activeSettingsSection === 'theme') && (
                                             <AppearanceSettingsSubview
+                                                part={activeSettingsSection === 'theme' ? 'theme' : 'player'}
                                                 accentOutlineColor={accentOutlineColor}
                                                 bgMode={bgMode}
                                                 isDaylight={isDaylight}
@@ -1667,8 +1690,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 onChangeStageTrackPillTimeoutSec={onChangeStageTrackPillTimeoutSec}
                                                 onToggleStageTrackPillOnHome={onToggleStageTrackPillOnHome}
                                                 utilityGhostButtonClass={utilityGhostButtonClass}
-                                                grid3dCardStyle={grid3dCardStyle}
-                                                onChangeGrid3dCardStyle={onChangeGrid3dCardStyle}
                                                 aiTheme={aiTheme}
                                             />
                                         )}
@@ -1691,6 +1712,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 settingsCardClass={settingsCardClass}
                                                 theme={theme}
                                                 utilityGhostButtonClass={utilityGhostButtonClass}
+                                            />
+                                        )}
+                                        {activeSettingsSection === 'listeningStats' && (
+                                            <ListeningStatsSettingsSection
+                                                isDaylight={isDaylight}
+                                                settingsCardClass={settingsCardClass}
+                                                theme={theme}
                                             />
                                         )}
                                         {activeSettingsSection === 'interaction' && (

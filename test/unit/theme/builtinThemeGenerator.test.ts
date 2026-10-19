@@ -165,4 +165,59 @@ describe('generateBuiltinDualTheme', () => {
             expect(getHueDistance(palette.accentHue, palette.baseHue)).toBeGreaterThan(20);
         }
     });
+
+    // Swatches arrive in area order. The leading colorful one is the cover's dominant hue; a big
+    // black border or white backdrop must not swallow the theme, and a tiny saturated accent must
+    // not beat a larger second color.
+    it('lets the largest colorful swatch lead past black and white backdrops', () => {
+        const palette = analyzeCoverPalette(['#1a1a1a', '#fafafa', '#3b82f6'], createSequenceRandom(17));
+
+        expect(getHueDistance(palette.baseHue, hexToHsl('#3b82f6')!.h)).toBeLessThanOrEqual(1);
+        // Only one colorful swatch: the accent stays on that same hue.
+        expect(palette.scheme).toBe('monochrome');
+    });
+
+    it('takes the accent from the next-largest colorful swatch, not the loudest one', () => {
+        const palette = analyzeCoverPalette(['#22c55e', '#0ea5e9', '#f43f5e'], createSequenceRandom(19));
+
+        expect(getHueDistance(palette.baseHue, hexToHsl('#22c55e')!.h)).toBeLessThanOrEqual(1);
+        expect(palette.scheme).toBe('duotone');
+        // Red is more saturated than blue but covers less area, so blue must be the accent.
+        expect(getHueDistance(palette.accentHue, hexToHsl('#0ea5e9')!.h)).toBeLessThanOrEqual(8);
+    });
+
+    it('falls back to the largest swatch when the artwork has no hue at all', () => {
+        const palette = analyzeCoverPalette(['#2a2a2c', '#d4d4d8'], createSequenceRandom(23));
+
+        expect(palette.scheme).toBe('monochrome');
+        expect(palette.baseLightness).toBeCloseTo(hexToHsl('#2a2a2c')!.l, 5);
+    });
+
+    // A black-and-white sleeve still rounds to a near-grey swatch with a stray hue. Every role's
+    // saturation is capped by the cover's own colorfulness, so that hue must not resurface as a
+    // vivid accent (the purple stroke around the playing poster).
+    it('keeps black-and-white artwork neutral instead of inventing a vivid accent', () => {
+        const neutral = generateBuiltinDualTheme({
+            coverColors: ['#8a8a8a', '#dcdcdc'],
+            random: createSequenceRandom(31),
+        });
+
+        for (const theme of [neutral.light, neutral.dark]) {
+            expect(hexToHsl(theme.accentColor)!.s).toBeLessThan(0.1);
+            expect(hexToHsl(theme.secondaryColor)!.s).toBeLessThan(0.08);
+            expect(hexToHsl(theme.primaryColor)!.s).toBeLessThan(0.08);
+            expect(hexToHsl(theme.backgroundColor)!.s).toBeLessThan(0.1);
+        }
+    });
+
+    it('keeps a vivid accent when the artwork really carries color', () => {
+        const vivid = generateBuiltinDualTheme({
+            coverColors: ['#3b82f6', '#f43f5e'],
+            random: createSequenceRandom(37),
+        });
+
+        for (const theme of [vivid.light, vivid.dark]) {
+            expect(hexToHsl(theme.accentColor)!.s).toBeGreaterThan(0.35);
+        }
+    });
 });

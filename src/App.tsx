@@ -18,6 +18,7 @@ import { useSettingsDialogModel } from './components/app/dialogs/useSettingsDial
 import AppOverlays from './components/app/overlays/AppOverlays';
 import AutomixModelReminder from './components/modal/AutomixModelReminder';
 import PonderHost from './components/ponder/PonderHost';
+import { registerHomeNavigator } from './services/ponder/pagePonderTarget';
 // Lazy so animejs (~38KB gz) stays out of the bootstrap chunk: this overlay only ever draws when the
 // animation switch is on AND the mode is automix, both off by default, so it is mounted only then.
 const AutomixTransitionAnimation = lazy(() => import('./components/app/overlays/AutomixTransitionAnimation'));
@@ -101,6 +102,7 @@ import { usePlaybackUiEffects } from './hooks/usePlaybackUiEffects';
 import { useLibraryPlaybackController } from './hooks/useLibraryPlaybackController';
 import { useNavidromeScrobbleReporter } from './hooks/useNavidromeScrobbleReporter';
 import { useNeteaseScrobbleReporter } from './hooks/useNeteaseScrobbleReporter';
+import { useListeningHistoryRecorder } from './hooks/useListeningHistoryRecorder';
 import { usePlaybackQueueController } from './hooks/usePlaybackQueueController';
 import { usePlaybackTransportController } from './hooks/usePlaybackTransportController';
 import { useLocalLibraryCatalog } from './hooks/useLocalLibraryCatalog';
@@ -681,6 +683,10 @@ export default function App() {
         popCollectionTo,
         backCollection,
     } = useAppNavigation();
+    // 把真正 history-aware 的 navigateToHome 交给思索的「回主页拉开主页样式浮层」入口（见 openHomeStylePanelFromPonder）。
+    useEffect(() => {
+        registerHomeNavigator(navigateToHome);
+    }, [navigateToHome]);
     const reduceLatticeMotion = useReducedMotionFor('lattice');
     const [hasLatticeExited, setHasLatticeExited] = useState(currentView !== 'lattice');
 
@@ -1428,6 +1434,11 @@ export default function App() {
         activeDeck: automix.activeDeck,
     });
     useNeteaseScrobbleReporter({
+        audioRef,
+        currentSong,
+        activeDeck: automix.activeDeck,
+    });
+    useListeningHistoryRecorder({
         audioRef,
         currentSong,
         activeDeck: automix.activeDeck,
@@ -2363,6 +2374,7 @@ export default function App() {
         onAudioOutputDeviceChange: handleAudioOutputDeviceChange,
         onReplayGainModeChange: handleChangeReplayGainMode,
         onToggleTransparentPlayerBackground: toggleTransparentModeWithHandoff,
+        navigateToHome,
     });
     const appDialogsModel = useAppDialogsModel({
         showLyricMatchModal,

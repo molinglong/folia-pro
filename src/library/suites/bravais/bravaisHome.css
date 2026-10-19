@@ -371,12 +371,13 @@
 
 /* ---------- 全局搜索框 ---------- */
 
+/* 全局搜索框：回车提交，不设搜索按钮（输入框拿焦点，回车是唯一提交口），所以底部自己留出气口。 */
 .bravais-seam-search {
     display: flex;
     height: 100%;
     flex-direction: column;
     gap: 16px;
-    padding: 22px 22px 0;
+    padding: 22px;
     box-sizing: border-box;
 }
 
@@ -409,6 +410,54 @@
 }
 
 .bravais-search-form input::-webkit-search-cancel-button { display: none; }
+
+/* 最近搜索：与搜索页历史面板同源（store.searchHistory，上限 10 条）。竖排清单，一行一个词：
+   行样式用缝里「⋯」菜单那套配方（无框无底、左对齐、悬停起一层淡底），长词省略号收进自身；
+   行与行紧排、整块按内容自然高，超出内部滚动。 */
+.bravais-search-history {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: -6px;
+}
+
+.bravais-search-history-title {
+    color: var(--bravais-seam-ink-soft);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+}
+
+.bravais-search-history-list {
+    display: flex;
+    max-height: 45vh;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+}
+
+/* 带上 .bravais-seam 才压得住 bravais.css 统一的 `.bravais-seam button { font: inherit }`（与竖排标题、署名行同一个坑）。 */
+.bravais-seam .bravais-search-history-list button {
+    min-width: 0;
+    padding: 7px 6px;
+    border: 0;
+    border-radius: 9px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.3;
+    text-align: left;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    background: none;
+    cursor: pointer;
+    transition: background 140ms ease;
+}
+
+.bravais-seam .bravais-search-history-list button:hover {
+    background: color-mix(in srgb, currentColor 12%, transparent);
+}
 
 /* ---------- 目录树面板 ---------- */
 

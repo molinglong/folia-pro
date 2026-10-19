@@ -100,7 +100,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
                     )}
                 </div>
 
-                {/* 登录入口直接呈现表单：少一跳，未登录即见邮箱/密码，登录成功自动同步。 */}
+                {/* 未登录只留一颗「登录 / 注册」，邮箱 / 密码在 AccountAuthDialog 弹窗里；登录成功自动同步。 */}
                 <AccountAuthForm
                     errorTextColor="text-red-400"
                     signedInExtras={(

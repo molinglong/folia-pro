@@ -1,5 +1,5 @@
 import React from 'react';
-import type { SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
+import type { SettingsNavCommandId, SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
 import { flattenSettingsNavItems } from './settingsNavModel';
 import { useDragToScroll } from '../../../../hooks/useDragToScroll';
 // src/components/modal/settings/navigation/SettingsSidebarChips.tsx
@@ -10,6 +10,8 @@ type SettingsSidebarChipsProps = {
     groups: SettingsNavGroup[];
     activeSectionId: SettingsSectionId;
     onSelectSection: (sectionId: SettingsSectionId) => void;
+    /** Command chips (e.g. 主页样式) leave the dialog instead of showing a page. */
+    onSelectCommand: (command: SettingsNavCommandId) => void;
     isDaylight: boolean;
 };
 
@@ -17,6 +19,7 @@ export const SettingsSidebarChips: React.FC<SettingsSidebarChipsProps> = ({
     groups,
     activeSectionId,
     onSelectSection,
+    onSelectCommand,
     isDaylight,
 }) => {
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -31,14 +34,15 @@ export const SettingsSidebarChips: React.FC<SettingsSidebarChipsProps> = ({
         >
             {items.map((section) => {
                 const Icon = section.icon;
-                const isActive = activeSectionId === section.id;
+                const isActive = !section.command && activeSectionId === section.id;
                 return (
                     <button
                         key={section.id}
                         type="button"
                         onClick={() => {
                             if (hasDragged()) return;
-                            onSelectSection(section.id);
+                            if (section.command) onSelectCommand(section.command);
+                            else onSelectSection(section.id as SettingsSectionId);
                         }}
                         className={`shrink-0 w-auto p-2 rounded-xl border transition-colors flex items-center justify-center gap-2 text-left ${isActive ? (isDaylight ? 'border-zinc-300/70 bg-white/80' : 'border-white/20 bg-white/10') : (isDaylight ? 'border-transparent hover:bg-white/50' : 'border-transparent hover:bg-white/5')}`}
                     >

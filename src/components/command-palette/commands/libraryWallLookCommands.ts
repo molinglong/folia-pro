@@ -1,6 +1,6 @@
 import { Blinds, Captions, Droplets, GalleryVerticalEnd, Grid2x2, Palette, SquareDashed } from 'lucide-react';
 import type { CommandPaletteCommand, CommandPaletteContext } from '../types';
-import { createSettingsAnchorCommand, createToggleCommand, defineCommand } from '../commandFactories';
+import { createHomeStylePanelCommand, createToggleCommand, defineCommand } from '../commandFactories';
 import {
     libraryWallLookPickerSurface,
     libraryWallSeamStylePickerSurface,
@@ -111,12 +111,11 @@ export const libraryWallLookCommands: CommandPaletteCommand[] = [
         context => context.settings.toggleLibraryWallBackdropBlur(),
         { icon: Droplets, isAvailable: isLibraryWallLookCommandAvailable },
     ),
-    createSettingsAnchorCommand(
+    createHomeStylePanelCommand(
         'settings-bravais',
         'Bravais wall settings',
-        'Jump to the settings that only apply to the Bravais wall',
+        'Open the home wall and tune the Bravais-only knobs',
         ['bravais settings', 'wall settings', 'bravais', 'Bravais 墙面', '墙面分组'],
-        'bravaisSettings',
         { isAvailable: isLibraryWallLookCommandAvailable },
     ),
 ];

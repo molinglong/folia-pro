@@ -53,10 +53,10 @@ const anchors = {
 
 const caption = (key: string) => `ponder.captions.bravaisWall.${key}`;
 
-/** 这一章讲的外观设置（叠页边、透光档、窗数）都在「界面设置 → Bravais 墙面」里。 */
+/** 这一章讲的外观设置（叠页边、透光档、窗数）现在都在主页墙的「主页样式」现场调浮层里（HomeStylePanel）。 */
 const openBravaisSettings = {
-    kind: 'openSettings',
-    anchorId: 'bravaisSettings',
+    kind: 'openHomeStylePanel',
+    panelAnchor: 'bravaisSettings',
     labelKey: 'ponder.actions.openBravaisSettings',
 } as const;
 

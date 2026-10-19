@@ -2,11 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 import { installBaseState, mockNeteaseApi, openApp } from './helpers/appFixtures';
 
 // test/ui/bravaisSettingsGroup.spec.ts
-// 界面设置的「Bravais 墙面」分组（2026-10-09，用户要求 bravais 独有的设置都整理到这里）：
-// - bravais 生效时，分组紧跟在「资料库界面」后面，里面是透光三档、部分透明时的每块窗数与集合叠页边开关；
-//   「资料库界面」那一节只剩 suite 的选择；
+// 「Bravais 墙面」分组（2026-10-19 随主页外观整组从界面设置搬到主页样式浮层 HomeStylePanel）：
+// - bravais 生效时，浮层里出现这一组，含透光三档、部分透明时的每块窗数与集合叠页边开关；
 // - 切换都写进 useLibraryWallLookStore 并持久化，叠页边开关立刻作用到墙（stage 根节点的 has-stack-edges）；
-// - grid 生效时整组不出现，切到 bravais 后立刻出现。
+// - grid 生效时整组不出现。
 
 test.use({ screenshot: 'only-on-failure' });
 
@@ -25,11 +24,13 @@ const bootHome = async (page: Page, suite: 'bravais' | 'grid') => {
     await openApp(page);
 };
 
-const openGeneralSettings = (page: Page, anchorId?: string) => page.evaluate(async (anchor) => {
-    const path = '/src/stores/useSettingsModalStore.ts';
-    const { useSettingsModalStore } = await import(/* @vite-ignore */ path);
-    useSettingsModalStore.getState().openSettings('options', 'general', null, anchor ?? null);
-}, anchorId);
+// 主页外观现在由 HomeStylePanel 现场调（App 挂在首页层同级，读 useHomeStylePanelStore.isOpen），
+// 不再从设置弹窗里进；这里直接拉浮层，底下的墙保持可见。
+const openHomeStylePanelDrawer = (page: Page) => page.evaluate(async () => {
+    const path = '/src/stores/useHomeStylePanelStore.ts';
+    const { openHomeStylePanel } = await import(/* @vite-ignore */ path);
+    openHomeStylePanel();
+});
 
 const group = (page: Page) => page.locator('[data-bravais-settings]');
 
@@ -37,22 +38,12 @@ test('the Bravais group holds the transparency, the windows per block and the st
     await bootHome(page, 'bravais');
     const stage = page.locator('[data-library-stage="bravais"]');
     await expect(stage).toHaveClass(/\bhas-stack-edges\b/);
-    await openGeneralSettings(page, 'bravaisSettings');
+    await openHomeStylePanelDrawer(page);
 
     await expect(page.getByRole('heading', { name: 'Bravais wall', exact: true })).toBeVisible();
     await expect(group(page)).toBeVisible();
-    // 透光与窗数搬进了分组；「资料库界面」只剩 suite 的选择。
+    // 透光与窗数都在分组里；浮层不再嵌 suite 选择（那是「资料库界面」那一节，仍留在通用设置）。
     await expect(group(page).locator('[data-library-wall-look-settings]')).toHaveCount(1);
-    await expect(page.locator('[data-library-wall-look-settings]')).toHaveCount(1);
-    await expect(page.locator('[data-library-suite-option="bravais"]')).toHaveAttribute('aria-checked', 'true');
-    await expect(group(page).locator('[data-library-suite-option]')).toHaveCount(0);
-    // 分组在「资料库界面」那一节之后。
-    const order = await page.evaluate(() => {
-        const suite = document.querySelector('[data-library-suite-option]')!;
-        const bravais = document.querySelector('[data-bravais-settings]')!;
-        return Boolean(suite.compareDocumentPosition(bravais) & Node.DOCUMENT_POSITION_FOLLOWING);
-    });
-    expect(order).toBe(true);
 
     // 透光：部分透明时才有每块窗数。
     await group(page).locator('[data-library-wall-look="solid"]').click();
@@ -74,23 +65,19 @@ test('the Bravais group holds the transparency, the windows per block and the st
     await expect(stage).toHaveClass(/\bhas-stack-edges\b/);
 });
 
-test('the Bravais group stays out of the grid interface and appears once bravais is chosen', async ({ page }) => {
+test('the Bravais group stays out of the panel while the grid wall is the effective suite', async ({ page }) => {
+    // 浮层是主页外观唯一阵地，grid 生效时不该出现 bravais 那一组（组件自带 suite 门控）。
     await bootHome(page, 'grid');
-    await openGeneralSettings(page, 'librarySuite');
-    await expect(page.locator('[data-library-suite-option="grid"]')).toHaveAttribute('aria-checked', 'true');
+    await openHomeStylePanelDrawer(page);
     await expect(group(page)).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Bravais wall', exact: true })).toHaveCount(0);
-
-    await page.locator('[data-library-suite-option="bravais"]').click();
-    await expect(group(page)).toBeVisible();
-    await expect(page.getByRole('switch', { name: 'Collection stack edges' })).toBeVisible();
 });
 
 // 2026-10-09：信息条的材质（始终透明 / 实色预设，互斥）与墙后画面的两个开关也在分组里。
 test('the Bravais group switches the info strip material and the backdrop', async ({ page }) => {
     await bootHome(page, 'bravais');
     const stage = page.locator('[data-library-stage="bravais"]');
-    await openGeneralSettings(page, 'bravaisSettings');
+    await openHomeStylePanelDrawer(page);
     await expect(group(page)).toBeVisible();
 
     // 信息条始终透明默认开（2026-10-09）：先关掉，下面的实色预设才作用到缝。

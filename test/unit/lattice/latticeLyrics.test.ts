@@ -11,7 +11,7 @@ import type { LatticeLyricInput } from '../../../src/components/app/lattice/lyri
 
 // test/unit/lattice/latticeLyrics.test.ts
 const input = (patch: Partial<LatticeLyricInput> = {}): LatticeLyricInput => ({ songKey: 'song-a',
-    lines: [], currentLineIndex: -1, currentTime: motionValue(0), theme: DEFAULT_THEME,
+    lines: [], currentLineIndex: -1, currentTime: motionValue(0), audioPower: motionValue(0), theme: DEFAULT_THEME,
     keywordColoringEnabled: true, reducedMotion: false, fontsEpoch: 0, ...patch });
 const measure: MeasureText = (text, font) => {
     const size = Number(font.match(/([\d.]+)px/)?.[1] ?? 20);

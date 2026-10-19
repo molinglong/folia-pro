@@ -126,8 +126,11 @@ export const clearStoredSession = () => {
     void removeFromCache(SESSION_CACHE_KEY);
 };
 
+// 同步不再要求 legacy 的 enabled 开关：存储区那颗开关已随「同步服务」区块一起删掉，登录 Folia 账号即自动同步。
+// 只要有服务器地址（有内置默认值，恒真）且已登录（会话或兼容 token），就视为可同步——否则残留的 enabled:false
+// 会让同步静默失效，而界面上已无处可改。
 export const isSyncConfigured = (config = getSyncConfig()) => (
-    config.enabled && Boolean(config.workerBaseUrl) && Boolean(config.authToken || memorySession)
+    Boolean(config.workerBaseUrl) && Boolean(config.authToken || memorySession)
 );
 
 export const getSyncStatus = (): SyncRuntimeStatus => readJson(SYNC_STATUS_STORAGE_KEY, DEFAULT_STATUS);

@@ -10,6 +10,7 @@ import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStor
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { selectBravaisHasCurrentSong } from './bravaisBack';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { useSearchNavigationStore } from '../../../stores/useSearchNavigationStore';
 
 // src/library/suites/bravais/useBravaisHomeChrome.ts
 // 首页缝里与来源无关的那一部分（设计稿 §10.5）：五个一级页签与 F6 的循环、全局搜索框（提交走 onSearchCommitted
@@ -69,14 +70,18 @@ export const useBravaisHomeChrome = ({
         disabled: Boolean(candidate.disabledReason),
     })), [tab, tabs]);
 
+    // 搜索历史与搜索页面板同一条数据（store 只在提交成功时追加，数组身份稳定），这里只投影。
+    const searchHistory = useSearchNavigationStore(state => state.searchHistory);
     const search = useMemo<BravaisHomeSearch>(() => ({
         title: t('libraryBravaisHome.search'),
         placeholder: t('libraryBravaisHome.searchPlaceholder'),
         hint: t('libraryBravaisHome.searchHint'),
-        submitLabel: t('libraryBravaisHome.searchSubmit'),
         closeLabel: t('libraryBravaisHome.searchClose'),
-        onSubmit: query => latest.current.props.onSearchCommitted(query, latest.current.tab as HomeViewTab),
-    }), [t]);
+        historyLabel: t('search.historyTitle'),
+        history: searchHistory,
+        // 历史行带它那一条的来源；手输提交用当前页签（与以前同路）。
+        onSubmit: (query, sourceTab) => latest.current.props.onSearchCommitted(query, (sourceTab ?? latest.current.tab) as HomeViewTab),
+    }), [searchHistory, t]);
 
     const searchTool = useMemo<BravaisHomeTool>(() => ({
         id: 'search',

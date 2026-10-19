@@ -39,6 +39,10 @@ export const useCurrentSongMvUrl = (song: SongResult | null): string | null => {
             setMvUrl(hit.url);
             return;
         }
+        // Drop the previous song's MV the moment the song changes: the lookup below is a
+        // network call, and keeping the stale url up lets the old music video keep playing
+        // (and drift-catch back to its start) while the queue has already moved on.
+        setMvUrl(null);
         // Latest song wins: a provider that resolves after the user moved on must not paint
         // its MV behind the wrong song (cleanup flag guards the async hop).
         let cancelled = false;
