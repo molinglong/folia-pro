@@ -1,3 +1,12 @@
+> **Fork 说明**
+>
+> 本仓库是 [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) 的魔改分支，不是原创项目。
+> 上游与本分支均按 **AGPL-3.0** 授权。分发修改版或通过网络提供服务时，请按协议提供对应源码，并保留上游署名与许可证。
+>
+> 上游项目：<https://github.com/chthollyphile/folia-major>
+
+---
+
 <p align="center">
   <img src="https://github.com/user-attachments/assets/b5d0e863-48be-497b-b0e9-4bd8d8ce9bf0" alt="Folia" width="100%" />
 </p>
